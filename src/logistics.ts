@@ -173,7 +173,7 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
         paid:partialEstimate===null?null:round((old.paid??0)+partialEstimate),paidEstimated:withoutPaid>0,
         ...(old.paid!==undefined?{paidActual:old.paid,paidGross:pricedPaid}:{}),bill};
       mergeCost(paid,bill);
-      if(scheduled!==undefined&&scheduled===+day&&!actualDay.has(scheduled)) {
+      if(uses.length&&scheduled!==undefined&&scheduled===+day&&!actualDay.has(scheduled)) {
         Object.assign(rowFor(scheduled).row,receipt);actualDay.add(scheduled);
       } else {
         const dayIndex=old.date?Math.round((Date.parse(old.date)-Date.parse(start))/86400000):+day;

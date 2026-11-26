@@ -84,11 +84,14 @@ test('2 次采购与 2＋2＋3 分批独立，额外实际付款单列',()=>{
   const days=week([raw,cooked],5);
   const settings={prep:'每2～3天' as const,shopping:{count:2 as const},pattern:[2,2,3]};
   const old=receiptKey(start,1,'cookedchicken');
-  const q=planLogistics(days,profile,start,{}, {settings,prices:{chicken:chickenPrice},receipts:{[old]:{gross:200,net:200,paid:13}}});
+  const sameDay=receiptKey(start,0,'cookedchicken');
+  const q=planLogistics(days,profile,start,{}, {settings,prices:{chicken:chickenPrice},
+    receipts:{[old]:{gross:200,net:200,paid:13},[sameDay]:{gross:100,net:100,paid:8}}});
   deepEqual(q.batches.map(b=>b.day),[0,3]);
   deepEqual(q.prep.map(b=>b.range.to-b.range.from),[2,2,3]);
-  equal(q.actualBatches?.[0].lines[0].receiptKey,old);
-  equal(q.paid.known,13);
+  deepEqual(q.actualBatches?.map(b=>b.lines[0].receiptKey),[sameDay,old]);
+  ok(q.batches.every(b=>!b.lines.some(line=>line.id==='cookedchicken')));
+  equal(q.paid.known,21);
   equal(q.batches.reduce((n,b)=>n+b.purchase.known,0),q.purchase.known);
   const noCold=planLogistics(days,{...profile,tools:['煮锅','蒸锅']},start,{}, {settings:single});
   equal(noCold.batches.length,1);
