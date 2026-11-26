@@ -11,7 +11,7 @@
 | 6 历史与数据 | IndexedDB、体重日志、历史独立快照和重新使用校验 | `src/store.ts`、`src/main.tsx` |
 | 7 离线与备份 | 安装清单、离线缓存、版本更新与 JSON 恢复 | `public/manifest.webmanifest`、`scripts/sw.mjs` |
 | 8 验收 | 单元与 Chromium 端到端验收，结果单列 | `tests/`、`docs/TESTING.md` |
-| 9 发布 | 发布工作流已准备，需实际验证仓库 Pages 设置与公开访问 | `.github/workflows/pages.yml`、`docs/DEPLOYMENT.md` |
+| 9 发布 | GitHub Actions 测试及构建包上传通过。仓库仍是私有，设置变更请求返回 403，需仓库所有者启用 Pages | `.github/workflows/pages.yml`、`docs/DEPLOYMENT.md` |
 
 ## 已知限制与下一步
 
