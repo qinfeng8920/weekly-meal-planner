@@ -1,12 +1,13 @@
 import {food} from './catalog';
 import {addDays} from './batches';
 import {storageDays,requiresCooling} from './food-storage';
+import {purchaseFood,type PurchaseOptions,rawNetGrams,roundGrams} from './purchase-food';
 import type {Receipt,PrepJob} from './logistics';
 import type {Profile} from './profile';
 import type {Pantry} from './shopping';
 
 export type StockInfo={expires:string;storage:'干燥常温'|'冷藏'|'冷冻'};
-export type Allocation={id:string;source:string;grams:number};
+export type Allocation={id:string;source:string;grams:number;recipeGrams?:number};
 export type TaskRecord={packed?:true;made?:true;taken?:{date:string;allocation:Allocation[]}};
 export type Execution={stock?:Record<string,StockInfo>;tasks?:Record<string,TaskRecord>};
 export type TaskAction='分装'|'制作'|'取用';
@@ -62,8 +63,29 @@ export function dateStock(start:string,date:string,profile:Profile,pantry:Pantry
   return available;
 }
 
+type ActualLot=ReturnType<typeof actualLots>[number];
+
+export function allocateIngredient(id:string,grams:number,date:string,lots:ActualLot[],options?:PurchaseOptions) {
+  const product=purchaseFood(id,options);
+  const allocation:Allocation[]=[];
+  let missing=grams;
+  // 已制作的熟料只能用于原配方明确要求的同种熟料。
+  const sources=product.purchaseIngredientId===id?[id]:[id,product.purchaseIngredientId];
+  for(const sourceId of sources) for(const lot of lots) {
+    if(!missing||lot.id!==sourceId||lot.from>date||lot.expires<date||lot.net<=0)continue;
+    const rate=sourceId===id?1:product.rate;
+    if(!rate)continue;
+    const take=Math.min(lot.net,rawNetGrams(missing,rate));
+    const recipeGrams=Math.min(missing,roundGrams(take*rate));
+    if(take<=0||recipeGrams<=0)continue;
+    lot.net=roundGrams(lot.net-take);missing=roundGrams(missing-recipeGrams);
+    allocation.push({id,source:lot.source,grams:take,...(sourceId===id?{}:{recipeGrams})});
+  }
+  return {allocation,missing};
+}
+
 export function updateTask(current:Execution,job:PrepJob,action:TaskAction,checked:boolean,start:string,date:string,
-  profile:Profile,pantry:Pantry,receipts:Record<string,Receipt>):Execution {
+  profile:Profile,pantry:Pantry,receipts:Record<string,Receipt>,options?:PurchaseOptions):Execution {
   if(!job.key)throw Error('旧版方案的执行进度请在当前方案中重新安排。');
   const tasks={...current.tasks}, entry={...tasks[job.key]};
   if(action==='分装')entry.packed=checked?true:undefined;
@@ -75,16 +97,11 @@ export function updateTask(current:Execution,job:PrepJob,action:TaskAction,check
       const allocation:Allocation[]=[...entry.taken?.allocation??[]];
       const shortages:string[]=[];
       for(const ingredient of job.ingredients) {
-        let need=round(Math.max(0,ingredient.grams-allocation.filter(a=>a.id===ingredient.id).reduce((n,a)=>n+a.grams,0)));
+        const need=round(Math.max(0,ingredient.grams-allocation.filter(a=>a.id===ingredient.id).reduce((n,a)=>n+(a.recipeGrams??a.grams),0)));
         if(!need)continue;
-        for(const lot of lots) {
-          if(lot.id!==ingredient.id||lot.from>date||lot.expires<date||lot.net<=0)continue;
-          const grams=Math.min(lot.net,need);
-          lot.net=round(lot.net-grams);need=round(need-grams);
-          allocation.push({id:lot.id,source:lot.source,grams});
-          if(!need)break;
-        }
-        if(need)shortages.push(food(ingredient.id).name+' '+need+' 克');
+        const result=allocateIngredient(ingredient.id,need,date,lots,options);
+        allocation.push(...result.allocation);
+        if(result.missing)shortages.push(food(ingredient.id).name+' '+result.missing+' 克');
       }
       if(shortages.length)throw Error('可用实际库存还缺 '+shortages.join('、')+'。请先确认已购或补录保质期内库存。');
       entry.taken={date:entry.taken?.date??date,allocation};

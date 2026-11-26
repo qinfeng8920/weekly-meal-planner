@@ -1,5 +1,3 @@
-import {CookingEditor} from './CookingSettings';
-import {cookingDefaults} from './cooking-profile';
 import {useState, type ReactNode} from 'react';
 import {allergens, conditions, cuisines, equipment, initialProfile, screening, type Profile} from './profile';
 import {foods} from './catalog';
@@ -77,13 +75,11 @@ export function ProfileForm({value,onSave,onCancel}:{value:Profile|null;onSave:(
         p.fruit==='自定义摄入量'?text('fruitGrams','每日水果克数','number'):null,
         select('dairy','乳制品',['正常摄入','减少牛奶','不吃乳制品','乳糖不耐受']))}
     </>}
-    {step===4&&<>{multi('tools','可用厨具',equipment)}{grids(select('skill','厨艺',['完全不会','简单做饭','熟练']),
-      select('minutes','每餐制作时间上限',['10','20','40','120'],['10 分钟','20 分钟','40 分钟','不限']))}<CookingEditor value={p.cooking??cookingDefaults} onChange={value=>patch('cooking',value)} overrides={false}/></>}
+    {step===4&&<>{multi('tools','可用厨具',equipment)}<p className="meta">也请勾选实际可用的冰箱和冷冻室，采购计划会用它们判断能安全保存几天。</p></>}
     {step===5&&<>
-      {grids(text('country','国家（选填）'),text('city','城市（选填）'),text('budget','全周采购预算（选填）','number'),
-        text('people','用餐人数','number'),select('trips','期望采购次数',['1','2'],['一次','分两次']),
-        select('lunchPlace','午餐地点',['在家','食堂','外卖']),select('prep','备餐方式',['周末一次备餐','每隔2～3天','每天现做','混合模式']),
+      {grids(text('people','用餐人数','number'),select('lunchPlace','午餐地点',['在家','食堂','外卖']),
         select('meals','每日餐次',['2','3','4'],['早午餐和晚餐','三餐','三餐加加餐']))}
+      <p className="meta">选好档案后，在「生成设置」统一填写采购次数和备餐周期。</p>
       {check('frozen','接受冷冻食材')}{check('repeats','允许主菜和蔬菜在一周内重复')}{check('packed','需要自带便当')}{check('waste','优先复用食材，减少浪费')}
     </>}
     {error&&<p role="alert" className="error">{error}</p>}

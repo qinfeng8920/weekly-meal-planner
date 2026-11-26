@@ -3,8 +3,8 @@ import {deepEqual,equal,ok,throws} from 'node:assert/strict';
 import {cookingDefaults} from '../src/cooking-profile';
 import {demo} from './fixtures';
 import {food,recipeMap} from '../src/catalog';
-import {regenerate,verifyAgainst,type Plan} from '../src/planner';
-import {counts,defaultPool,ingredientPools,poolGroups,poolModes,recipeFoodIds,standardFoods,weekUsage,type PoolSettings} from '../src/ingredient-pool';
+import {newPlanStart,regenerate,verifyAgainst,type Plan} from '../src/planner';
+import {counts,defaultPool,ingredientPools,poolGroups,poolModes,recipeFoodIds,visiblePoolModes,standardFoods,weekUsage,type PoolSettings} from '../src/ingredient-pool';
 import {mealConflict} from '../src/food-semantics';
 import {planLogistics,parallelSessions,receiptKey,type PrepJob,type Receipt} from '../src/logistics';
 import {addDays,splitWeek} from '../src/batches';
@@ -20,13 +20,13 @@ let baseline:Plan|undefined;
 const round=(n:number)=>Math.round(n*100)/100;
 const avg=(values:number[])=>values.length?round(values.reduce((a,b)=>a+b,0)/values.length):null;
 
-test('120 个 V2 种子按组记录生成、独立验收、集中度、复用和结余',()=>{
+test('126 个 V2.1 种子按组记录生成、独立验收、集中度、复用和结余',()=>{
   const totals:Record<string,number>={};
   const results:{mode:string;profile:number;attempted:number;passed:number;qualified:number;failed:Record<string,number>;
     unique:number|null;core:number|null;counts:Record<string,number|null>;reusedPercent:number|null;projectedNetSurplusGrams:number|null;
     meanMsAll:number|null;meanMsSuccess:number|null;maxMs:number}[]=[];
-  for(const mode of poolModes) for(const [index,p] of profiles.entries()) {
-    const cases=Array.from({length:10},(_,i)=>`V2-${mode}-${index}-${i}`);
+  for(const mode of visiblePoolModes) for(const [index,p] of profiles.entries()) {
+    const cases=Array.from({length:14},(_,i)=>`V2-${mode}-${index}-${i}`);
     const failed:Record<string,number>={};
     const times:number[]=[],unique:number[]=[], reused:number[]=[], surplus:number[]=[], core:number[]=[], starts:number[]=[];
     const byGroup:Record<string,number[]>=Object.fromEntries(poolGroups.map(g=>[g,[]]));
@@ -64,7 +64,7 @@ test('120 个 V2 种子按组记录生成、独立验收、集中度、复用和
       core.push(poolGroups.reduce((n,g)=>n+count[g],0));
       starts.push(times.at(-1)!);
       for(const g of poolGroups)byGroup[g].push(count[g]);
-      if(!baseline&&mode==='极简采购'&&index===0)baseline=plan;
+      if(!baseline&&mode==='少量种类'&&index===0)baseline=plan;
     }
     totals[mode]=(totals[mode]??0)+passed;
     results.push({mode,profile:index+1,attempted:cases.length,passed,qualified:passed-unsafe,failed,
@@ -72,10 +72,10 @@ test('120 个 V2 种子按组记录生成、独立验收、集中度、复用和
       reusedPercent:avg(reused),projectedNetSurplusGrams:avg(surplus),meanMsAll:avg(times),meanMsSuccess:avg(starts),maxMs:round(Math.max(...times))});
     equal(unsafe,0);
   }
-  for(const row of results)console.log('V2 样本 '+JSON.stringify(row));
-  ok(totals.极简采购>=25);
+  for(const row of results)console.log('V2.1 样本 '+JSON.stringify(row));
+  ok(totals.少量种类>=30);
   ok(Object.values(totals).every(n=>n>=25));
-  ok(results.filter(r=>r.mode==='极简采购').every((r,i)=>r.unique!<results.filter(r=>r.mode==='自由搭配')[i].unique!));
+  ok(results.filter(r=>r.mode==='少量种类').every((r,i)=>r.unique!<results.filter(r=>r.mode==='丰富多样')[i].unique!));
 });
 
 test('手动严格、锁定排除、可补充、保留和下一周轮换',()=>{
@@ -102,7 +102,7 @@ test('手动严格、锁定排除、可补充、保留和下一周轮换',()=>{
   ok(supplement.pool!.supplements.length>0);
   ok(supplement.pool!.supplements.every(r=>r.grams>0&&r.reason));
   const next=regenerate(restricted,[],{},[],'next',undefined,[],undefined,undefined,emptyExecution,{settings:prior.settings,previous:prior,nextWeek:true,keep:true});
-  equal(next.start,addDays(baseline.start,7));
+  equal(next.start,newPlanStart('下周一'));
   deepEqual(next.pool!.selected,prior.selected);
   const replaced=regenerate(restricted,[],{},[],'rotate',undefined,[],undefined,undefined,emptyExecution,{settings:{...prior.settings,rotation:'全部刷新'},previous:prior,nextWeek:true});
   ok(replaced.pool!.used.some(r=>!selected.includes(r.id)));
@@ -110,7 +110,7 @@ test('手动严格、锁定排除、可补充、保留和下一周轮换',()=>{
 
 test('库存优先实际参与食材候选评分',()=>{
   const recipes=['steam-chicken','steam-bass','steam-pork','steam-shrimp','boil-broccoli'].flatMap(id=>recipeMap.get(id)??[]);
-  ok(recipes.flatMap(recipeFoodIds).includes('bass'));
+  ok(recipes.flatMap(r=>recipeFoodIds(r)).includes('bass'));
   const s:PoolSettings={...defaultPool,method:'库存优先',caps:{肉鱼虾:1}};
   const priorities=ingredientPools(s,recipes,{bass:{stock:9000}},emptyExecution,()=>.3);
   ok(priorities[0].selected.has('bass'));
@@ -147,7 +147,7 @@ test('分装克数核对、周期覆盖、实际购入跨批结转以及并行�
   deepEqual(splitWeek(settings).flatMap(r=>Array.from({length:r.to-r.from},(_,i)=>i+r.from)),[0,1,2,3,4,5,6]);
   equal(round(quote.batches.reduce((n,b)=>n+b.purchase.known,0)),quote.purchase.known);
   for(const batch of quote.prep)for(const job of batch.jobs) {
-    for(const i of job.ingredients)equal(batch.rows.find(r=>r.id===i.id)?.uses.find(u=>u.jobKey===job.key)?.grams,i.grams);
+    for(const i of job.ingredients)equal(batch.rows.flatMap(r=>r.uses).find(u=>u.jobKey===job.key&&u.recipeId===i.id)?.recipeGrams,i.grams);
     ok(!/冷冻|制作冷藏/.test(job.method));
   }
   ok(logisticsSchema.safeParse(quote).success);

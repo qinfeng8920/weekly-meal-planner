@@ -4,12 +4,15 @@ import {between,type Targets} from './nutrition';
 import {type Plan} from './planner';
 import {decimal,Empty,integer,SectionTitle} from './ui';
 import {addDays} from './batches';
+import {displayPoolMode,type PoolSettings} from './ingredient-pool';
+import type {SupplySettings,ShoppingSchedule} from './batches';
+import type {Execution} from './execution';
 import type {Logistics} from './logistics';
 import {costText} from './ShoppingPage';
 
 type DashboardProps={profile:Profile|null;t:Targets|null;reason:string;weights:Weight[];plan:Plan|null;stale:boolean;
-  quote?:Logistics;poolCount:number;shoppingPercent:number;generate:()=>void;busy:boolean;go:(page:string)=>void;edit:()=>void;write:(weights:Weight[])=>Promise<boolean>};
-export function Dashboard({profile,t,reason,weights,plan,stale,quote,poolCount,shoppingPercent,generate,busy,go,edit,write}:DashboardProps) {
+  quote?:Logistics;poolCount:number;poolMode:PoolSettings['mode'];schedule?:ShoppingSchedule['count'];prep:SupplySettings['prep'];execution?:Execution;generate:()=>void;busy:boolean;go:(page:string)=>void;edit:()=>void;write:(weights:Weight[])=>Promise<boolean>};
+export function Dashboard({profile,t,reason,weights,plan,stale,quote,poolCount,poolMode,schedule,prep,execution,generate,busy,go,edit,write}:DashboardProps) {
   const [showWeight,setShow]=useState(false);
   const ordered=[...weights].sort((a,b)=>a.date.localeCompare(b.date));
   const latest=ordered.at(-1);
@@ -20,51 +23,37 @@ export function Dashboard({profile,t,reason,weights,plan,stale,quote,poolCount,s
   const today=dateKey();
   const index=plan?.days.findIndex((_,i)=>addDays(plan.start,i)===today)??-1;
   const day=plan?.days[index];
-  const next=quote?.prep.find(b=>b.end>=today);
+  const next=quote?.prep.find(b=>b.end>=today&&b.jobs.some(j=>!j.key||!execution?.tasks?.[j.key]?.made));
+  const todo=next?.jobs.filter(j=>!j.key||!execution?.tasks?.[j.key]?.made).length;
   return <>
     <section className="page-title home-heading">
       <div><p className="meta">{new Intl.DateTimeFormat('zh-CN',{month:'long',day:'numeric',weekday:'long'}).format(new Date())}</p>
         <h1>{profile?.name?`你好，${profile.name}`:'吃好每一天'}</h1></div>
       <div className="actions">
-        {plan&&<button className="primary" onClick={()=>go('备餐')}>继续备餐</button>}
-        <button className={plan?'':'primary'} disabled={busy} onClick={profile?generate:edit}>{busy?'正在搭配食谱…':profile?'生成本周食谱':'开始填写档案'}</button>
-        {profile&&<button className="flat" onClick={()=>go('生成设置')}>设置并生成</button>}
+        <button className="primary" disabled={busy} onClick={profile?generate:edit}>{busy?'正在搭配食谱…':profile?'生成七天食谱':'开始填写档案'}</button>
+        {profile&&<button className="flat" onClick={()=>go('生成设置')}>生成设置</button>}
       </div>
     </section>
+    {profile&&<section className="card">
+      <SectionTitle title="身体与目标"><button className="flat" onClick={()=>setShow(true)}>记录体重</button></SectionTitle>
+      <div className="home-metrics"><div><span>当前体重</span><b className="unit">{current===null?'—':decimal(current)} <small>千克</small></b></div>
+        <div><span>目标体重</span><b className="unit">{target===null?'—':decimal(target)} <small>千克</small></b></div>
+        <div><span>每日热量</span><b className="unit">{t?integer(t.kcal):'—'} <small>千卡</small></b></div></div>
+      {progress!==null&&<progress max={100} value={progress} aria-label="体重目标进度"/>}
+      {reason&&<p className="hint">{reason}</p>}
+      <details><summary>查看体重趋势</summary><Trend weights={ordered}/></details>
+    </section>}
+    {profile&&<section className="card"><SectionTitle title="采购与备餐">{plan&&<button className="flat" onClick={()=>go('采购')}>查看清单</button>}</SectionTitle>
+      <p className="home-plan-meta">{displayPoolMode(poolMode)} · {schedule==='自定义'?'自定义采购':'每周采购 '+schedule+' 次'} · {prep}备餐</p>
+      {quote&&<p className="meta">{poolCount} 种食材 · 参考 {costText(quote.purchase)}</p>}
+      {next&&<p className="meta">下一批待完成 {todo} 项 · {next.prepDate}<button className="flat" onClick={()=>go('备餐')}>继续备餐</button></p>}
+      {quote?.conflicts?.length? <p className="hint">当前食谱有采购冲突，查看清单处理。</p>:null}
+    </section>}
     {plan&&<section className="card home-today">
-      <SectionTitle title={day?'今日食谱':'本周食谱'}><button className="flat" onClick={()=>go('食谱')}>查看食谱</button></SectionTitle>
+      <SectionTitle title={day?'今日食谱':'食谱首日'}><button className="flat" onClick={()=>go('食谱')}>查看食谱</button></SectionTitle>
       {stale&&<p className="hint">档案或体重已更新，当前展示原方案。</p>}
       {(day??plan.days[0]).meals.map(m=><div className="today-row" key={m.name}><b>{m.name}</b><span>{m.dishes.map(d=>d.recipe.name).join(' · ')}</span></div>)}
     </section>}
-    {plan&&<section className="card"><SectionTitle title="采购与备餐"><button className="flat" onClick={()=>go('采购')}>查看清单</button></SectionTitle>
-      <div className="stat-strip"><span>{poolCount} 种食材</span>{quote&&<span>预计采购 <b>{costText(quote.purchase)}</b></span>}
-        {quote&&<span>备餐周期 <b>{quote.prep.map(b=>b.range.to-b.range.from).join('＋')}</b></span>}</div>
-      <progress max={100} value={shoppingPercent} aria-label="采购进度"/>
-      {next&&<p className="meta">当前或下一批 {next.start} 至 {next.end} · {next.jobs.length} 项操作</p>}
-    </section>}
-
-    <div className="dashboard-grid">
-      <section className="card goal-card">
-        <SectionTitle title="体重进展"><button className="small" onClick={()=>profile?setShow(true):edit()}>记录体重</button></SectionTitle>
-        <div className="weight-summary"><div><span>当前体重</span><strong>{current===null?'—':decimal(current)} <small>千克</small></strong></div>
-          <div><span>初始</span><strong>{initial===null?'—':decimal(initial)}</strong></div><div><span>目标</span><strong>{target===null?'—':decimal(target)}</strong></div></div>
-        <progress max={100} value={progress??0} aria-label="体重目标进度"/>
-        <p className="meta">{initial===null||current===null?'完成档案后开始记录。':`较初始${initial>=current?'减少':'增加'} ${decimal(Math.abs(initial-current))} 千克${progress===null?'':' · 已完成 '+integer(progress)+'%'}`}</p>
-      </section>
-      <section className="card goal-card">
-        <SectionTitle title="每日营养目标"/>
-        {t?<><p className="large">{integer(t.kcal)} <small>千卡 / 日</small></p>
-          <div className="stat-strip"><span>蛋白质 <b>{t.protein} 克</b></span><span>碳水 <b>{t.carbs} 克</b></span><span>脂肪 <b>{t.fat} 克</b></span><span>纤维 <b>{t.fiber} 克</b></span></div>
-          <p className="meta">估算 BMI {decimal(t.bmi)} · BMR {integer(t.bmr)} · TDEE {integer(t.tdee)} 千卡</p>
-          <p className="meta">{t.water===null?'饮水遵循医嘱':`建议饮水约 ${t.water} 毫升`}。{t.message}</p></>:<p className="hint">{reason||'保存个人档案后查看能量和营养估算。'}</p>}
-      </section>
-    </div>
-    {!plan&&<Empty title="今天的菜单还空着"><p>完成档案后可以为一周搭配食谱。</p></Empty>}
-    <section className="card">
-      <SectionTitle title="体重趋势"><button className="small" onClick={()=>profile?setShow(true):edit()}>查看记录</button></SectionTitle>
-      <Trend weights={ordered}/>
-    </section>
-    <button className="text-link" onClick={()=>go('历史方案')}>历史方案</button>
     {showWeight&&<div className="overlay" onClick={()=>setShow(false)}><section className="modal card" role="dialog" aria-modal="true" aria-label="体重记录" onClick={e=>e.stopPropagation()}>
       <SectionTitle title="体重记录"><button onClick={()=>setShow(false)}>关闭</button></SectionTitle><WeightLog weights={ordered} write={write}/>
     </section></div>}

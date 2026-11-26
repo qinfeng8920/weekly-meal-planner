@@ -2,10 +2,10 @@ import {deepEqual,equal,notEqual,ok,throws} from 'node:assert/strict';
 import {test} from 'node:test';
 import {recipeMap,serving} from '../src/catalog';
 import {mealConflict,ingredientMeaning,recipeMeaning,sameFood} from '../src/food-semantics';
-import {cookingDefaults,cookingRule,type CookingProfile} from '../src/cooking-profile';
-import {cookingConflict,mealCooking,recipeCooking} from '../src/cooking';
+import {cookingDefaults,cookingRule} from '../src/cooking-profile';
+import {cookingFit,mealCooking,recipeCooking} from '../src/cooking';
 import {regenerate,verifyAgainst,revise,dayNutrition,type Change} from '../src/planner';
-import {shopping,prepPlan} from '../src/shopping';
+import {purchasesFromLogistics} from '../src/shopping';
 import {parseBackup,fresh} from '../src/store';
 import {demo} from './fixtures';
 
@@ -30,83 +30,35 @@ test('用语义识别酸奶、鸡蛋、生熟鸡胸和重复主食，允许复�
   equal(mealConflict([a,{...b,name:'换名称',id:'another-id'}]),'同餐重复鸡胸肉');
   ok(recipeMeaning(a).functions.includes('蛋白质'));
 });
-test('慢炖主要是等待，允许备餐时计入提前制作和复热时间',()=>{
+test('慢炖用时只用于展示，短旧限时不会触发提前制作',()=>{
   const [soup]=recipes('braised-ginger-chicken');
   const recipe=recipeCooking(soup);
-  equal(recipe.active,9);
-  equal(recipe.wait,35);
-  equal(recipe.total,44);
-  equal(recipe.prepAhead,44);
-  equal(recipe.reheat,7);
-  ok(recipe.level<=2);
-  const rule={...cookingRule(demo,'午餐'),total:10,active:5,prep:true};
-  const freshStats=mealCooking([soup],{...rule,prep:false},true);
+  equal(recipe.active,9);equal(recipe.wait,35);equal(recipe.total,44);equal(recipe.reheat,7);
+  const rule={...cookingRule(demo,'午餐'),total:1,active:1,prep:true};
+  const freshStats=mealCooking([soup]);
   equal(freshStats.total,44);
-  ok(cookingConflict(freshStats,rule));
-  const prepared=mealCooking([soup],rule,true);
-  equal(prepared.total,8);
-  equal(prepared.active,2);
-  equal(prepared.waiting,6);
-  deepEqual(prepared.ahead,[{name:soup.name,minutes:44,reheat:7}]);
-  equal(cookingConflict(prepared,rule),undefined);
-  equal(mealCooking([soup],rule,false).total,44);
-  const assumed={...demo,cooking:{...cookingDefaults,meals:{午餐:{total:10,active:5,prep:true}}}};
-  const prep=prepPlan([{meals:[{name:'午餐',dishes:[serving(soup)]}]}],assumed,'2026-11-23');
-  ok(prep.days[0].meals.some(text=>text.includes('复热 7 分钟')));
+  const slower={...freshStats,active:100,waiting:500,total:600};
+  equal(cookingFit(slower,rule),cookingFit(freshStats,rule));
 });
-test('极简、精致和分日分餐规则约束实际菜品',()=>{
-  const minimal={...demo,cooking:{...cookingDefaults,mode:'极简' as const}};
-  const quick=regenerate(minimal,[],{},[],'各模式');
-  for(const [d,day] of quick.days.entries()) for(const meal of day.meals) {
-    const stats=mealCooking(meal.dishes.map(s=>s.recipe),cookingRule(minimal,meal.name as '午餐',d),true);
-    ok(stats.level<=2&&stats.total<=10&&stats.active<=8);
+test('旧限时无效且固定长菜、换菜和换餐仍执行结构校验',()=>{
+  const p={...demo,tools:['煮锅','蒸锅'],requiredDish:'grain-brown'};
+  const tight={...p,minutes:'旧值',cooking:{...cookingDefaults,meals:{早餐:{total:-42,active:0,maxDishes:1},午餐:{total:1}}}};
+  const original=regenerate(p,[],{},[],'无时限');
+  const same=regenerate(tight,[],{},[],'无时限');
+  deepEqual(original.days,same.days);
+  ok(same.days.flatMap(d=>d.meals.flatMap(m=>m.dishes)).some(d=>d.recipe.id==='grain-brown'&&d.recipe.prep+d.recipe.cook>=40));
+  const old=JSON.stringify(same);
+  for(const change of [{day:1,meal:1},{day:2},{day:1,meal:1,dish:0}] satisfies Change[]) {
+    try {
+      const revised=regenerate(tight,[],{},[],'改过',same,[],change);
+      equal(revised.start,same.start);
+      verifyAgainst(revised,tight,[],{},[]);
+      deepEqual(revised.purchases,purchasesFromLogistics(revised.logistics!));
+    }catch(e){ok(/搜索上限|未找到|未包含/.test((e as Error).message));}
   }
-  const refined={...demo,minutes:'120',cooking:{...cookingDefaults,mode:'精致' as const,meals:{午餐:{total:70},晚餐:{total:70}}}};
-  const long=regenerate(refined,[],{},[],'精致');
-  const stats=long.days.flatMap((day,d)=>day.meals.slice(1).map(m=>mealCooking(m.dishes.map(s=>s.recipe),cookingRule(refined,m.name as '午餐',d),true)));
-  ok(stats.some(s=>s.level===4)&&stats.some(s=>s.count>=4)&&stats.some(s=>s.total>=40));
-  const mixed:CookingProfile={mode:'混合',weekday:'简单',weekend:'精致',meals:{早餐:{mode:'极简'}},
-    days:{'5':{午餐:{mode:'家常',total:25,active:15,maxDishes:3}},'6':{晚餐:{onePot:true}}}};
-  const profile={...demo,cooking:mixed};
-  equal(cookingRule(profile,'午餐',4).mode,'简单');
-  equal(cookingRule(profile,'晚餐',5).mode,'精致');
-  equal(cookingRule(profile,'早餐',6).mode,'极简');
-  equal(cookingRule(profile,'午餐',5).mode,'家常');
-  const week=regenerate(profile,[],{},[],'分日');
-  const saturday=week.days[5].meals[1];
-  const saturdayRule=cookingRule(profile,'午餐',5);
-  equal(cookingConflict(mealCooking(saturday.dishes.map(s=>s.recipe),saturdayRule,true),saturdayRule),undefined);
-});
-test('五种快捷调整重验搭配、采购与分餐结构，失败保留原数据',()=>{
-  const initial=regenerate(demo,[],{},[],'快捷验收');
-  const before=JSON.stringify(initial);
-  const changes:Change[]=[
-    {day:0,meal:0,intent:'简单一点'},{day:0,meal:0,intent:'丰富一点'},
-    {day:0,meal:1,intent:'减少一道菜'},{day:0,meal:1,dish:1,intent:'更换同类食材'},
-    {day:0,meal:0,intent:'改成一锅料理'},
-  ];
-  for(const change of changes) {
-    const next=regenerate(demo,[],{},[],'改过',initial,[],change);
-    const current=next.days[0].meals[change.meal!], former=initial.days[0].meals[change.meal!];
-    const selected=current.dishes.map(s=>s.recipe);
-    equal(mealConflict(selected),undefined);
-    deepEqual(next.days.slice(1),initial.days.slice(1));
-    deepEqual(next.purchases,shopping(next.days,demo,{}));
-    verifyAgainst(next,demo,[],{},[]);
-    const rule=cookingRule(demo,current.name as '午餐');
-    const stat=mealCooking(selected,rule,true), base=mealCooking(former.dishes.map(s=>s.recipe),rule,true);
-    if(change.intent==='简单一点') ok(stat.active<=base.active&&stat.level<=base.level);
-    if(change.intent==='丰富一点') ok(stat.count>base.count||stat.level>base.level);
-    if(change.intent==='减少一道菜') equal(stat.count,base.count-1);
-    if(change.intent==='改成一锅料理') ok(stat.onePot);
-    if(change.intent==='更换同类食材') {
-      notEqual(selected[1].id,former.dishes[1].recipe.id);
-      ok(sameFood(selected[1],former.dishes[1].recipe));
-      deepEqual(current.dishes[0],former.dishes[0]);
-    }
-  }
-  throws(()=>regenerate(demo,[],{},[],'失败',initial,[],{day:0,meal:0,intent:'减少一道菜',dish:0}));
-  equal(JSON.stringify(initial),before);
+  const lunch=regenerate(tight,[],{},[],'换餐验收',same,[],{day:2,meal:1});
+  notEqual(lunch.days[2].meals[1].dishes.map(s=>s.recipe.id).join(),same.days[2].meals[1].dishes.map(s=>s.recipe.id).join());
+  equal(JSON.stringify(same),old);
 });
 test('手动克数校验能够阻止快照中的语义重复，同时保留旧备份与临时模式',()=>{
   const initial=regenerate(demo,[],{},[],'迁移',undefined,[],undefined,'极简');

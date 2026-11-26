@@ -1,7 +1,7 @@
 import {cookOnServingDay} from './food-storage';
 import type {Recipe} from './catalog';
 import {cookingWorkflows,type Method} from './cooking-recipes';
-import {cookingDuration,type CookingRule} from './cooking-profile';
+import {type CookingRule} from './cooking-profile';
 import {labels} from './meal-catalog';
 
 const coldTools=new Set(['冰箱','冷冻室','电子厨房秤']);
@@ -19,8 +19,8 @@ function describe(r:Recipe) {
   const seasoning=declared?.seasoning??(r.ingredients.length<=2?0:r.ingredients.length>=6?2:1);
   const active=r.prep+activeHeat;
   const clean=tools.length+(cutting>0?1:0)+(method==='煎炒'?1:0);
-  const effort=active*.36+cutting*1.35+seasoning*1.05+tools.length*.55+clean*.40+
-    Math.max(0,r.steps.length-2)*.4;
+  const effort=cutting*2.4+seasoning*1.8+tools.length*.8+clean*.7+
+    Math.max(0,r.steps.length-1)*.85;
   const level=effort<=4?1:effort<=8?2:effort<=13?3:4;
   const reheat=r.ingredients.some(i=>cookOnServingDay(i.id))?undefined:declared?.reheat;
   const total=r.prep+r.cook;
@@ -48,38 +48,26 @@ function elapsed(jobs:Job[]) {
   return Math.max(hands,end);
 }
 
-export function mealCooking(recipes:Recipe[],rule:CookingRule,fridge:boolean) {
+export function mealComplexity(recipes:Recipe[]) {
   const stats=recipes.map(recipeCooking);
-  const fresh=recipes.map((r,i)=>({tools:stats[i].tools,prep:r.prep,cook:r.cook,active:stats[i].active,
-    activeHeat:stats[i].active-r.prep}));
-  const freshTotal=elapsed(fresh);
-  const usePrep=rule.prep&&fridge&&(freshTotal>Math.min(rule.total,cookingDuration[rule.mode][1])||
-    stats.reduce((n,s)=>n+s.active,0)>rule.active);
-  const ahead=stats.flatMap((s,i)=>usePrep&&s.reheat?[{name:recipes[i].name,minutes:s.prepAhead,reheat:s.reheat}]:[]);
-  const jobs=fresh.map((job,i)=>usePrep&&stats[i].reheat?
-    {tools:job.tools,prep:1,cook:stats[i].reheat!,active:2,activeHeat:1}:job);
-  const active=jobs.reduce((n,j)=>n+j.active,0);
-  const total=elapsed(jobs);
   const tools=[...new Set(stats.flatMap(s=>s.tools))];
   const level=Math.max(1,...stats.map(s=>s.level));
   const mains=recipes.filter(r=>labels(r).slot!=='水果');
   const onePot=mains.length===1&&labels(mains[0]).slot==='一锅套餐'&&tools.length===1;
-  return {active,total,waiting:Math.max(0,total-active),tools,level,ahead,onePot,count:recipes.length};
+  return {tools,level,onePot,count:recipes.length};
+}
+export type MealComplexity=ReturnType<typeof mealComplexity>;
+export function mealCooking(recipes:Recipe[]) {
+  const jobs=recipes.map(r=>{
+    const stats=recipeCooking(r);
+    return {tools:stats.tools,prep:r.prep,cook:r.cook,active:stats.active,activeHeat:stats.active-r.prep};
+  });
+  const active=jobs.reduce((n,j)=>n+j.active,0);
+  const total=elapsed(jobs);
+  return {...mealComplexity(recipes),active,total,waiting:Math.max(0,total-active)};
 }
 
-export type CookingStats=ReturnType<typeof mealCooking>;
-export const complexityLabels=['','极简','简单','家常','精致'];
-export function cookingConflict(stats:CookingStats,rule:CookingRule) {
-  if(stats.count>rule.maxDishes)return '菜品数量';
-  if(stats.total>rule.total)return '总用时';
-  if(stats.active>rule.active)return '主动用时';
-  if(rule.mode==='极简'&&stats.level>2)return '烹饪复杂度';
-}
-export function cookingFit(stats:CookingStats,rule:CookingRule) {
-  const [low,high]=cookingDuration[rule.mode];
-  const timing=rule.mode==='极简'||rule.mode==='简单'?Math.max(0,stats.total-high):
-    Math.max(0,low-stats.total)*.45+Math.max(0,stats.total-high)*.45;
-  const target=rule.mode==='极简'?1:rule.mode==='简单'?2:rule.mode==='家常'?3:4;
-  return timing*.004+Math.abs(target-stats.level)*(rule.mode==='精致'?.065:.027)
-    +(rule.onePot&&!stats.onePot?.055:0)+(rule.mode==='精致'?Math.max(0,4-stats.count)*.014:0);
+export function cookingFit(stats:MealComplexity,rule:CookingRule) {
+  const target=rule.mode==='简单'||rule.mode==='极简'?1:rule.mode==='家常'?3:null;
+  return (target===null?0:Math.abs(target-stats.level)*.025)+(rule.onePot&&!stats.onePot?.04:0);
 }

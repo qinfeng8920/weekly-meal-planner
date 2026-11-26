@@ -1,10 +1,13 @@
 import {food,foods,type Recipe} from './catalog';
-import {ingredientMeaning} from './food-semantics';
+import {purchaseFood,purchaseIngredientId,rawNetGrams,roundGrams,type PurchaseOptions} from './purchase-food';
 import {amountFor,edibleRate,priceFor} from './prices';
 import type {SupplyState,Logistics} from './logistics';
 import type {Day,Pantry} from './shopping';
 
-export const poolModes=['极简采购','均衡采购','丰富采购','自由搭配'] as const;
+export const visiblePoolModes=['少量种类','均衡搭配','丰富多样'] as const;
+export const poolModes=[...visiblePoolModes,'极简采购','均衡采购','丰富采购','自由搭配'] as const;
+export const displayPoolMode=(mode:typeof poolModes[number]):typeof visiblePoolModes[number]=>
+  mode==='极简采购'?'少量种类':mode==='均衡采购'?'均衡搭配':mode==='丰富采购'||mode==='自由搭配'?'丰富多样':mode;
 export const poolMethods=['自动选择','手动指定','库存优先'] as const;
 export const rotations=['保留上周','部分轮换','全部刷新'] as const;
 export const poolGroups=['肉鱼虾','蔬菜','主食','水果'] as const;
@@ -19,20 +22,19 @@ export type WeeklyIngredientPool={
   used:{id:string;grams:number;uses:number}[];supplements:{id:string;grams:number;reason:string;cost:number|null}[];
 };
 export type PoolTemplate={id:string;name:string;settings:PoolSettings};
-export const defaultPool:PoolSettings={mode:'均衡采购',method:'自动选择',strict:false,selected:[],locked:[],excluded:[],rotation:'部分轮换'};
+export const defaultPool:PoolSettings={mode:'少量种类',method:'自动选择',strict:false,selected:[],locked:[],excluded:[],rotation:'部分轮换'};
+const low={肉鱼虾:3,蔬菜:4,主食:2,水果:2}, middle={肉鱼虾:4,蔬菜:6,主食:3,水果:3}, rich={肉鱼虾:7,蔬菜:10,主食:5,水果:4};
 export const capsFor:Record<typeof poolModes[number],Record<PoolGroup,number>>={
-  极简采购:{肉鱼虾:3,蔬菜:4,主食:2,水果:2},
-  均衡采购:{肉鱼虾:4,蔬菜:6,主食:3,水果:3},
-  丰富采购:{肉鱼虾:7,蔬菜:10,主食:5,水果:4},
+  少量种类:low,均衡搭配:middle,丰富多样:rich,极简采购:low,均衡采购:middle,丰富采购:rich,
   自由搭配:{肉鱼虾:128,蔬菜:128,主食:128,水果:128},
 };
-export const standardId=(id:string)=>ingredientMeaning(id).standardId;
+export const standardId=purchaseIngredientId;
 export const standardFoods=foods.filter(f=>standardId(f.id)===f.id);
 export const poolGroup=(id:string):PoolGroup|'基础食材'=>{
   const category=food(id).category;
   return ['肉类','鱼虾'].includes(category)?'肉鱼虾':category==='蔬菜'||category==='主食'||category==='水果'?category:'基础食材';
 };
-export const normalizeIds=(ids:string[])=>[...new Set(ids.map(standardId))];
+export const normalizeIds=(ids:string[],options?:PurchaseOptions)=>[...new Set(ids.map(id=>standardId(id,options)))];
 export const capOf=(setting:PoolSettings,group:PoolGroup)=>setting.caps?.[group]??capsFor[setting.mode][group];
 export function counts(ids:Iterable<string>) {
   const out={肉鱼虾:0,蔬菜:0,主食:0,水果:0,基础食材:0};
@@ -40,13 +42,13 @@ export function counts(ids:Iterable<string>) {
   return out;
 }
 
-export function weekUsage(days:Day[]) {
+export function weekUsage(days:Day[],options?:PurchaseOptions) {
   const byId=new Map<string,{id:string;grams:number;uses:number}>();
   for(const d of days) for(const m of d.meals) for(const s of m.dishes) {
     const seen=new Set<string>();
     for(const i of s.ingredients) {
-      const id=standardId(i.id), row=byId.get(id)??{id,grams:0,uses:0};
-      row.grams+=i.grams;
+      const product=purchaseFood(i.id,options), id=product.purchaseIngredientId, row=byId.get(id)??{id,grams:0,uses:0};
+      row.grams+=product.rate?rawNetGrams(i.grams,product.rate):0;
       if(!seen.has(id))row.uses++;
       seen.add(id);byId.set(id,row);
     }
@@ -54,7 +56,8 @@ export function weekUsage(days:Day[]) {
   return [...byId.values()].sort((a,b)=>b.uses-a.uses||a.id.localeCompare(b.id)).map(i=>({...i,grams:Math.round(i.grams*100)/100}));
 }
 const recipeFoodCache=new WeakMap<Recipe,string[]>();
-export function recipeFoodIds(recipe:Recipe) {
+export function recipeFoodIds(recipe:Recipe,options?:PurchaseOptions) {
+  if(options?.ready?.length)return normalizeIds(recipe.ingredients.map(i=>i.id),options);
   const cached=recipeFoodCache.get(recipe);
   if(cached)return cached;
   const ids=normalizeIds(recipe.ingredients.map(i=>i.id));
@@ -81,15 +84,15 @@ const palettes:Record<PoolGroup,string[][]>={
 
 export type PoolCandidate={selected:Set<string>;chosen:string[]};
 export function ingredientPools(settings:PoolSettings,recipes:Recipe[],pantry:Pantry,supply:SupplyState|undefined,random:()=>number,previous?:WeeklyIngredientPool,required:string[]=[]):PoolCandidate[] {
-  const excluded=new Set(normalizeIds(settings.excluded));
-  const available=new Set(recipes.flatMap(recipeFoodIds));
-  const picked=normalizeIds([...settings.locked,...(settings.method==='手动指定'?settings.selected:[])]);
-  const locked=normalizeIds(settings.locked);
+  const excluded=new Set(normalizeIds(settings.excluded,supply?.products));
+  const available=new Set(recipes.flatMap(r=>recipeFoodIds(r,supply?.products)));
+  const picked=normalizeIds([...settings.locked,...(settings.method==='手动指定'?settings.selected:[])],supply?.products);
+  const locked=normalizeIds(settings.locked,supply?.products);
   if(picked.some(id=>excluded.has(id)))throw Error('同一食材既选中又排除，请修改本周食材。');
   for(const id of locked) if(!available.has(id))throw Error(food(id).name+'与忌口、厨具或菜谱限制冲突，无法锁定。');
   if(required.some(id=>excluded.has(id)))throw Error('固定早餐或必选菜使用已排除食材，请修改食材或固定设置。');
   if(settings.strict&&required.some(id=>!picked.includes(id)))throw Error('固定早餐或必选菜使用严格食材池外的食材，请检查指定食材。');
-  const base=normalizeIds([...picked,...required]).filter(id=>available.has(id));
+  const base=normalizeIds([...picked,...required],supply?.products).filter(id=>available.has(id));
   const manual=picked.filter(id=>available.has(id));
   const count=counts(base);
   for(const group of poolGroups) if(count[group]>capOf(settings,group))throw Error(group+'已选 '+count[group]+' 种，超过上限 '+capOf(settings,group)+' 种。');
@@ -103,7 +106,7 @@ export function ingredientPools(settings:PoolSettings,recipes:Recipe[],pantry:Pa
   for(const r of recipes)for(const id of recipeFoodIds(r))coverage.set(id,(coverage.get(id)??0)+1);
   const stock=new Map<string,number>();
   for(const [id,value] of Object.entries(pantry)) if(value.stock) {
-    const key=standardId(id);stock.set(key,(stock.get(key)??0)+value.stock);
+    const key=id;stock.set(key,(stock.get(key)??0)+value.stock);
   }
   const score=(id:string,list:string[],variant:number)=>{
     const preferred=list.indexOf(id);
@@ -119,7 +122,7 @@ export function ingredientPools(settings:PoolSettings,recipes:Recipe[],pantry:Pa
   // 先选食材，再搜索食谱。多个小型组合用于处理设备或供给差异。
   if(settings.method==='手动指定')result.push({selected:new Set(base),chosen:manual});
   if(settings.rotation==='保留上周'&&previous) {
-    const keep=normalizeIds([...base,...previous.selected]).filter(id=>available.has(id)&&!excluded.has(id));
+    const keep=normalizeIds([...base,...previous.selected],supply?.products).filter(id=>available.has(id)&&!excluded.has(id));
     if(poolGroups.every(group=>counts(keep)[group]<=capOf(settings,group)))result.push({selected:new Set(keep),chosen:settings.method==='手动指定'?manual:keep});
   }
   for(let i=0;i<6;i++) {
@@ -142,12 +145,12 @@ export function ingredientPools(settings:PoolSettings,recipes:Recipe[],pantry:Pa
   return result;
 }
 
-export function buildWeeklyPool(week:string,settings:PoolSettings,chosen:string[],selected:Iterable<string>,days:Day[],quote:Logistics):WeeklyIngredientPool {
-  const used=weekUsage(days), chosenSet=new Set(chosen);
+export function buildWeeklyPool(week:string,settings:PoolSettings,chosen:string[],selected:Iterable<string>,days:Day[],quote:Logistics,options?:PurchaseOptions):WeeklyIngredientPool {
+  const used=weekUsage(days,options), chosenSet=new Set(chosen);
   const supplements=used.filter(i=>!chosenSet.has(i.id)).map(i=>{
-    const purchase=quote.lines.filter(r=>standardId(r.id)===i.id);
+    const purchase=quote.lines.filter(r=>r.id===i.id);
     const cost=purchase.some(r=>r.cost.missing)?null:purchase.reduce((n,r)=>n+r.cost.known,0);
-    return {id:i.id,grams:Math.round(i.grams*quote.people*100)/100,reason:'用于补足餐次搭配和营养约束',
+    return {id:i.id,grams:roundGrams(purchase.reduce((n,r)=>n+r.need,0)||i.grams*quote.people),reason:'用于补足餐次搭配和营养约束',
       cost:cost===null?null:Math.round(cost*100)/100};
   });
   return {version:1,week,settings,selected:[...selected].sort(),used,supplements};

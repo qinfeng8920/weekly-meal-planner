@@ -4,11 +4,9 @@ import {food,recipeList,recipeMap,serving} from '../src/catalog';
 import {breakfastMenus,canServe,labels} from '../src/meal-catalog';
 import {fruitMeal,mealNames,mealShape,mealShares} from '../src/meal-rules';
 import {mealConflict} from '../src/food-semantics';
-import {cookingRule} from '../src/cooking-profile';
-import {mealCooking,cookingConflict} from '../src/cooking';
 import {dayNutrition,fruitGoal,regenerate} from '../src/planner';
 import {defaultMealPreference,mealPreference} from '../src/profile';
-import {mealMinutes} from '../src/shopping';
+import {purchaseFood,rawNetGrams} from '../src/purchase-food';
 import {nutritionReview} from '../src/diet-check';
 import {parseBackup,fresh} from '../src/store';
 import {demo} from './fixtures';
@@ -26,7 +24,7 @@ test('所有配方已分餐，早餐菜单包含实际不同的配方组合',()=
   ok(!canServe(recipeMap.get('steam-pork')!,'早餐','蛋白质'));
 });
 
-test('120 个独立种子验收餐次、时间、营养、厨具和采购用量',()=>{
+test('120 个独立种子验收餐次、营养、厨具和采购用量',()=>{
   for(let i=0;i<120;i++) {
     const meals=i<80?'3':'4';
     const profile={...demo,meals,people:'2',...(i%4===0?{tools:['煮锅','蒸锅','冰箱']}:{}),
@@ -44,15 +42,15 @@ test('120 个独立种子验收餐次、时间、营养、厨具和采购用量'
         ok(mealShape(profile,meal,name,fruitGoal(profile)>0&&fruitMeal(profile)===name));
         const selected=meal.dishes.map(d=>d.recipe);
         equal(mealConflict(selected),undefined);
-        const rule=cookingRule(profile,name,dayIndex);
-        equal(cookingConflict(mealCooking(selected,rule,profile.tools.includes('冰箱')),rule),undefined);
-        ok(mealMinutes(meal)<=+mealPreference(profile,name).minutes);
         const energy=meal.dishes.reduce((sum,s)=>sum+s.nutrients.kcal,0);
         ok(Math.abs(energy/daily.kcal-shares[index])<=(name==='加餐'?.045:.085));
         for(const s of meal.dishes) {
           ok(s.recipe.tools.every(tool=>profile.tools.includes(tool)));
           if(name==='早餐') ok(labels(s.recipe).tags.includes('早餐'));
-          for(const ingredient of s.ingredients) amounts.set(ingredient.id,(amounts.get(ingredient.id)??0)+ingredient.grams*2);
+          for(const ingredient of s.ingredients) {
+            const product=purchaseFood(ingredient.id);
+            amounts.set(product.purchaseIngredientId,(amounts.get(product.purchaseIngredientId)??0)+rawNetGrams(ingredient.grams*2,product.rate!));
+          }
         }
       }
     }
@@ -60,7 +58,7 @@ test('120 个独立种子验收餐次、时间、营养、厨具和采购用量'
     for(const row of plan.purchases) ok(Math.abs(row.need-amounts.get(row.id)!)<.011);
   }
 });
-test('固定早餐搭配、禁忌、午晚餐各自用时与早餐备餐',()=>{
+test('固定早餐搭配、午晚餐禁忌和备餐',()=>{
   const menu=breakfastMenus.find(m=>m.recipes[0]==='grain-bread'&&m.recipes[1]==='egg-ready')!;
   const profile={...demo,fixedBreakfast:menu.id,mealPreferences:{
     早餐:{...defaultMealPreference(demo,'早餐'),prep:true,minutes:'10'},
@@ -70,7 +68,6 @@ test('固定早餐搭配、禁忌、午晚餐各自用时与早餐备餐',()=>{
   const p=regenerate(profile,[],{},[],'偏好');
   for(const d of p.days) {
     deepEqual(d.meals[0].dishes.slice(0,menu.recipes.length).map(s=>s.recipe.id),menu.recipes);
-    ok(mealMinutes(d.meals[1])<=30);
     ok(d.meals[1].dishes.every(s=>s.ingredients.every(k=>k.id!=='beef')));
     ok(d.meals[2].dishes.every(s=>s.ingredients.every(k=>k.id!=='shrimp')));
   }
@@ -96,9 +93,9 @@ test('保留旧版早餐、历史快照与备份结构',()=>{
   equal(food(backup.history[0].days[0].meals[0].dishes[1].ingredients[0].id).name,'猪里脊');
 });
 
-test('紧凑的 10 分钟三餐仍可生成，固定午餐可与其他餐次随机搭配',()=>{
+test('旧输入时间不影响生成，固定午餐可与其他餐次随机搭配',()=>{
   const quick=regenerate({...demo,minutes:'10'},[],{},[],'click');
-  ok(quick.days.every(d=>d.meals.every(m=>mealMinutes(m)<=10)));
+  deepEqual(quick.days,regenerate({...demo,minutes:'异常旧值'},[],{},[],'click').days);
   const fixed=regenerate({...demo,mealPreferences:{午餐:{...defaultMealPreference(demo,'午餐'),fixed:true}}},[],{},[],'click');
   const lunches=fixed.days.map(d=>d.meals[1].dishes.map(s=>s.recipe.id).join());
   equal(new Set(lunches).size,1);

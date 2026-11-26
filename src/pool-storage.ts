@@ -1,7 +1,7 @@
 import {z} from 'zod';
-import {poolGroups,poolMethods,poolModes,rotations,standardFoods} from './ingredient-pool';
-const valid=new Set(standardFoods.map(f=>f.id));
-const id=z.string().refine(v=>valid.has(v));
+import {poolGroups,poolMethods,poolModes,rotations} from './ingredient-pool';
+import {foodMap} from './catalog';
+const id=z.string().refine(v=>foodMap.has(v));
 const ids=z.array(id).max(128);
 const grams=z.number().min(0).max(1e7);
 export const poolSettingsSchema=z.strictObject({

@@ -1,11 +1,13 @@
 import {useState} from 'react';
-import {foods,foodState} from './catalog';
-import {addDays,patternOptions,prepPeriods,purchasePeriods,splitWeek,type SupplySettings} from './batches';
+import {food,foods,foodState} from './catalog';
+import {addDays,patternOptions,prepPeriods,shoppingOffsets,splitWeek,type ShoppingSchedule,type SupplySettings} from './batches';
 import {priceDefaults,priceFor,priceUnits,type PriceBook,type PriceInput,type PriceUnit} from './prices';
 import {consumedBySource,homeKey,type Execution,type StockInfo} from './execution';
+import {convertibleFoods,purchaseFood,type PurchaseOptions} from './purchase-food';
+import type {Profile} from './profile';
 import {requiresCooling} from './food-storage';
 import type {Pantry} from './shopping';
-import {decimal,SectionTitle} from './ui';
+import {dateLabel,decimal,SectionTitle} from './ui';
 
 const categories=[...new Set(foods.map(f=>f.category))];
 export const yuan=(amount:number)=>'¥'+amount.toFixed(2);
@@ -20,14 +22,18 @@ function FoodSearch({category,query,onCategory,onQuery}:{category:string;query:s
 }
 function matches(category:string,query:string){return (f:typeof foods[number])=>(category==='全部'||f.category===category)&&
   [f.name,...f.aliases].some(n=>n.includes(query.trim()));}
-export function PriceManager({book,pantry,save,resetAll,exportPrices,importPrices}:{
+export function PriceManager({book,pantry,save,resetAll,exportPrices,importPrices,products,saveProducts}:{
   book:PriceBook;pantry:Pantry;save:(id:string,value?:PriceInput)=>Promise<boolean>;resetAll:()=>void;
-  exportPrices:()=>void;importPrices:(file:File)=>void;
+  exportPrices:()=>void;importPrices:(file:File)=>void;products?:PurchaseOptions;saveProducts:(products:PurchaseOptions)=>Promise<boolean>;
 }) {
   const [category,setCategory]=useState('全部'),[query,setQuery]=useState(''),[limit,setLimit]=useState(24);
-  const found=foods.filter(matches(category,query));
+  const found=foods.filter(f=>purchaseFood(f.id,products).purchaseIngredientId===f.id||book[f.id]||pantry[f.id]?.price!==undefined).filter(matches(category,query));
   return <section className="card"><SectionTitle title="广东食材参考价"/>
     <p className="hint">人民币零售参考。监测、类别参考和估算分别标注。可食率和液体换算重量为估算，按实际标签或称重修改。自定义价格优先。</p>
+    <details><summary>生熟换算与即食商品</summary>
+      <p className="meta">出成率为熟的可食净重 ÷ 生料或干料的可食净重。即食选项独立计价。旧成品单价会保留。</p>
+      {convertibleFoods.map(id=><ConversionEditor key={JSON.stringify([id,products])} id={id} options={products} save={saveProducts}/>)}
+    </details>
     <div className="actions"><button onClick={exportPrices}>备份自定义价格</button><label className="file-button">恢复价格备份
       <input type="file" aria-label="恢复价格备份" accept=".json,application/json" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)importPrices(f);}}/></label>
       <button className="danger" onClick={resetAll}>恢复全部默认价格</button></div>
@@ -115,45 +121,60 @@ function StockInput({value,info,cold,save}:{value:number;info?:StockInfo;cold:bo
     <button onClick={()=>{if(!amount.trim()||!Number.isFinite(+amount)||+amount<0||+amount>1e7||+amount>0&&(!expires||cold&&storage==='干燥常温'))setError('请填写有效库存、可用日期和适合食材的保存方式。');
       else void save(+amount,{storage,expires:expires||'0001-01-01'}).then(success=>{if(success)setError('');});}}>保存库存</button>{error&&<p role="alert" className="error">{error}</p>}</div>;
 }
-export function SupplyEditor({settings,start,people,budget,save}:{settings:SupplySettings;start?:string;people:string;budget:string;
-  save:(settings:SupplySettings,people:string,budget:string)=>Promise<boolean>}) {
-  const [s,setS]=useState(settings);
-  const [custom,setCustom]=useState((settings.pattern??[2,2,3]).join('＋'));
-  const [count,setCount]=useState(people),[cap,setCap]=useState(budget),[error,setError]=useState('');
-  const options=s.prep==='自定义'?undefined:patternOptions[s.prep];
-  const current=s.prep==='自定义'?{...s,pattern:custom.split(/[+＋，,\s]+/).filter(Boolean).map(Number)}:s;
-  let ranges:ReturnType<typeof splitWeek>=[];
-  try{ranges=splitWeek(current);}catch{/* 输入期间显示在保存提示中 */}
-  function updateDate(key:'prepDates'|'purchaseDates',i:number,value:number) {
-    const next=ranges.map((r,j)=>j===i?value:key==='prepDates'?r.prepAt:r.purchaseAt);
-    setS(key==='prepDates'?{...s,prepDates:next,purchaseDates:ranges.map((r,j)=>Math.min(r.purchaseAt,next[j]))}:{...s,purchaseDates:next});
-  }
-  return <details className="card settings"><summary>采购周期、备餐周期与预算</summary>
-    <div className="fields">
-      <label className="field">备餐周期<select value={s.prep} onChange={e=>setS({prep:e.target.value as SupplySettings['prep'],purchase:s.purchase})}>
-        {prepPeriods.map(p=><option key={p}>{p}</option>)}</select></label>
-      <label className="field">采购周期<select value={s.purchase} onChange={e=>setS({...s,purchase:e.target.value as SupplySettings['purchase']})}>
-        {purchasePeriods.map(p=><option key={p}>{p}</option>)}</select></label>
-      <label className="field">用餐人数<input type="number" min="1" max="12" step="1" value={count} onChange={e=>setCount(e.target.value)}/></label>
-      <label className="field">全周预算（元，可选）<input type="number" min=".01" step=".01" value={cap} onChange={e=>setCap(e.target.value)}/></label>
-      {options&&options.length>1&&<label className="field">批次划分<select value={(s.pattern??options[0]).join('＋')}
-        onChange={e=>setS({...s,pattern:e.target.value.split('＋').map(Number),prepDates:undefined,purchaseDates:undefined})}>
-        {options.map(p=><option key={p.join()}>{p.join('＋')}</option>)}</select></label>}
-      {s.prep==='自定义'&&<label className="field">各批覆盖天数（合计7天）<input value={custom} onChange={e=>{setCustom(e.target.value);setS({...s,prepDates:undefined,purchaseDates:undefined});}}/></label>}
-    </div>
-    {s.prep==='自定义'&&ranges.map((r,i)=><div key={r.index}>
-      <p>第 {i+1} 批 · 第 {r.from+1}～{r.to} 天</p><div className="fields">
-      {(['prepDates','purchaseDates'] as const).map(key=><label className="field" key={key}>{key==='prepDates'?'备餐日':'计划采购日'}
-        <select value={key==='prepDates'?r.prepAt:r.purchaseAt} onChange={e=>updateDate(key,i,+e.target.value)}>
-          {Array.from({length:(key==='prepDates'?r.from:r.prepAt)+2},(_,j)=>j-1).map(n=><option key={n} value={n}>
-            {start?addDays(start,n):n<0?'计划前一天':'第 '+(n+1)+' 天'}</option>)}
-        </select></label>)}</div>
-    </div>)}
-    {error&&<p role="alert" className="error">{error}</p>}
-    <button className="primary" onClick={()=>{try{
-      splitWeek(current);
-      if(!Number.isInteger(+count)||+count<1||+count>12||cap&&(!Number.isFinite(+cap)||+cap<=0||+cap>1e7))throw Error('请检查用餐人数及预算。');
-      void save(current,count,cap).then(ok=>{if(ok)setError('');});
-    }catch(e){setError(e instanceof Error?e.message:'设置无效。');}}}>应用批次设置</button>
+function ConversionEditor({id,options,save}:{id:string;options?:PurchaseOptions;save:(options:PurchaseOptions)=>Promise<boolean>}) {
+  const rule=purchaseFood(id).conversion!;
+  const effective=purchaseFood(id,{yields:options?.yields});
+  const [rate,setRate]=useState(effective.rate===null||effective.rate===undefined?'':String(effective.rate*100));
+  const [ready,setReady]=useState(options?.ready?.includes(id)??false);
+  const [error,setError]=useState('');
+  return <details><summary>{food(id).name} · {effective.rate==null?'换算待补充':decimal(effective.rate*100)+'%'} {options?.ready?.includes(id)?'· 买即食':''}</summary>
+    <p className="meta">{food(rule.purchaseIngredientId).name} · {rule.method} · {rule.version} · 初始估算 {decimal(rule.rate*100)}%。<a href={rule.source} target="_blank" rel="noreferrer">查阅估算依据</a></p>
+    <label className="check"><input type="checkbox" checked={ready} onChange={e=>setReady(e.target.checked)}/>明确购买这一种无盐即食成品，按包装保质保存</label>
+    <label className="field">我的实际出成率（%）<input type="number" min={10} max={1000} step="any" value={rate} onChange={e=>setRate(e.target.value)}/></label>
+    <p className="meta">留空表示未知，受影响的采购会标记为待补充。</p>
+    {error&&<p className="error" role="alert">{error}</p>}
+    <div className="actions"><button onClick={()=>{
+      if(rate&&(!Number.isFinite(+rate)||+rate<10||+rate>1000)){setError('请输入 10%～1000% 的有效出成率。');return;}
+      if(ready!==Boolean(options?.ready?.includes(id))&&!confirm('切换后，当前方案会按所选原料或即食商品重新估算，已购凭证仍会保留。继续？'))return;
+      const selected=(options?.ready??[]).filter(item=>item!==id);
+      if(ready)selected.push(id);
+      void save({ready:selected,yields:{...options?.yields,[id]:rate?+rate/100:null}});
+    }}>保存换算与商品</button>
+    <button onClick={()=>{const yields={...options?.yields};delete yields[id];void save({...options,yields});}}>恢复参考出成率</button></div>
   </details>;
+}
+
+export function SupplyFields({settings,start,profile,change}:{settings:SupplySettings;start:string;profile:Profile;change:(v:SupplySettings)=>void}) {
+  const [custom,setCustom]=useState((settings.pattern??[2,2,3]).join('＋'));
+  const [selected,setSelected]=useState(settings.shopping?.offsets??[0,3]);
+  const options=settings.prep==='自定义'?undefined:patternOptions[settings.prep];
+  let dates:number[]=[];
+  try{dates=shoppingOffsets(settings,profile,start);}catch{/* 保存时检查 */}
+  const ranges=(()=>{try{return splitWeek(settings);}catch{return [];}})();
+  return <>
+    <div className="fields">
+      <label className="field">每周采购次数<select value={settings.shopping?.count??2} onChange={e=>{
+        const count=e.target.value==='自定义'?'自定义':+e.target.value as 1|2|3;
+        change({...settings,shopping:{count,...(count==='自定义'?{offsets:selected}:{})}});
+      }}><option value="1">1 次</option><option value="2">2 次</option><option value="3">3 次</option><option>自定义</option></select></label>
+      <label className="field">备餐周期<select value={settings.prep} onChange={e=>change({...settings,prep:e.target.value as SupplySettings['prep'],pattern:undefined,prepDates:undefined})}>
+        {prepPeriods.map(p=><option key={p}>{p}</option>)}</select></label>
+      {options&&options.length>1&&<label className="field">批次划分<select value={(settings.pattern??options[0]).join('＋')}
+        onChange={e=>change({...settings,pattern:e.target.value.split('＋').map(Number),prepDates:undefined})}>
+        {options.map(p=><option key={p.join()}>{p.join('＋')}</option>)}</select></label>}
+      {settings.prep==='自定义'&&<label className="field">各批覆盖天数（合计 7 天）<input value={custom} onChange={e=>{
+        setCustom(e.target.value);change({...settings,pattern:e.target.value.split(/[+＋，,\s]+/).filter(Boolean).map(Number),prepDates:undefined});
+      }}/></label>}
+    </div>
+    {settings.shopping?.count==='自定义'&&<fieldset className="choices"><legend>选购物日期</legend>
+      <div className="chips">{Array.from({length:8},(_,i)=>i-1).map(d=><label className="chip" key={d}>
+        <input type="checkbox" checked={selected.includes(d)} onChange={e=>{
+          const next=(e.target.checked?[...selected,d]:selected.filter(v=>v!==d)).sort((a,b)=>a-b);
+          setSelected(next);change({...settings,shopping:{count:'自定义',offsets:next}});
+        }}/>{dateLabel(addDays(start,d))}</label>)}</div></fieldset>}
+    {dates.length>0&&<p className="meta">预定购物日 {dates.map(d=>dateLabel(addDays(start,d))).join('、')}</p>}
+    {settings.prep==='自定义'&&ranges.map((r,i)=><label key={i} className="field">第 {i+1} 批备餐日<select value={r.prepAt}
+      onChange={e=>change({...settings,prepDates:ranges.map((range,index)=>index===i?+e.target.value:range.prepAt)})}>
+      {Array.from({length:r.from+2},(_,j)=>j-1).filter(d=>d>=dates[0]).map(d=><option key={d} value={d}>{dateLabel(addDays(start,d))}</option>)}</select></label>)}
+  </>;
 }

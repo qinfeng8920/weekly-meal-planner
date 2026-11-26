@@ -21,7 +21,7 @@ async function setup(page:Page) {
   await expect(page.getByRole('heading',{name:'你好，测试用户'})).toBeVisible();
 }
 async function generate(page:Page) {
-  await page.getByRole('button',{name:'生成本周食谱',exact:true}).click();
+  await page.getByRole('button',{name:'生成七天食谱',exact:true}).click();
   await expect(page.getByText('七天食谱已生成。')).toBeVisible({timeout:12000});
 }
 const nav=(page:Page, name:string)=>page.getByRole('navigation',{name:'主导航'}).getByRole('button',{name,exact:true});
@@ -33,16 +33,15 @@ test('手机问卷、七天食谱、采购、称重、历史与独立存储',asy
   page.on('pageerror',e=>errors.push(e.message));
   await setup(page);
   await generate(page);
-  expect(await page.getByRole('button',{name:/^周[一二三四五六日]$/}).count()).toBe(7);
+  expect(await page.getByRole('button',{name:/^周[一二三四五六日] +\d+\/\d+$/}).count()).toBe(7);
   page.once('dialog',d=>d.accept('测试快照'));
   await page.getByRole('button',{name:'保存到历史'}).click();
   await expect(page.getByText('已保存到历史方案。')).toBeVisible();
   await nav(page,'采购').click();
-  await page.getByRole('button',{name:'分批采购',exact:true}).click();
-  await page.getByRole('checkbox').first().click();
+    await page.getByRole('checkbox').first().click();
   await expect(page.getByRole('checkbox').first()).toBeChecked();
   await expect(page.getByText('采购记录已更新。')).toBeVisible();
-  await page.getByRole('button',{name:'分批备餐',exact:true}).click();
+  await page.getByRole('button',{name:'备餐清单',exact:true}).click();
   await expect(page.getByText(/生熟分开/)).toBeVisible();
   await assertFit(page);
   await nav(page,'首页').click();
@@ -91,7 +90,7 @@ test('备份往返、分享净化、深色及 320 像素布局',async({page})=>{
   await page.getByLabel('导入并恢复').setInputFiles(path!);
   await expect(page.getByText('备份已恢复。')).toBeVisible();
   await page.setViewportSize({width:320,height:640});
-  for(const name of ['首页','食谱','采购','菜谱库','我的']){await nav(page,name).click();await assertFit(page);}
+  for(const name of ['首页','食谱','采购','我的']){await nav(page,name).click();await assertFit(page);}
 });
 test('子路径资源、安装清单、离线重新打开和生成',async({page,context})=>{
   await setup(page);
@@ -109,7 +108,7 @@ test('子路径资源、安装清单、离线重新打开和生成',async({page,
   await generate(page);
   await page.reload();
   await nav(page,'食谱').click();
-  await expect(page.getByRole('heading',{name:/周.营养/})).toBeVisible();
+  await expect(page.getByRole('heading',{name:/周. .*营养/})).toBeVisible();
 });
 
 test('新 Service Worker 版本生效后仍能读取历史',async({page})=>{
@@ -132,104 +131,89 @@ test('新 Service Worker 版本生效后仍能读取历史',async({page})=>{
   await expect(page.getByRole('heading',{name:'更新前保存'})).toBeVisible();
 });
 
-test('分餐偏好、固定早餐、营养检查及历史存档',async({page})=>{
+test('唯一生成设置保留固定早餐、资料筛选和营养详情',async({page})=>{
   await setup(page);
   await nav(page,'食谱').click();
+  await page.getByRole('button',{name:'生成设置',exact:true}).click();
   await page.getByText('早餐、午餐和晚餐偏好',{exact:true}).click();
-  await page.getByText('早餐 · 10 分钟',{exact:true}).click();
+  await page.locator('summary').filter({hasText:/^早餐$/}).click();
   await page.getByLabel('不喜欢的食材',{exact:true}).filter({visible:true}).fill('酸奶');
   await page.getByRole('button',{name:'保存分餐偏好'}).click();
   await expect(page.getByText(/分餐偏好已保存/)).toBeVisible();
-  await page.getByText('生成设置',{exact:true}).click();
+  await page.getByText('固定搭配与随机种子',{exact:true}).click();
   await page.getByLabel('固定早餐').selectOption('breakfast-set-0-0');
   await expect(page.getByText('生成设置已保存。')).toBeVisible();
   await page.getByLabel('随机种子（选填）').fill('浏览器验收');
-  await generate(page);
+  await page.getByRole('button',{name:'按设置生成'}).click();
+  await expect(page.getByText('七天食谱已生成。')).toBeVisible();
   const breakfast=page.locator('section.meal-card').first();
   await expect(breakfast.getByRole('heading',{name:'早餐',exact:true})).toBeVisible();
   await expect(breakfast.getByRole('button',{name:'无糖豆浆煮燕麦',exact:true})).toBeVisible();
   await expect(breakfast.getByRole('button',{name:'水煮蛋（即食）',exact:true})).toBeVisible();
-  await expect(breakfast.getByText(/约 (?:[1-9]|10) 分钟/).first()).toBeVisible();
+  await expect(breakfast.getByText('熟重',{exact:true})).toBeVisible();
   await page.getByText('全周日均营养检查',{exact:true}).click();
   await expect(page.locator('details[open]').filter({has:page.getByText('全周日均营养检查',{exact:true})}).getByText('参考值 800 毫克',{exact:true})).toBeVisible();
-  page.once('dialog',d=>d.accept('分餐历史'));
-  await page.getByRole('button',{name:'保存到历史'}).click();
-  await expect(page.getByText('已保存到历史方案。')).toBeVisible();
-  await page.reload();
-  await nav(page,'食谱').click();
-  await expect(page.getByRole('button',{name:'无糖豆浆煮燕麦',exact:true}).first()).toBeVisible();
-  await nav(page,'菜谱库').click();
+  await nav(page,'我的').click();
+  await page.getByRole('button',{name:'菜谱库与收藏'}).click();
   await page.getByRole('button',{name:'早餐搭配',exact:true}).click();
   await expect(page.getByRole('heading',{name:/43 套早餐搭配/})).toBeVisible();
   await assertFit(page);
 });
 
-test('临时极简模式、分日设置与新版档案备份',async({page})=>{
+test('起始日期显示真实星期，首页和食谱共用已保存设置',async({page})=>{
   await setup(page);
-  await nav(page,'食谱').click();
-  await page.getByText('烹饪模式与分日设置',{exact:true}).click();
-  await page.getByRole('combobox',{name:'默认烹饪模式',exact:true}).selectOption('混合');
-  await page.getByRole('combobox',{name:'周末模式',exact:true}).selectOption('精致');
-  await page.getByRole('combobox',{name:'应用日期',exact:true}).selectOption('5');
-  await page.getByRole('combobox',{name:'餐次',exact:true}).selectOption('晚餐');
-  await page.getByRole('combobox',{name:'该餐烹饪模式',exact:true}).selectOption('家常');
-  await page.getByRole('combobox',{name:'最长总制作时间',exact:true}).selectOption('40');
-  await page.getByRole('combobox',{name:'允许提前备餐',exact:true}).selectOption('true');
-  await page.getByRole('button',{name:'保存烹饪设置',exact:true}).click();
-  await expect(page.getByText(/烹饪设置已保存/)).toBeVisible();
-  await page.getByText('生成设置',{exact:true}).click();
-  await page.getByRole('combobox',{name:'本次生成模式',exact:true}).selectOption('极简');
-  await page.getByLabel('随机种子（选填）').fill('各模式');
+  await page.getByRole('button',{name:'生成设置',exact:true}).click();
+  await expect(page.getByLabel('食谱从哪天开始')).toHaveValue('明天');
+  await expect(page.getByLabel('烹饪偏好')).toHaveValue('不限制');
+  await expect(page.getByText('制作时间上限')).toHaveCount(0);
+  await page.getByLabel('食谱从哪天开始').selectOption('今天');
+  await page.getByLabel('采购模式').selectOption('均衡搭配');
+  await page.getByLabel('烹饪偏好').selectOption('家常');
+  await page.getByRole('button',{name:'保存设置',exact:true}).click();
+  await expect(page.getByText('生成设置已保存。')).toBeVisible();
+  await nav(page,'首页').click();
   await generate(page);
-  await page.getByRole('button',{name:'周一',exact:true}).click();
-  const breakfast=page.locator('section.meal-card').first();
-  await expect(breakfast.getByText(/极简模式/)).toBeVisible();
-  await expect(breakfast.getByText(/主动 [0-8] 分钟/)).toBeVisible();
-  await expect(breakfast.getByText('调整这餐',{exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'周六',exact:true}).click();
-  await expect(page.locator('section.meal-card').last().getByText(/家常模式/)).toBeVisible();
-  await page.reload();
-  await nav(page,'食谱').click();
-  await page.getByRole('button',{name:'周一',exact:true}).click();
-  await expect(page.locator('section.meal-card').first().getByText(/极简模式/)).toBeVisible();
-  await page.getByText('烹饪模式与分日设置',{exact:true}).click();
-  await expect(page.getByRole('combobox',{name:'默认烹饪模式',exact:true})).toHaveValue('混合');
-  await assertFit(page);
+  const now=await page.evaluate(()=>new Intl.DateTimeFormat('zh-CN',{weekday:'short'}).format(new Date())+
+    ' '+(new Date().getMonth()+1)+'/'+new Date().getDate());
+  await expect(page.locator('.day-tabs button').first()).toHaveAccessibleName(now);
+  await page.getByRole('button',{name:'生成设置',exact:true}).click();
+  await expect(page.getByLabel('采购模式')).toHaveValue('均衡搭配');
+  await expect(page.getByLabel('烹饪偏好')).toHaveValue('家常');
 });
-
-test('分批备餐、改价持久化、费用联动和历史价格快照',async({page})=>{
+test('采购两次、备餐三批，改价同步但历史保持快照',async({page})=>{
   await setup(page);
-  await nav(page,'食谱').click();
-  await page.getByText('生成设置',{exact:true}).click();
+  await page.getByRole('button',{name:'生成设置',exact:true}).click();
+  await page.getByLabel('每周采购次数').selectOption('2');
+  await page.getByLabel('备餐周期').selectOption('每2～3天');
+  await page.getByLabel('批次划分').selectOption('2＋2＋3');
+  await page.getByText('固定搭配与随机种子',{exact:true}).click();
+  await page.getByLabel('固定早餐').selectOption('breakfast-set-0-0');
+  await expect(page.getByText('生成设置已保存。')).toBeVisible();
   await page.getByLabel('随机种子（选填）').fill('采购验收');
-  await generate(page);
-  await nav(page,'采购').click();
-  await page.getByText('采购周期、备餐周期与预算',{exact:true}).click();
-  await page.getByRole('combobox',{name:'备餐周期',exact:true}).selectOption('每2～3天');
-  await page.getByRole('combobox',{name:'批次划分',exact:true}).selectOption('3＋2＋2');
-  await page.getByRole('combobox',{name:'采购周期',exact:true}).selectOption('一次采购');
-  await page.getByRole('button',{name:'应用批次设置',exact:true}).click();
-  await expect(page.getByText('批次与费用已重新计算。')).toBeVisible();
-  await page.getByRole('button',{name:'分批备餐',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'备餐周期 · 3＋2＋2'})).toBeVisible();
-  await expect(page.getByText(/备餐第 [123] 批/)).toHaveCount(3);
-  const total=()=>page.locator('dl.supply-summary div').filter({hasText:'预计采购费用'}).locator('dd');
-  const old=await total().innerText();
-  await nav(page,'食谱').click();
+  await page.getByRole('button',{name:'按设置生成'}).click();
+  await expect(page.getByText('七天食谱已生成。')).toBeVisible();
   page.once('dialog',d=>d.accept('原价快照'));
   await page.getByRole('button',{name:'保存到历史'}).click();
   await expect(page.getByText('已保存到历史方案。')).toBeVisible();
+  await nav(page,'采购').click();
+  await expect(page.locator('summary').filter({hasText:/^采购第 [12] 批/})).toHaveCount(2);
+  const total=()=>page.locator('.section-title').filter({has:page.getByRole('heading',{name:'本周采购',exact:true})}).locator('strong');
+  const old=await total().innerText();
+  await page.getByRole('button',{name:'备餐清单',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'备餐周期 · 2＋2＋3'})).toBeVisible();
+  await expect(page.getByText(/备餐第 [123] 批/)).toHaveCount(3);
   await nav(page,'我的').click();
-  await page.getByRole('button',{name:'食材价格管理',exact:true}).click();
+  await page.getByRole('button',{name:'食材价格',exact:true}).click();
   await page.getByRole('searchbox',{name:'搜索食材'}).fill('燕麦');
-  await page.getByText(/无糖燕麦片 ·/).first().click();
+  await page.locator('summary').filter({hasText:/^无糖燕麦片 ·/}).click();
   await page.getByRole('spinbutton',{name:'单价（元）',exact:true}).fill('79');
   await page.getByRole('button',{name:'保存此食材价格',exact:true}).click();
   await expect(page.getByText('食材价格已保存。')).toBeVisible();
+  await nav(page,'采购').click();
   await expect(total()).not.toHaveText(old);
   await page.reload();
   await nav(page,'我的').click();
-  await page.getByRole('button',{name:'食材价格管理',exact:true}).click();
+  await page.getByRole('button',{name:'食材价格',exact:true}).click();
   await page.getByRole('searchbox',{name:'搜索食材'}).fill('燕麦');
   await expect(page.getByText(/¥79\.00\/斤.*用户自定义/)).toBeVisible();
   await nav(page,'我的').click();
@@ -245,18 +229,18 @@ test('分批备餐、改价持久化、费用联动和历史价格快照',async(
 
 test('新生成设置、补充确认、分装进度和三种手机宽度的浅深色布局',async({page})=>{
   await setup(page);
-  await page.getByRole('button',{name:'设置并生成'}).click();
-  await page.getByLabel('采购模式').selectOption('极简采购');
+  await page.getByRole('button',{name:'生成设置'}).click();
+  await page.getByLabel('采购模式').selectOption('少量种类');
   await page.getByLabel('选择方式').selectOption('手动指定');
   page.once('dialog',dialog=>{
     expect(dialog.message()).toContain('确认后才保存方案');
     void dialog.dismiss();
   });
-  await page.getByRole('button',{name:'按食材池生成'}).click();
+  await page.getByRole('button',{name:'按设置生成'}).click();
   await expect(page.getByText('已保留原方案，可继续调整食材池。')).toBeVisible();
   await page.getByLabel('选择方式').selectOption('自动选择');
-  await page.getByRole('button',{name:'按食材池生成'}).click();
-  await expect(page.getByRole('heading',{name:'本周核心食材'})).toBeVisible();
+  await page.getByRole('button',{name:'按设置生成'}).click();
+  await expect(page.getByText('本周食材池',{exact:true})).toBeVisible();
   await nav(page,'首页').click();
   await page.getByRole('button',{name:'继续备餐'}).click();
   const selected=page.locator('details.card[open]').filter({has:page.getByText(/备餐第 [123] 批/)}).first();
@@ -275,12 +259,21 @@ test('新生成设置、补充确认、分装进度和三种手机宽度的浅�
     await page.getByLabel('外观').selectOption(theme);
     for(const width of [360,390,430]) {
       await page.setViewportSize({width,height:850});
-      for(const name of ['首页','食谱','采购','菜谱库','我的']) {
+      for(const name of ['首页','食谱','采购','我的']) {
         await nav(page,name).click();
         await assertFit(page);
+        await expect(nav(page,name)).toBeVisible();
+        expect(await page.locator('.nutrition-row > div').evaluateAll(cells=>cells.every(cell=>{
+          const value=cell.querySelector('.unit');
+          return !value||value.getBoundingClientRect().right<=cell.getBoundingClientRect().right+1;
+        }))).toBe(true);
       }
+      await expect(page.getByRole('navigation',{name:'主导航'}).getByRole('button')).toHaveCount(4);
+      await nav(page,'采购').click();
+      await expect(page.getByRole('button',{name:'采购清单',exact:true})).toBeVisible();
+      await expect(page.getByRole('button',{name:'备餐清单',exact:true})).toBeVisible();
       await nav(page,'首页').click();
-      await page.getByRole('button',{name:'设置并生成'}).click();
+      await page.getByRole('button',{name:'生成设置'}).click();
       await assertFit(page);
       await nav(page,'首页').click();
       await page.getByRole('button',{name:'继续备餐'}).click();
@@ -298,10 +291,10 @@ test('生成由 Worker 执行，可以取消并留在当前页面',async({page})
     };
   });
   await setup(page);
-  await page.getByRole('button',{name:'生成本周食谱',exact:true}).click();
+  await page.getByRole('button',{name:'生成七天食谱',exact:true}).click();
   await expect(page.getByRole('button',{name:'取消生成'})).toBeVisible();
   await page.getByRole('button',{name:'取消生成'}).click();
   await expect(page.getByText('已取消，现有食谱保持原样。')).toBeVisible();
   await expect(page.getByRole('heading',{name:'你好，测试用户'})).toBeVisible();
-  await expect(page.getByRole('button',{name:'生成本周食谱',exact:true})).toBeEnabled();
+  await expect(page.getByRole('button',{name:'生成七天食谱',exact:true})).toBeEnabled();
 });

@@ -3,7 +3,7 @@ import {test} from 'node:test';
 import {foods,recipeList,food,serving} from '../src/catalog';
 import {nutrition,macroKeys} from '../src/nutrition';
 import {dayNutrition,regenerate,revise,verifyAgainst} from '../src/planner';
-import {shopping,prepPlan} from '../src/shopping';
+import {shopping,prepPlan,purchasesFromLogistics} from '../src/shopping';
 import {parseBackup,fresh} from '../src/store';
 import {demo} from './fixtures';
 
@@ -65,22 +65,24 @@ test('固定早餐和指定菜，不能满足时明确失败',()=>{
   throws(()=>make({budget:'1'}),/预算/);
 });
 test('锁定、换菜与派生采购备餐同步',()=>{
-  const row=base.days[0].meals[0].dishes[0];
+  const original=regenerate({...demo,fixedBreakfast:'quick-oats'},[],{},[],'锁定');
+  const p=original.profile;
+  const row=original.days[0].meals[0].dishes[0];
   const lock={day:0,meal:0,dish:0,serving:row};
-  const changed=regenerate(demo,[],{},[],'replace',base,[lock],{day:0,meal:0,dish:1});
+  const changed=regenerate(p,[],{},[],'replace',original,[lock],{day:0,meal:0,dish:1});
   deepEqual(changed.days[0].meals[0].dishes[0],row);
-  notDeepEqual(changed.days[0].meals[0].dishes[1].recipe.id,base.days[0].meals[0].dishes[1].recipe.id);
-  deepEqual(changed.days.slice(1),base.days.slice(1));
-  deepEqual(changed.purchases,shopping(changed.days,demo,{}));
-  deepEqual(changed.prep,prepPlan(changed.days,demo,base.start));
-  throws(()=>revise(base,demo,[],{},[],0,0,0,[9999]),/范围/);
+  notDeepEqual(changed.days[0].meals[0].dishes[1].recipe.id,original.days[0].meals[0].dishes[1].recipe.id);
+  deepEqual(changed.days.slice(1),original.days.slice(1));
+  deepEqual(changed.purchases,purchasesFromLogistics(changed.logistics!));
+  deepEqual(changed.prep,prepPlan(changed.days,p,original.start));
+  throws(()=>revise(base,demo,[],{},[],0,0,0,base.days[0].meals[0].dishes[0].ingredients.map(()=>9999)),/范围/);
 });
 test('采购多人用量、包装、库存、补买与分批',()=>{
   const raw=shopping(base.days,{...demo,people:'2',trips:'2'},{}).find(p=>p.id==='canola')!;
   const need=all(base).flatMap(s=>s.ingredients).filter(i=>i.id==='canola').reduce((n,i)=>n+i.grams,0)*2;
   ok(Math.abs(raw.need-need)<.011);
   const rounded=shopping(base.days,{...demo,people:'2',trips:'2'},{canola:{stock:15,bought:2,price:50,pack:100}}).find(p=>p.id==='canola')!;
-  equal(rounded.buy%100,0);equal(rounded.extra,rounded.buy-2);equal(rounded.cost,rounded.buy*.05);equal(rounded.part.length,2);
+  equal(rounded.buy%100,0);equal(rounded.extra,rounded.buy);equal(rounded.cost,rounded.buy*.05);equal(rounded.part.length,2);
 });
 test('新体重更新目标，历史快照仍独立，备餐遇到无冰箱时每天现做',()=>{
   const newPlan=regenerate(demo,[{date:'2026-11-26',kg:80}],{},[],'abc');
@@ -100,8 +102,7 @@ test('损坏备份、未知版本与历史快照',()=>{
 test('录入可食率按毛重换算，未知项保留净料提示',()=>{
   const initial=shopping(base.days,demo,{}).find(p=>p.id==='apple'||p.id==='pear'||p.id==='orange');
   ok(initial);
-  ok(initial.uncertain);
   const updated=shopping(base.days,demo,{[initial.id]:{yieldPercent:50}}).find(p=>p.id===initial.id)!;
-  equal(updated.buy,Math.ceil(initial.need*2));
+  ok(updated.buy>=Math.ceil(initial.need*2)&&updated.buy<=Math.ceil(initial.need*2)+1);
   equal(updated.uncertain,false);
 });

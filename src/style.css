@@ -170,3 +170,23 @@ summary { min-height:44px; cursor:pointer; padding:10px 0; font-weight:650 }
 .task-check input {margin-inline:0}
 .purchase-row label strong {overflow-wrap:anywhere}
 .stat-strip b,.purchase-row b {white-space:nowrap}
+
+.unit {white-space:nowrap; font-variant-numeric:tabular-nums}
+.bottom-nav .shell {grid-template-columns:repeat(4,minmax(0,1fr))}
+.day-tabs button span,.day-tabs button small {display:block}
+.day-tabs button small {font-size:.76rem}
+.dish-ingredients {display:flex;flex-wrap:wrap;gap:4px 12px}
+.dish-ingredients > span {max-width:100%;overflow-wrap:anywhere}
+.dish > button {flex-shrink:0}
+.line-actions,.list-actions {margin-bottom:12px}
+.purchase-price {display:flex; flex-wrap:wrap; gap:0 8px; align-items:center; justify-content:space-between}
+.purchase-price b {margin-left:auto}
+.home-metrics {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.home-metrics span {display:block;color:var(--muted);font-size:.82rem}
+.home-plan-meta {font-size:.95rem}
+
+.nutrition-row {grid-template-columns:minmax(0,1.45fr) repeat(3,minmax(0,1fr)) minmax(0,1.12fr)}
+@media(max-width:420px) {
+  .nutrition-row strong {font-size:.91rem}
+  .nutrition-row small {font-size:.69rem}
+}

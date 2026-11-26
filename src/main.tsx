@@ -1,10 +1,12 @@
-import {PoolPage} from './PoolPage';
+import {PoolPage,type GenerationDraft} from './PoolPage';
 import {consumedBySource,homeKey,updateTask,type StockInfo} from './execution';
-import {food} from './catalog';
-import {defaultPool,weekUsage,type PoolSettings} from './ingredient-pool';
-import {SupplyEditor} from './SupplyEditors';
+import {food,recipeList} from './catalog';
+import {buildWeeklyPool,defaultPool,type PoolSettings} from './ingredient-pool';
+import {InventoryManager,PriceManager} from './SupplyEditors';
+import {MealSettings} from './MealSettings';
+import {breakfastMenus,fixedBreakfasts,menuName} from './meal-catalog';
 import {version} from '../package.json';
-import type {CookingProfile,CookingSelection} from './cooking-profile';
+import type {CookingProfile} from './cooking-profile';
 import {StrictMode,useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Dashboard} from './Dashboard';
@@ -12,22 +14,23 @@ import {ProfileForm} from './ProfileForm';
 import {PlanPage} from './PlanPage';
 import {Library} from './Library';
 import {ShoppingPage,type SupplyActions} from './ShoppingPage';
-import {dateKey,type Profile,type Weight} from './profile';
-import {supplyDefaults} from './batches';
+import {dateKey,initialProfile,type Profile,type Weight} from './profile';
+import {addDays,shoppingOffsets,shoppingSchedule,supplyDefaults} from './batches';
 import {planLogistics,type Logistics} from './logistics';
 import {parsePriceBackup} from './logistics-storage';
 import {type PriceBook} from './prices';
 import {nutrition} from './nutrition';
-import {algorithmVersion,monday,regenerate,revise,verifyAgainst,type Change,type Lock,type Plan} from './planner';
-import {prepPlan,shopping,type Pantry} from './shopping';
+import {algorithmVersion,newPlanStart,regenerate,revise,verifyAgainst,type Change,type Lock,type Plan,type StartChoice} from './planner';
+import {prepPlan,purchasesFromLogistics,type Pantry} from './shopping';
 import {downloadFile,fresh,loadData,parseBackup,writeData,type Data} from './store';
-import {Empty,planText,SectionTitle,shareText,todayIndex} from './ui';
+import {decimal,Empty,planText,SectionTitle,shareText,planDay} from './ui';
 import './style.css';
 
-const pages=['首页','食谱','采购','菜谱库','我的'];
-const icons=['⌂','▤','▣','▥','◉'];
+const pages=['首页','食谱','采购','我的'];
+const icons=['⌂','▤','▣','◉'];
 type InstallEvent=Event&{prompt:()=>Promise<void>;userChoice:Promise<{outcome:string}>};
-const planningProfile=(p:Profile)=>({...p,people:'',prep:'',trips:'',budget:''});
+const planningProfile=(p:Profile)=>({...p,people:'',prep:'',trips:'',budget:'',minutes:'',skill:'',
+  cooking:undefined,mealPreferences:p.mealPreferences?Object.fromEntries(Object.entries(p.mealPreferences).map(([key,value])=>[key,{...value,minutes:''}])):undefined});
 function clearLegacyPrices(pantry:Pantry,id?:string) {
   return Object.fromEntries(Object.entries(pantry).map(([key,item])=>[key,
     !id||key===id?{...item,price:undefined,pack:undefined,yieldPercent:undefined}:item]));
@@ -39,12 +42,11 @@ function App() {
   const [data,setData]=useState<Data|null>(null);
   const [fatal,setFatal]=useState('');
   const [page,setPage]=useState('首页'),[status,setStatus]=useState<{text:string;error?:boolean}|null>(null);
-  const [day,setDay]=useState(todayIndex),[seed,setSeed]=useState(''),[archived,setArchived]=useState<Plan|null>(null);
+  const [day,setDay]=useState(0),[seed,setSeed]=useState(''),[archived,setArchived]=useState<Plan|null>(null);
   const [historyQuote,setHistoryQuote]=useState<Logistics|undefined>();
   const [busy,setBusy]=useState(false),[offline,setOffline]=useState(!navigator.onLine),[cached,setCached]=useState(false);
   const [update,setUpdate]=useState<ServiceWorker|null>(null),[canInstall,setInstall]=useState<InstallEvent|null>(null);
   const [confirmDelete,setConfirmDelete]=useState(false);
-  const [temporary,setTemporary]=useState<CookingSelection|undefined>();
   const saving=useRef(false),working=useRef(false);
   const generation=useRef(0);
   const stopWorker=useRef<(()=>void)|undefined>(undefined);
@@ -98,32 +100,40 @@ function App() {
     document.documentElement.dataset.theme=data?.theme==='深色'?'dark':data?.theme==='浅色'?'light':'system';
   },[data?.theme]);
   function go(target:string) {
-    if (target==='食谱') setDay(todayIndex);
+    if (target==='食谱') setDay(planDay(data?.plan?.start,dateKey()));
     setPage(target);setStatus(null);window.scrollTo(0,0);
   }
   const quote=useMemo(()=>{
     if(!data?.plan)return;
     const {plan,profile}=data;
     const active=profile?{...plan.profile,tools:profile.tools,frozen:profile.frozen,people:profile.people,prep:profile.prep,trips:profile.trips,budget:profile.budget}:plan.profile;
-    const pantry=Object.fromEntries(Object.entries(data.pantry).map(([id,entry])=>[id,{...entry,bought:plan.start===monday()?entry.bought:0}]));
-    return planLogistics(plan.days,active,plan.start,pantry,{...data.supply,execution:data.supply?.execution??{}},plan.cookingOverride);
-  },[data]);
+    return planLogistics(plan.days,active,plan.start,data.pantry,{...data.supply,execution:data.supply?.execution??{}},plan.cookingOverride);
+  },[data?.plan,data?.profile,data?.pantry,data?.supply]);
   const notify=(text:string,error=false)=>setStatus({text,error});
   if (fatal) return <main className="container"><Empty title="读取本机数据失败"><p>{fatal}</p><button onClick={()=>location.reload()}>重新读取</button></Empty></main>;
   if (!data) return <main className="container"><p role="status">正在读取本机数据…</p></main>;
   const {profile,weights,plan}=data;
-  const pantry=Object.fromEntries(Object.entries(data.pantry).map(([id,entry])=>[id,{...entry,bought:plan?.start===monday()?entry.bought:0}]));
+  const pantry=data.pantry;
   let targets=null,reason='';
   if (profile) {
     try {targets=nutrition(profile,weights);}
     catch(e) {reason=errorText(e);}
   }
   const latestWeight=[...weights].sort((a,b)=>b.date.localeCompare(a.date))[0]?.kg??Number(profile?.weight);
-  const stale=Boolean(plan && (!['1.2.0',algorithmVersion].includes(plan.algorithmVersion) || !profile || !targets || latestWeight!==plan.weight ||
+  const stale=Boolean(plan && (!['1.2.0','2.0.0',algorithmVersion].includes(plan.algorithmVersion) || !profile || !targets || latestWeight!==plan.weight ||
     Math.abs(targets.kcal-plan.targets.kcal)>.01 || JSON.stringify(planningProfile(profile))!==JSON.stringify(planningProfile(plan.profile)) ||
     plan.days.some(d=>d.meals.some(m=>m.dishes.some(s=>data.blocked.includes(s.recipe.id))))));
   const supply={...data.supply,execution:data.supply?.execution??{}};
-  const pct=quote?(quote.toBuy?Math.round(100*quote.checked/quote.toBuy):100):0;
+  const storedSettings=supply.settings??supplyDefaults(profile??plan?.profile??initialProfile);
+  const activeSettings=profile?{prep:storedSettings.prep,pattern:storedSettings.pattern,prepDates:storedSettings.prepDates,
+    shopping:shoppingSchedule(storedSettings,profile)}:storedSettings;
+  const startChoice=supply.startChoice??'明天';
+  const profileWithDraft=(current:Profile,values:GenerationDraft):Profile=>({
+    ...current,people:values.people,budget:values.budget,cooking:{weekday:'简单',weekend:'家常',...current.cooking,mode:values.cooking},
+  });
+  const saveGeneration=(settings:PoolSettings,values:GenerationDraft)=>profile?
+    mutate({poolSettings:settings,profile:profileWithDraft(profile,values),supply:{...supply,settings:values.settings,startChoice:values.startChoice}},
+      '生成设置已保存。'):Promise.resolve(false);
   async function mutate(changes:Partial<Data>,message?:string) {
     if (saving.current) {notify('上一项修改正在保存，请稍后重试。',true);return false;}
     saving.current=true;
@@ -142,16 +152,18 @@ function App() {
     working.current=false;setBusy(false);
     notify('已取消，现有食谱保持原样。');
   }
-  async function generate(change?:Change,settings?:PoolSettings,keep=false,nextWeek=false) {
+  async function generate(change?:Change,settings?:PoolSettings,keep=false,config?:GenerationDraft) {
     if (!profile) {go('编辑档案');return;}
     if (working.current) return;
     working.current=true;setBusy(true);setStatus(null);
     const call=++generation.current;
     try {
       const key=seed.trim()&&!change?seed.trim():crypto.randomUUID().slice(0,12);
-      const options={settings:settings??data!.poolSettings,previous:plan?.pool,keep,nextWeek};
-      const args:Parameters<typeof regenerate>=[profile,weights,pantry,data!.blocked,key,
-        change?plan??undefined:undefined,stale?[]:data!.locks,change,temporary,supply,options];
+      const options={settings:settings??data!.poolSettings??defaultPool,previous:plan?.pool,keep,startChoice:config?.startChoice??startChoice};
+      const currentProfile=config?profileWithDraft(profile,config):profile;
+      const nextSupply=config?{...supply,settings:config.settings,startChoice:config.startChoice}:supply;
+      const args:Parameters<typeof regenerate>=[currentProfile,weights,pantry,data!.blocked,key,
+        change?plan??undefined:undefined,stale?[]:data!.locks,change,undefined,nextSupply,options];
       const next=await new Promise<Plan>((resolve,reject)=>{
         const worker=new Worker(new URL('./planner.worker.ts',import.meta.url),{type:'module'});
         stopWorker.current=()=>{worker.terminate();reject(Error('已取消生成。'));};
@@ -164,7 +176,7 @@ function App() {
         worker.postMessage(args);
       });
       if(call!==generation.current)return;
-      const newQuote=planLogistics(next.days,profile,next.start,pantry,supply,next.cookingOverride);
+      const newQuote=next.logistics!;
       const prior=new Set(quote?.lines.filter(l=>l.need>0).map(l=>l.id)??[]);
       const added=change||keep?newQuote.lines.filter(l=>l.need>0&&!prior.has(l.id)):[];
       const alreadyAllowed=new Set(plan?.pool?.supplements.map(s=>s.id));
@@ -179,8 +191,9 @@ function App() {
           notify('已保留原方案，可继续调整食材池。');return;
         }
       }
-      if (!await mutate({plan:next,pantry,locks:stale?[]:data!.locks,...(settings?{poolSettings:settings}:{})})) return;
-      if (!change) {go('食谱');setDay(next.start>dateKey()?0:todayIndex);setTemporary(undefined);}
+      if (!await mutate({plan:next,locks:stale?[]:data!.locks,...(settings?{poolSettings:settings}:{}),
+        ...(config?{profile:currentProfile,supply:nextSupply}:{})})) return;
+      if (!change) {go('食谱');setDay(planDay(next.start,dateKey()));}
       const previousBuy=new Map(quote?.lines.map(l=>[l.id,l.remaining]));
       const increased=change?newQuote.lines.filter(l=>l.remaining>(previousBuy.get(l.id)??0)+.01):[];
       const rest=increased.length?(' 预计新增补购 '+increased.slice(0,4).map(l=>food(l.id).name+' '+(l.remaining-(previousBuy.get(l.id)??0)).toFixed(1)+' 克').join('、')+(increased.length>4?'等':'')+'。'):'';
@@ -223,13 +236,18 @@ function App() {
   }
   async function reuse(row:Plan) {
     if (!profile) {notify('请先完成当前档案和健康筛查。',true);return;}
-    try {verifyAgainst(row,profile,weights,pantry,data!.blocked,supply);}
+    const start=newPlanStart(startChoice);
+    try {
+      shoppingOffsets(activeSettings,profile,start,dateKey());
+      verifyAgainst(row,profile,weights,pantry,data!.blocked,supply,start);
+    }
     catch(e) {notify('当前不可重新使用。'+errorText(e),true);return;}
     if (!confirm('此方案通过当前限制校验，重新使用会覆盖当前食谱并沿用原来的份量。继续？')) return;
-    const renewed={...structuredClone(row),logistics:undefined,id:crypto.randomUUID(),start:monday(),profile:structuredClone(profile),targets:targets!,weight:latestWeight};
+    const renewed={...structuredClone(row),logistics:undefined,id:crypto.randomUUID(),start,profile:structuredClone(profile),targets:targets!,weight:latestWeight};
     if(renewed.pool)renewed.pool.week=renewed.start;
-    renewed.purchases=shopping(renewed.days,profile,pantry);
-    renewed.prep=prepPlan(renewed.days,profile,renewed.start,renewed.cookingOverride);
+    const renewedQuote=planLogistics(renewed.days,profile,start,pantry,supply,renewed.cookingOverride);
+    renewed.purchases=purchasesFromLogistics(renewedQuote);
+    renewed.prep=prepPlan(renewed.days,profile,renewed.start,renewed.cookingOverride,renewedQuote);
     if(await mutate({plan:renewed,locks:[],pantry}))go('食谱');
   }
   function editHistory(p:Plan) {
@@ -237,13 +255,7 @@ function App() {
     if(title)historyEdit(p.id,row=>({...row,name:title}));
   }
   async function saveProfile(p:Profile) {
-    let current=supply.settings;
-    if(current&&profile) {
-      const defaults=supplyDefaults(p);
-      if(profile.prep!==p.prep) current={prep:defaults.prep,purchase:current.purchase};
-      if(profile.trips!==p.trips) current={...current,purchase:defaults.purchase};
-    }
-    if (await mutate({profile:p,...(current?{supply:{...supply,settings:current}}:{})})) {go('首页');notify('个人档案已保存到本机。');return true;}
+    if(await mutate({profile:p})) {go('首页');notify('个人档案已保存到本机。');return true;}
     return false;
   }
   async function restore(file:File) {
@@ -254,7 +266,6 @@ function App() {
     } catch(e){notify(errorText(e),true);}
   }
   const supplyActions:SupplyActions={
-    saveSettings:(settings,people,budget)=>profile?mutate({profile:{...profile,people,budget},supply:{...supply,settings}},'批次与费用已重新计算。'):Promise.resolve(false),
     stock:(id,n,info:StockInfo)=>{
       const taken=consumedBySource(supply.execution).get(homeKey(id))??0;
       return mutate({pantry:{...data.pantry,[id]:{...data.pantry[id],stock:n+taken}},
@@ -263,7 +274,7 @@ function App() {
     task:(job,action,checked)=>{
       if(!plan||!profile||stale){notify('请切换到当前有效食谱，再登记备餐任务。',true);return Promise.resolve(false);}
       try {
-        const execution=updateTask(supply.execution,job,action,checked,plan.start,dateKey(),profile,data.pantry,supply.receipts??{});
+        const execution=updateTask(supply.execution,job,action,checked,plan.start,dateKey(),profile,data.pantry,supply.receipts??{},supply.products);
         return mutate({supply:{...supply,execution}},'备餐进度已更新。');
       }catch(e){notify(errorText(e),true);return Promise.resolve(false);}
     },
@@ -296,9 +307,7 @@ function App() {
       const receipts={...supply.receipts};
       if(value)receipts[row.receiptKey]=value;
       else delete receipts[row.receiptKey];
-      const inventory={...data.pantry};
-      if(inventory[row.id]?.bought!==undefined)inventory[row.id]={...inventory[row.id],bought:undefined};
-      return mutate({supply:{...supply,receipts},pantry:inventory},'采购记录已更新。');
+      return mutate({supply:{...supply,receipts}},'采购记录已更新。');
     },
   };
   const shoppingOutput={
@@ -312,15 +321,17 @@ function App() {
     const pricing=clearLegacyPurchases(data!.pantry);
     for(const item of archived.logistics?.inventory??[]) pricing[item.id]={...pricing[item.id],stock:item.home};
     const quoted=planLogistics(archived.days,profile,archived.start,pricing,
-      {prices:supply.prices,settings:archived.logistics?.settings},archived.cookingOverride);
+      {prices:supply.prices,settings:archived.logistics?.settings,products:supply.products},archived.cookingOverride);
     setHistoryQuote(quoted);
     notify('已使用当前价格重新估算，历史快照保持原值。');
   }
+  const livePool=plan?.pool&&quote?buildWeeklyPool(plan.start,plan.pool.settings,
+    plan.pool.selected.filter(id=>!plan.pool!.supplements.some(s=>s.id===id)),plan.pool.selected,plan.days,quote,supply.products):plan?.pool;
   const planProps={
     profile,busy,stale,day,setDay,locks:data.locks,favorites:data.favorites,generate:()=>void generate(),
     editProfile:()=>go('编辑档案'),openHistory:()=>go('历史方案'),change:(p:Change)=>void generate(p),lock,
-    favorite:(id:string)=>toggle('favorites',id),block:(id:string)=>toggle('blocked',id),revise:adjust,save:savePlan,seed,setSeed,rules:rule,temporary,setTemporary,openPool:()=>go('生成设置'),keepPool:()=>void generate(undefined,plan?.pool?.settings,true),
-    saveCooking:(cooking:CookingProfile)=>profile?mutate({profile:{...profile,cooking}},'烹饪设置已保存。重新生成后生效。'):Promise.resolve(false),saveMealSettings:(mealPreferences:Profile['mealPreferences'])=>profile?mutate({profile:{...profile,mealPreferences}},'分餐偏好已保存。重新生成后生效。'):Promise.resolve(false),
+    favorite:(id:string)=>toggle('favorites',id),block:(id:string)=>toggle('blocked',id),revise:adjust,save:savePlan,
+    products:supply.products,livePool,openPool:()=>go('生成设置'),keepPool:()=>void generate(undefined,plan?.pool?.settings,true),
     share:(p:Plan,share:boolean)=>void send(planText(p),share),exportText:(p:Plan)=>downloadFile('天天减-七天食谱.txt',planText(p),'text/plain;charset=utf-8'),
   };
 
@@ -333,23 +344,48 @@ function App() {
       {busy&&<div className="hint generation-progress" role="status"><span>正在搭配未来七天的食谱…</span><button onClick={cancelGeneration}>取消生成</button></div>}
       {(offline||update)&&<div className="hint network">{offline?'当前离线，已缓存的功能仍可使用。':''}{update&&<button onClick={()=>update.postMessage('UPDATE')}>应用新版本</button>}</div>}
       {status&&<div className={'notice '+(status.error?'error':'')} role={status.error?'alert':'status'}><span>{status.text}</span><button aria-label="关闭提示" onClick={()=>setStatus(null)}>×</button></div>}
-      {page==='首页'&&<Dashboard quote={quote} poolCount={plan?.pool?.used.length??(plan?weekUsage(plan.days).length:0)} profile={profile} t={targets} reason={reason} weights={weights} plan={plan} stale={stale}
-        shoppingPercent={pct} generate={()=>void generate()} busy={busy} go={go} edit={()=>go('编辑档案')}
+      {page==='首页'&&<Dashboard quote={quote} poolCount={quote?.lines.filter(r=>r.uses.length>0).length??0} profile={profile} t={targets} reason={reason} weights={weights} plan={plan} stale={stale}
+        poolMode={(data.poolSettings??defaultPool).mode} schedule={profile?shoppingSchedule(activeSettings,profile).count:undefined}
+        prep={activeSettings.prep} execution={supply.execution} generate={()=>void generate()} busy={busy} go={go} edit={()=>go('编辑档案')}
         write={rows=>mutate({weights:rows},'称重记录已保存。')}/>}
       {page==='编辑档案'&&<><div className="page-title"><div><h1>{profile?'编辑个人档案':'建立个人档案'}</h1><p>身体数据只保存在当前浏览器。</p></div></div>
         <ProfileForm value={profile} onSave={saveProfile} onCancel={()=>go(profile?'我的':'首页')}/></>}
       {page==='食谱'&&<PlanPage plan={plan} {...planProps}/>}
       {page==='生成设置'&&profile&&<PoolPage initial={data.poolSettings??defaultPool} previous={plan?.pool}
-        templates={data.poolTemplates??[]} pantry={data.pantry} busy={busy} temporary={temporary} setTemporary={setTemporary}
-        onGenerate={(settings,keep,nextWeek)=>void generate(undefined,settings,keep,nextWeek)}
-        onSave={poolSettings=>mutate({poolSettings},'食材池偏好已保存。')}
+        templates={data.poolTemplates??[]} pantry={data.pantry} busy={busy} supply={activeSettings} profile={profile}
+        products={supply.products} startChoice={startChoice} onGenerate={(settings,keep,config)=>void generate(undefined,settings,keep,config)}
+        onSave={saveGeneration}
         onTemplate={(name,settings)=>data.poolTemplates?.length===50?Promise.resolve(false):
           mutate({poolTemplates:[...(data.poolTemplates??[]),{id:crypto.randomUUID(),name,settings}]},'已收藏食材池模板。')}>
-        <SupplyEditor key={JSON.stringify([profile.people,profile.budget,supply.settings])}
-          settings={supply.settings??supplyDefaults(profile)} start={plan?.start} people={profile.people} budget={profile.budget} save={supplyActions.saveSettings}/>
+        <details className="card settings"><summary>固定搭配与随机种子</summary>
+          <div className="fields"><label className="field">固定早餐<select value={profile.fixedBreakfast} onChange={e=>rule(e.target.value,profile.requiredDish)}>
+            <option value="">随机搭配</option>{profile.fixedBreakfast&&![...breakfastMenus,...fixedBreakfasts].some(r=>r.id===profile.fixedBreakfast)&&
+              <option value={profile.fixedBreakfast}>已保存的旧版早餐设置</option>}
+            <optgroup label="固定完整搭配">{breakfastMenus.map(m=><option key={m.id} value={m.id}>{menuName(m.recipes)}</option>)}</optgroup>
+            <optgroup label="只固定主食">{fixedBreakfasts.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</optgroup></select></label>
+            <label className="field">本周必须包含<select value={profile.requiredDish} onChange={e=>rule(profile.fixedBreakfast,e.target.value)}>
+              <option value="">不指定</option>{recipeList.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+            <label className="field">随机种子（选填）<input value={seed} onChange={e=>setSeed(e.target.value)} maxLength={100}/></label></div>
+        </details>
+        <MealSettings key={JSON.stringify(profile.mealPreferences)} profile={profile} onSave={mealPreferences=>
+          mutate({profile:{...profile,mealPreferences}},'分餐偏好已保存。重新生成后生效。')}/>
       </PoolPage>}
-      {(['采购','食材价格','备餐'].includes(page))&&<ShoppingPage key={page} plan={plan} profile={profile} quote={quote} pantry={data.pantry}
-        state={supply} actions={supplyActions} initialTab={page==='食材价格'?'食材价格':page==='备餐'?'分批备餐':'全周汇总'} {...shoppingOutput}/>}
+      {(['采购','备餐'].includes(page))&&<ShoppingPage key={page} plan={plan} quote={quote}
+        state={supply} actions={supplyActions} initialTab={page==='备餐'?'备餐清单':'采购清单'} onSettings={()=>go('生成设置')} {...shoppingOutput}/>}
+      {page==='食材价格'&&<><div className="page-title"><h1>食材价格</h1><button onClick={()=>go('我的')}>返回我的</button></div>
+        <PriceManager book={supply.prices??{}} pantry={pantry} products={supply.products} save={supplyActions.savePrice}
+          saveProducts={products=>mutate({supply:{...supply,products}},'换算与采购费用已更新。')}
+          resetAll={supplyActions.resetPrices} exportPrices={supplyActions.exportPrices} importPrices={supplyActions.importPrices}/></>}
+      {page==='库存'&&<><div className="page-title"><h1>库存</h1><button onClick={()=>go('我的')}>返回我的</button></div>
+        <InventoryManager pantry={pantry} inventory={Object.fromEntries(quote?.inventory.map(row=>[row.id,row])??[])}
+          execution={supply.execution} save={supplyActions.stock}/>
+        {Object.keys(supply.receipts??{}).length>0&&<details className="card"><summary>历史购入凭证</summary>
+          <ul className="ingredients">{Object.entries(supply.receipts??{}).sort(([a],[b])=>b.localeCompare(a)).map(([key,r])=>{
+            const [start,offset,id]=key.split('|');
+            return <li key={key}><span>{r.date??addDays(start,+offset)} · {food(id).name}</span><b className="unit">{decimal(r.net)} 克净料{r.paid!==undefined?' · ¥'+r.paid.toFixed(2):''}</b></li>;
+          })}</ul>
+        </details>}
+      </>}
       {page==='菜谱库'&&<Library favorites={data.favorites} blocked={data.blocked} toggleFavorite={planProps.favorite} toggleBlocked={planProps.block}/>}
       {page==='我的'&&<>
         <div className="page-title"><div><h1>我的</h1><p>管理档案、历史和本机设置。</p></div></div>
@@ -357,13 +393,12 @@ function App() {
           {profile?.conditions.includes('脂肪肝')&&<p className="hint">一般饮食建议是少喝含糖饮料与酒，少吃添加糖，完整水果仍可适量食用。</p>}
           {profile?.conditions.includes('痤疮')&&<p className="hint">饮食与痤疮的相关证据有限。按个人耐受选择乳制品，症状持续时可咨询医生。</p>}
           <div className="actions"><button className="primary" onClick={()=>go('编辑档案')}>{profile?'编辑档案':'填写档案'}</button>
-            <button onClick={()=>go('历史方案')}>历史方案 · {data.history.length}</button><button onClick={()=>go('食材价格')}>食材价格管理</button></div>
+            <button onClick={()=>go('历史方案')}>历史方案 · {data.history.length}</button><button onClick={()=>go('食材价格')}>食材价格</button><button onClick={()=>go('库存')}>家中库存</button><button onClick={()=>go('菜谱库')}>菜谱库与收藏</button></div>
         </section>
         {profile&&<details className="card"><summary>饮食、厨具与采购偏好</summary>
           <p>{profile.meals==='4'?'三餐和加餐':profile.meals==='2'?'两餐':'三餐'} · {profile.cooking?.mode??'简单'}烹饪 · {supply.settings?.prep??supplyDefaults(profile).prep}备餐</p>
           <p className="meta">{profile.tools.join('、')||'未选择厨具'}</p>
-          <div className="actions"><button onClick={()=>go('生成设置')}>本周生成偏好</button><button onClick={()=>go('采购')}>采购与备餐</button>
-          <button onClick={()=>go('食谱')}>分餐烹饪设置</button></div>
+          <div className="actions"><button onClick={()=>go('生成设置')}>本周生成偏好</button></div>
         </details>}
         <section className="card"><SectionTitle title="外观与安装"><span className="meta">V{version}</span></SectionTitle><label className="field">外观<select value={data.theme} onChange={e=>void mutate({theme:e.target.value as Data['theme']})}><option>系统</option><option>浅色</option><option>深色</option></select></label>
           <p className="meta">{cached?'离线资源已缓存。':'首次成功缓存后可离线查看和生成食谱。'}</p>
@@ -395,10 +430,10 @@ function App() {
           </div></section>):<Empty title="还没有历史方案"><p>在食谱页面点「保存到历史」，即可随时找回。</p></Empty>}
       </>}
       {page==='查看历史'&&archived&&<><button onClick={()=>go('历史方案')}>返回历史</button><PlanPage {...planProps} plan={archived} readonly stale={false}/>
-        <ShoppingPage plan={archived} profile={null} quote={historyQuote??archived.logistics}
+        <ShoppingPage plan={archived} quote={historyQuote??archived.logistics}
           reprice={repriceHistory} repriced={Boolean(historyQuote)} {...shoppingOutput}/></>}
     </main>
-    <nav className="bottom-nav" aria-label="主导航"><div className="shell">{pages.map((p,i)=><button key={p} aria-current={page===p||p==='采购'&&['食材价格','备餐'].includes(page)?'page':undefined} onClick={()=>go(p)}>
+    <nav className="bottom-nav" aria-label="主导航"><div className="shell">{pages.map((p,i)=><button key={p} aria-current={page===p||p==='采购'&&page==='备餐'||p==='我的'&&['食材价格','库存','菜谱库','历史方案'].includes(page)?'page':undefined} onClick={()=>go(p)}>
       <span aria-hidden="true">{icons[i]}</span>{p}</button>)}</div></nav>
   </>;
 }

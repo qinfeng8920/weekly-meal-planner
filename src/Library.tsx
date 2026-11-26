@@ -2,7 +2,7 @@ import {ingredientMeaning,recipeMeaning} from './food-semantics';
 import {useState} from 'react';
 import {categoriesOf,foods,foodState,recipeList,recipeMap} from './catalog';
 import {breakfastMenus,labels,menuName} from './meal-catalog';
-import {complexityLabels,recipeCooking} from './cooking';
+import {recipeCooking} from './cooking';
 import {decimal,Empty,RecipeInfo,SectionTitle} from './ui';
 
 export function Library({favorites,blocked,toggleFavorite,toggleBlocked}:{favorites:string[];blocked:string[];toggleFavorite:(id:string)=>void;toggleBlocked:(id:string)=>void}) {
@@ -11,7 +11,7 @@ export function Library({favorites,blocked,toggleFavorite,toggleBlocked}:{favori
   const availableTools=[...new Set(recipeList.flatMap(r=>r.tools))];
   const key=query.trim();
   const list=recipeList.filter(r=>(category==='全部'||labels(r).tags.some(t=>t===category)) &&
-    (!tool||r.tools.includes(tool))&&(!complexity||recipeCooking(r).level===+complexity) &&
+    (!tool||r.tools.includes(tool))&&(!complexity||(recipeCooking(r).level<=2)===(complexity==='简单')) &&
     (tab!=='收藏'||favorites.includes(r.id)) && (tab!=='已屏蔽'||blocked.includes(r.id)) &&
     (!key||r.name.includes(key)||r.cuisine.includes(key)||r.flavor.includes(key)));
   const menus=breakfastMenus.filter(m=>!key||menuName(m.recipes).includes(key)||m.style.includes(key));
@@ -26,11 +26,11 @@ export function Library({favorites,blocked,toggleFavorite,toggleBlocked}:{favori
       {!['食材','早餐搭配'].includes(tab)&&<><label className="field">厨具筛选<select value={tool} onChange={e=>{setTool(e.target.value);setLimit(18);}}>
         <option value="">全部</option>{availableTools.map(t=><option key={t}>{t}</option>)}</select></label>
         <label className="field">复杂度筛选<select value={complexity} onChange={e=>{setComplexity(e.target.value);setLimit(18);}}>
-        <option value="">全部</option>{Object.entries(complexityLabels).map(([i,name])=><option key={i} value={i}>{name}</option>)}</select></label></>}
+        <option value="">不限制</option><option>简单</option><option>家常</option></select></label></>}
     </div>
     {tab==='早餐搭配'?<section className="card">
       <SectionTitle title={breakfastMenus.length+' 套早餐搭配'}/>
-      <p className="meta">查看食材与做法。在「食谱 → 生成设置」可以固定其中一套。</p>
+      <p className="meta">查看食材与做法。在「生成设置 → 固定搭配」可以固定其中一套。</p>
       {menus.length?menus.slice(0,limit).map(m=><details key={m.id}>
         <summary>{menuName(m.recipes)} · {m.style}</summary>
         {m.recipes.map(id=>{const r=recipeMap.get(id)!;return <details key={id}><summary>{r.name}</summary><RecipeInfo recipe={r}/></details>;})}

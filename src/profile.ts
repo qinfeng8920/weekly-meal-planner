@@ -14,7 +14,7 @@ export const initialProfile = {
   vegetables: [] as string[], fruits: [] as string[], nuts: [] as string[], seasonings: [] as string[],
   fruit: '正常摄入', fruitGrams: '', dairy: '正常摄入',
   tools: ['煮锅', '蒸锅', '炒锅', '冰箱'], skill: '简单做饭', minutes: '40',
-  country: '', city: '', budget: '', people: '1', trips: '1', frozen: true, repeats: true,
+  country: '', city: '', budget: '', people: '1', trips: '2', frozen: true, repeats: true,
   packed: false, lunchPlace: '在家', prep: '混合模式', waste: true, meals: '3',
   fixedBreakfast: '', requiredDish: '', fluidLimit: false,
 };
@@ -34,11 +34,11 @@ export type MealName = MainMeal|'早午餐'|'加餐';
 export type MealPreference = {minutes:string; cuisines:string[]; likes:string; dislikes:string;
   repeats:boolean; fixed:boolean; prep:boolean};
 export const defaultMealPreference = (p:Profile,meal:MainMeal):MealPreference => ({
-  minutes:meal==='早餐' ? String(Math.min(10,Number(p.minutes))) : p.minutes, cuisines:[],
+  minutes:p.minutes, cuisines:[],
   likes:'',dislikes:'',repeats:p.repeats,fixed:false,prep:false,
 });
 export function mealPreference(p:Profile,name:MealName) {
   const meal=name==='早午餐'||name==='加餐'?'午餐':name;
   const result=p.mealPreferences?.[meal]??defaultMealPreference(p,meal);
-  return name==='加餐'?{...result,minutes:'10',cuisines:[],likes:'',dislikes:'',repeats:true,fixed:false,prep:false}:result;
+  return name==='加餐'?{...result,cuisines:[],likes:'',dislikes:'',repeats:true,fixed:false,prep:false}:result;
 }

@@ -10,13 +10,11 @@ export function MealSettings({profile,onSave}:{profile:Profile;onSave:(p:Profile
     const value={...previous};delete value[name];return value;
   });
   return <details className="card settings"><summary>早餐、午餐和晚餐偏好</summary>
-    <p className="meta">默认早餐最多 10 分钟，午餐和晚餐沿用档案设置。喜欢的食材会优先选用。本餐不喜欢的食材会排除，过敏和强制忌口继续适用于全天。</p>
+    <p className="meta">喜欢的食材会优先选用。本餐不喜欢的食材会排除，过敏和强制忌口继续适用于全天。</p>
     {mainMeals.map(name=>{
       const preferences=settings[name]??mealPreference({...profile,mealPreferences:undefined},name);
-      return <details key={name}><summary>{name} · {preferences.minutes==='120'?'不限时':preferences.minutes+' 分钟'}</summary>
+      return <details key={name}><summary>{name}</summary>
         <div className="fields">
-          <label className="field">制作时间<select value={preferences.minutes} onChange={e=>add(name,{minutes:e.target.value})}>
-            {['5','10','15','20','30','40','60','120'].map(n=><option key={n} value={n}>{n==='120'?'不限（最多 120 分钟）':n+' 分钟'}</option>)}</select></label>
           <label className="field">喜欢的食材<input value={preferences.likes} onChange={e=>add(name,{likes:e.target.value})} maxLength={200} placeholder="例如：燕麦、鸡蛋"/></label>
           <label className="field">不喜欢的食材<input value={preferences.dislikes} onChange={e=>add(name,{dislikes:e.target.value})} maxLength={200} placeholder="例如：香菜、酸奶"/></label>
         </div>

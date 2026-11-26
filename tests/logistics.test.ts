@@ -2,11 +2,12 @@ import {test} from 'node:test';
 import {deepEqual,equal,ok,throws} from 'node:assert/strict';
 import {foods,recipeMap,serving} from '../src/catalog';
 import {planLogistics,receiptKey} from '../src/logistics';
-import {splitWeek,supplyDefaults,type SupplySettings} from '../src/batches';
+import {shoppingOffsets,splitWeek,supplyDefaults,type SupplySettings} from '../src/batches';
 import {amountFor, priceDefaults, priceFor} from '../src/prices';
 import {regenerate} from '../src/planner';
 import {parseBackup,fresh} from '../src/store';
 import {parsePriceBackup} from '../src/logistics-storage';
+import {purchaseFood,rawNetGrams} from '../src/purchase-food';
 import type {Day} from '../src/shopping';
 import {demo} from './fixtures';
 
@@ -70,13 +71,13 @@ test('500 克包装结转、实际库存与预计库存分离，费用对账',()
   equal(q.lines[0].buy,500);
   equal(q.purchase.known,12);
   equal(q.consumed.known,10.08);
-  deepEqual(q.inventory[0],{id:'oats',home:0,confirmed:0,projected:80});
+  deepEqual(q.inventory[0],{id:'oats',home:0,confirmed:0,projected:80,usable:0,taken:0});
   equal(q.batches.reduce((n,b)=>n+b.purchase.known,0),q.purchase.known);
   const first=q.batches[0].lines[0];
   const l=planLogistics(oats,profile,start,{}, {settings:setting,receipts:{[first.receiptKey]:{gross:500,net:500,paid:22}}});
   equal(l.purchase.known,22);equal(l.remaining.known,0);equal(l.paid.known,22);
-  deepEqual(l.inventory[0],{id:'oats',home:0,confirmed:500,projected:80});
-  const inventory=planLogistics(oats,profile,start,{oats:{stock:50}},{settings:setting});
+  deepEqual(l.inventory[0],{id:'oats',home:0,confirmed:500,projected:80,usable:0,taken:0});
+  const inventory=planLogistics(oats,profile,start,{oats:{stock:50}},{settings:setting,execution:{stock:{oats:{storage:'干燥常温',expires:'2027-01-01'}}}});
   equal(inventory.lines[0].stock,50);equal(inventory.inventory[0].projected,130);
   const partial=planLogistics(oats,profile,start,{}, {settings:setting,receipts:{[first.receiptKey]:{gross:500,net:500,paid:8,paidGross:200}}});
   equal(partial.lines[0].paidActual,8);
@@ -105,7 +106,7 @@ test('每个批次逐份由菜谱汇总，换菜不清空已购记录',()=>{
   const q=planLogistics(testPlan.days,p,start,{}, {settings:setting});
   for(const row of q.lines) {
     const net=testPlan.days.flatMap(d=>d.meals).flatMap(m=>m.dishes).flatMap(d=>d.ingredients)
-      .filter(i=>i.id===row.id).reduce((n,i)=>n+i.grams*2,0);
+      .filter(i=>purchaseFood(i.id).purchaseIngredientId===row.id).reduce((n,i)=>n+rawNetGrams(i.grams*2,purchaseFood(i.id).rate!),0);
     ok(Math.abs(net-row.need)<.011);
     ok(Math.abs(q.prep.flatMap(b=>b.rows).filter(i=>i.id===row.id).reduce((n,i)=>n+i.grams,0)-row.need)<.011);
     ok(Math.abs(q.batches.flatMap(b=>b.lines).filter(i=>i.id===row.id).reduce((n,i)=>n+i.need,0)-row.need)<.011);
@@ -128,7 +129,8 @@ test('缺冰箱或冷冻室安全拆分，熟饭和鲜鱼等不做七天冷藏',
   const noFridge=planLogistics(days,{...profile,tools:['煮锅','蒸锅']},start,{}, {settings:weekly});
   equal(noFridge.prep.length,1);
   ok(noFridge.prep[0].jobs.every(j=>j.at===j.day));
-  equal(noFridge.batches.filter(b=>b.lines.some(l=>l.id==='chicken')).length,7);
+  equal(noFridge.batches.length,1);
+  ok(noFridge.storageWarnings?.some(w=>w.includes('鸡胸肉')));
   const cold=planLogistics(days,{...profile,tools:['煮锅','蒸锅','冰箱']},start,{}, {settings:weekly});
   ok(cold.prep[0].jobs.every(j=>!j.method.includes('冷冻')&&j.day-j.at<=1));
   ok(cold.prep[0].jobs.filter(j=>j.name==='白米饭').every(j=>j.at===j.day));

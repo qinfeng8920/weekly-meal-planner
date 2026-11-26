@@ -15,12 +15,12 @@ const string = z.string().max(800);
 const names = z.array(string).max(180);
 const num = z.number().min(0).max(1e8);
 const date = z.iso.date();
-const meal = z.strictObject({minutes:z.enum(['5','10','15','20','30','40','60','120']),cuisines:names,likes:string,dislikes:string,
+const meal = z.strictObject({minutes:string,cuisines:names,likes:string,dislikes:string,
   repeats:z.boolean(),fixed:z.boolean(),prep:z.boolean()});
 const mode=z.enum(['极简','简单','家常','精致']);
-const cookingMode=z.enum(['极简','简单','家常','精致','混合']);
-const cookOverride=z.strictObject({mode:mode.optional(),total:z.int().min(1).max(180).optional(),
-  active:z.int().min(1).max(180).optional(),maxDishes:z.int().min(1).max(6).optional(),
+const cookingMode=z.enum(['极简','简单','家常','精致','混合','不限制']);
+const cookOverride=z.strictObject({mode:mode.optional(),total:z.number().optional(),
+  active:z.number().optional(),maxDishes:z.number().optional(),
   prep:z.boolean().optional(),onePot:z.boolean().optional(),fixedBreakfast:z.boolean().optional()});
 const mealCooking=z.strictObject({早餐:cookOverride.optional(),午餐:cookOverride.optional(),晚餐:cookOverride.optional()});
 const cooking=z.strictObject({mode:cookingMode,weekday:mode,weekend:mode,meals:mealCooking.optional(),
