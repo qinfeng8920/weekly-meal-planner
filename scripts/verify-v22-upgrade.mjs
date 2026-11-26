@@ -120,7 +120,10 @@ try {
  await page.reload();
  dir=repo+'/dist';
  await page.evaluate(async()=>{await (await navigator.serviceWorker.ready).update();});
- await page.getByRole('button',{name:'应用新版本'}).click();
+ await Promise.all([
+   page.waitForEvent('framenavigated',{predicate:frame=>frame===page.mainFrame()}),
+   page.getByRole('button',{name:'应用新版本'}).click(),
+ ]);
  await expect(page.getByRole('button',{name:'生成七天食谱',exact:true})).toBeVisible();
  const migrated=await read();
  const {ledger,...oldSupply}=migrated.supply;
