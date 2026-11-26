@@ -1,6 +1,6 @@
 import {foods} from './catalog';
 
-export const priceUnits=['斤','公斤','克','升','毫升','个','盒','袋'] as const;
+export const priceUnits=['斤','公斤','克','升','毫升','个','盒','袋','瓶'] as const;
 export type PriceUnit=typeof priceUnits[number];
 export type PriceInput={amount:number;unit:PriceUnit;basis:'净重'|'毛重';pack?:number;unitGrams?:number;yieldPercent?:number;note?:string;date?:string};
 export type PriceBook=Record<string,PriceInput>;
@@ -71,10 +71,21 @@ export function priceFor(id:string,book:PriceBook,legacy?:{price?:number;pack?:n
   return {...base,pack:legacy?.pack??base.pack,
     ...(base.basis==='毛重'&&legacy?.yieldPercent?{yieldPercent:legacy.yieldPercent}:{})};
 }
-export const gramsPerPriceUnit=(p:PriceInput)=>({斤:500,公斤:1000,克:1,升:p.unitGrams,毫升:p.unitGrams,个:p.unitGrams,盒:p.unitGrams,袋:p.unitGrams})[p.unit];
+export const gramsPerPriceUnit=(p:PriceInput)=>({斤:500,公斤:1000,克:1,升:p.unitGrams,毫升:p.unitGrams,个:p.unitGrams,盒:p.unitGrams,袋:p.unitGrams,瓶:p.unitGrams})[p.unit];
 export const edibleRate=(p?:PriceInput)=>p?.basis==='毛重'?(p.yieldPercent??0)/100:1;
 export function amountFor(grams:number,p?:PriceInput):number|null {
   if(grams===0)return 0;
   const unit=p&&gramsPerPriceUnit(p);
   return p&&unit&&Number.isFinite(p.amount)?Math.round(grams/unit*p.amount*100)/100:null;
+}
+
+export function purchaseGrams(quantity:number,unit:PriceUnit,price?:PriceInput,gramsPerUnit?:number) {
+  const weight={克:1,公斤:1000,斤:500} as Record<string,number>;
+  let factor:number|undefined=weight[unit]??gramsPerUnit;
+  if(factor===undefined&&price) {
+    if(price.unit===unit)factor=gramsPerPriceUnit(price);
+    if(unit==='升'&&price.unit==='毫升')factor=price.unitGrams===undefined?undefined:price.unitGrams*1000;
+    if(unit==='毫升'&&price.unit==='升')factor=price.unitGrams===undefined?undefined:price.unitGrams/1000;
+  }
+  return factor&&factor>0&&Number.isFinite(factor)&&Number.isFinite(quantity)?quantity*factor:undefined;
 }

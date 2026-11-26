@@ -1,5 +1,6 @@
 import {food,foods,type Recipe} from './catalog';
 import {purchaseFood,purchaseIngredientId,rawNetGrams,roundGrams,type PurchaseOptions} from './purchase-food';
+import {purchaseCategory} from './purchase-category';
 import {amountFor,edibleRate,priceFor} from './prices';
 import type {SupplyState,Logistics} from './logistics';
 import type {Day,Pantry} from './shopping';
@@ -31,6 +32,7 @@ export const capsFor:Record<typeof poolModes[number],Record<PoolGroup,number>>={
 export const standardId=purchaseIngredientId;
 export const standardFoods=foods.filter(f=>standardId(f.id)===f.id);
 export const poolGroup=(id:string):PoolGroup|'基础食材'=>{
+  if(purchaseCategory(id)!=='主要食材')return '基础食材';
   const category=food(id).category;
   return ['肉类','鱼虾'].includes(category)?'肉鱼虾':category==='蔬菜'||category==='主食'||category==='水果'?category:'基础食材';
 };
@@ -114,7 +116,7 @@ export function ingredientPools(settings:PoolSettings,recipes:Recipe[],pantry:Pa
     const rate=edibleRate(price);
     const per100=rate?amountFor(100/rate,price):null;
     const previous=old.has(id)?(settings.rotation==='保留上周'?24:settings.rotation==='部分轮换'?2:-4):0;
-    const have=settings.method==='库存优先'?Math.min(14,(stock.get(id)??0)/55):Math.min(2,(stock.get(id)??0)/250);
+    const have=settings.method==='库存优先'?Math.min(14,(stock.get(id)??0)/55):Math.min(8,(stock.get(id)??0)/95);
     return (preferred<0?0:(list.length-preferred)*1.4) + Math.min(4,(coverage.get(id)??0)*.16)+have+
       Math.min(3,(settings.goals?.[id]??0)/150)+previous-(per100??8)*.15+random()*(variant===0?.35:3.8);
   };

@@ -2,10 +2,13 @@ import {useState} from 'react';
 import {food,foods,foodState} from './catalog';
 import {addDays,patternOptions,prepPeriods,shoppingOffsets,splitWeek,type ShoppingSchedule,type SupplySettings} from './batches';
 import {priceDefaults,priceFor,priceUnits,type PriceBook,type PriceInput,type PriceUnit} from './prices';
-import {consumedBySource,homeKey,type Execution,type StockInfo} from './execution';
+import type {Execution} from './execution';
+import {balances,type InventoryEvent,type Ledger,type Review} from './inventory';
+import {inventoryGroup,inventoryGroups} from './purchase-category';
+import type {Receipt} from './logistics';
+import {PurchaseForm} from './InventoryInputs';
 import {convertibleFoods,purchaseFood,type PurchaseOptions} from './purchase-food';
 import type {Profile} from './profile';
-import {requiresCooling} from './food-storage';
 import type {Pantry} from './shopping';
 import {dateLabel,decimal,SectionTitle} from './ui';
 
@@ -30,7 +33,7 @@ export function PriceManager({book,pantry,save,resetAll,exportPrices,importPrice
   const found=foods.filter(f=>purchaseFood(f.id,products).purchaseIngredientId===f.id||book[f.id]||pantry[f.id]?.price!==undefined).filter(matches(category,query));
   return <section className="card"><SectionTitle title="广东食材参考价"/>
     <p className="hint">人民币零售参考。监测、类别参考和估算分别标注。可食率和液体换算重量为估算，按实际标签或称重修改。自定义价格优先。</p>
-    <details><summary>生熟换算与即食商品</summary>
+    <details className="group-fold"><summary>生熟换算与即食商品</summary>
       <p className="meta">出成率为熟的可食净重 ÷ 生料或干料的可食净重。即食选项独立计价。旧成品单价会保留。</p>
       {convertibleFoods.map(id=><ConversionEditor key={JSON.stringify([id,products])} id={id} options={products} save={saveProducts}/>)}
     </details>
@@ -39,7 +42,7 @@ export function PriceManager({book,pantry,save,resetAll,exportPrices,importPrice
       <button className="danger" onClick={resetAll}>恢复全部默认价格</button></div>
     <FoodSearch category={category} query={query} onCategory={c=>{setCategory(c);setLimit(24);}} onQuery={q=>{setQuery(q);setLimit(24);}}/>
     <p className="meta">显示 {Math.min(limit,found.length)} / {found.length} 种食材</p>
-    {found.slice(0,limit).map(f=><details key={f.id}><summary>{f.name} · <PriceLabel id={f.id} book={book} pantry={pantry}/></summary>
+    {found.slice(0,limit).map(f=><details className="item-fold" key={f.id}><summary>{f.name} · <PriceLabel id={f.id} book={book} pantry={pantry}/></summary>
       <PriceEditor key={JSON.stringify([book[f.id],pantry[f.id]?.price,pantry[f.id]?.pack,pantry[f.id]?.yieldPercent])}
         id={f.id} current={priceFor(f.id,book,pantry[f.id])} save={save}/></details>)}
     {limit<found.length&&<button onClick={()=>setLimit(limit+24)}>显示更多食材</button>}
@@ -53,9 +56,9 @@ export function PriceEditor({id,current,save}:{id:string;current:ReturnType<type
   const [yieldValue,setYield]=useState(String(current?.yieldPercent??'')),[note,setNote]=useState(current?.note??'');
   const [date,setDate]=useState(current?.kind==='用户自定义'?current.date??'':'');
   const [error,setError]=useState('');
-  const countOrVolume=['升','毫升','个','盒','袋'].includes(unit);
+  const countOrVolume=['升','毫升','个','盒','袋','瓶'].includes(unit);
   async function submit() {
-    const counted=['个','盒','袋'].includes(unit);
+    const counted=['个','盒','袋','瓶'].includes(unit);
     if(counted&&pack&&+equivalent>0&&Math.abs(+pack/+equivalent-Math.round(+pack/+equivalent))>1e-6) {
       setError('按件计价时，购买包装应包含整数个计价单位。');return;
     }
@@ -89,37 +92,115 @@ export function PriceEditor({id,current,save}:{id:string;current:ReturnType<type
   </section>;
 }
 
-export function InventoryManager({pantry,inventory,execution,save}:{pantry:Pantry;inventory:Record<string,{confirmed:number;projected:number;usable?:number;taken?:number}>;execution?:Execution;save:(id:string,n:number,info:StockInfo)=>Promise<boolean>}) {
-  const [category,setCategory]=useState('全部'),[query,setQuery]=useState(''),[limit,setLimit]=useState(24);
-  const found=foods.filter(matches(category,query)).sort((a,b)=>Number(Boolean(pantry[b.id]?.stock||inventory[b.id]))-Number(Boolean(pantry[a.id]?.stock||inventory[a.id])));
-  const used=consumedBySource(execution);
-  return <section className="card"><SectionTitle title="家中库存"/>
-    <p className="hint">按可食净重登记。请核对实际保存方式和可用日期。预计结余独立显示。</p>
-    <FoodSearch category={category} query={query} onCategory={c=>{setCategory(c);setLimit(24);}} onQuery={q=>{setQuery(q);setLimit(24);}}/>
-    {found.slice(0,limit).map(f=>{
-      const row=inventory[f.id], info=execution?.stock?.[f.id];
-      const net=Math.max(0,(pantry[f.id]?.stock??0)-(used.get(homeKey(f.id))??0));
-      return <details key={f.id}><summary>{f.name} · {decimal(net)} 克</summary>
-        <p className="meta">{foodState[f.state]} · 已购净重 {decimal(row?.confirmed??0)} 克 · 已取用 {decimal(row?.taken??0)} 克 · 预计周末结余 {decimal(row?.projected??0)} 克</p>
-        {net>0&&!info&&<p className="hint">旧库存缺少保存日期。确认后可用于抵扣。</p>}
-        <StockInput key={JSON.stringify([net,info])} value={net} info={info} cold={requiresCooling(f.id)} save={(amount,value)=>save(f.id,amount,value)}/></details>;
+type InventoryProps={pantry:Pantry;prices:PriceBook;ledger:Ledger;receipts:Record<string,Receipt>;execution?:Execution;
+  inventory:Record<string,{projected:number;demand?:number;shortage?:number}>;
+  save:(id:string,n:number,mode:'增加'|'扣除'|'报损'|'设为')=>Promise<boolean>;
+  savePurchase:(source:string,receipt?:Receipt)=>Promise<boolean>;
+  reverse:(event:InventoryEvent)=>Promise<boolean>;review:(id:string,n:number)=>Promise<boolean>};
+
+export function InventoryManager(props:InventoryProps) {
+  const {pantry,prices,ledger,inventory,savePurchase,review}=props;
+  const [query,setQuery]=useState(''),[all,setAll]=useState(false),[isAdding,setAdding]=useState(false),[choose,setChoose]=useState(''),[mode,setMode]=useState('实际购买');
+  const quantities=balances(ledger), found=foods.filter(matches('全部',query));
+  const items=found.filter(f=>all||(quantities.get(f.id)??0)>0);
+  const entering=foods.find(f=>f.id===choose);
+  const events=new Map<string,InventoryEvent[]>();
+  for(const event of ledger.events) {
+    const entries=events.get(event.item)??[];
+    entries.push(event);events.set(event.item,entries);
+  }
+  const reversals=new Set(ledger.events.flatMap(event=>event.reverses??[]));
+  return <section className="card inventory-manager">
+    <p className="meta">数字是账面库存，是否适合食用由你判断。</p>
+    <div className="actions">
+      <button className="primary" aria-expanded={isAdding} onClick={()=>setAdding(!isAdding)}>{isAdding?'收起登记':'添加或登记购买'}</button>
+      <label className="check"><input type="checkbox" checked={all} onChange={e=>setAll(e.target.checked)}/>显示零库存</label>
+    </div>
+    <label className="field inventory-search">搜索食材<input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="例如鸡胸肉、食盐"/></label>
+    {isAdding&&<section className="inline-editor">
+      <label className="field">选择食材<select value={choose} onChange={e=>setChoose(e.target.value)}>
+        <option value="">请选择</option>{found.map(f=><option value={f.id} key={f.id}>{f.name}</option>)}</select></label>
+      <label className="field">登记方式<select value={mode} onChange={e=>setMode(e.target.value)}><option>实际购买</option><option>手动补充</option></select></label>
+      {entering&&(mode==='实际购买'?<NewInventoryPurchase key={choose} id={choose} price={priceFor(choose,prices,pantry[choose])}
+        save={savePurchase} close={()=>setAdding(false)}/>:<StockEdit key={choose} initial={quantities.get(choose)??0} onlyAdd
+        save={(value,action)=>props.save(choose,value,action).then(ok=>{if(ok)setAdding(false);return ok;})}/>)}
+    </section>}
+    {ledger.review.length>0&&<details className="group-fold"><summary>旧库存待核对 <span className="unit">{ledger.review.length} 项</span></summary>
+      {ledger.review.map(item=><LegacyReview key={item.id} item={item} balance={quantities.get(item.item)??0} save={review}/>)}
+    </details>}
+    {!items.length&&<p className="hint">{query?'当前筛选没有库存。可勾选显示零库存。':'还没有账面库存。确认购买或手动补充后会显示在这里。'}</p>}
+    {inventoryGroups.map(group=>{
+      const rows=items.filter(f=>inventoryGroup(f.id)===group);
+      return rows.length?<details className="group-fold" key={group} open>
+        <summary>{group}<span className="unit">{rows.length} 项</span></summary>
+        {rows.map(f=>{
+          const net=quantities.get(f.id)??0,row=inventory[f.id];
+          return <details className="item-fold" key={f.id}>
+            <summary><span>{f.name}</span><span className="unit">{decimal(net)} 克</span></summary>
+            <div className="fold-body">
+              <p className="meta">{foodState[f.state]} · 本周用量 {decimal(row?.demand??0)} 克 · 预计剩余 {decimal(row?.projected??net)} 克 · 待补购 {decimal(row?.shortage??0)} 克</p>
+              <StockEdit key={net} initial={net} save={(value,action)=>props.save(f.id,value,action)}/>
+              <details className="item-fold"><summary>流水与购买修正</summary>
+                <InventoryEvents events={events.get(f.id)??[]} {...{reversals,...props}}/></details>
+            </div>
+          </details>;
+        })}
+      </details>:null;
     })}
-    {limit<found.length&&<button onClick={()=>setLimit(limit+24)}>显示更多食材</button>}
+    {!all&&events.size>0&&<details className="group-fold"><summary>零库存历史流水</summary>
+      {[...events].filter(([id])=>!(quantities.get(id)??0)&&found.some(f=>f.id===id)).map(([id,list])=>
+        <details className="item-fold" key={id}><summary>{food(id).name}</summary><InventoryEvents events={list} {...{reversals,...props}}/></details>)}
+    </details>}
   </section>;
 }
-export function StorageFields({storage,expires,onStorage,onExpires}:{storage:string;expires:string;onStorage:(v:StockInfo['storage'])=>void;onExpires:(v:string)=>void}) {
-  return <><label className="field">保存方式<select value={storage} onChange={e=>onStorage(e.target.value as StockInfo['storage'])}>
-    <option>干燥常温</option><option>冷藏</option><option>冷冻</option></select></label>
-    <label className="field">可用至<input type="date" value={expires} onChange={e=>onExpires(e.target.value)}/></label></>;
+function NewInventoryPurchase({id,price,save,close}:{id:string;price?:PriceInput;save:InventoryProps['savePurchase'];close:()=>void}) {
+  const [source]=useState(()=>['手动',crypto.randomUUID(),id].join('|'));
+  return <PurchaseForm id={id} price={price} save={async value=>{const ok=await save(source,value);if(ok)close();return ok;}}/>;
 }
-function StockInput({value,info,cold,save}:{value:number;info?:StockInfo;cold:boolean;save:(n:number,info:StockInfo)=>Promise<boolean>}) {
-  const [amount,setAmount]=useState(String(value)),[error,setError]=useState('');
-  const [storage,setStorage]=useState<StockInfo['storage']>(info?.storage??(cold?'冷藏':'干燥常温'));
-  const [expires,setExpires]=useState(info?.expires??'');
-  return <div className="fields"><label className="field">实有库存净重（克）<input type="number" min="0" step="any" value={amount} onChange={e=>setAmount(e.target.value)}/></label>
-    <StorageFields storage={storage} expires={expires} onStorage={setStorage} onExpires={setExpires}/>
-    <button onClick={()=>{if(!amount.trim()||!Number.isFinite(+amount)||+amount<0||+amount>1e7||+amount>0&&(!expires||cold&&storage==='干燥常温'))setError('请填写有效库存、可用日期和适合食材的保存方式。');
-      else void save(+amount,{storage,expires:expires||'0001-01-01'}).then(success=>{if(success)setError('');});}}>保存库存</button>{error&&<p role="alert" className="error">{error}</p>}</div>;
+function StockEdit({initial,onlyAdd=false,save}:{initial:number;onlyAdd?:boolean;save:(value:number,mode:'增加'|'扣除'|'报损'|'设为')=>Promise<boolean>}) {
+  const [mode,setMode]=useState<'增加'|'扣除'|'报损'|'设为'>('增加'),[amount,setAmount]=useState('');
+  const [error,setError]=useState(''),[busy,setBusy]=useState(false);
+  return <div className="inline-editor">
+    <div className="fields">{!onlyAdd&&<label className="field">库存调整<select value={mode} onChange={e=>{
+      const action=e.target.value as typeof mode;setMode(action);setAmount(action==='设为'?String(initial):'');
+    }}><option>增加</option><option>扣除</option><option>报损</option><option>设为</option></select></label>}
+    <label className="field">调整净重（克）<input type="number" min="0" step="any" value={amount} onChange={e=>setAmount(e.target.value)}/></label></div>
+    <button disabled={busy} onClick={()=>{
+      const value=+amount;
+      if(!amount.trim()||!Number.isFinite(value)||value<0||value>1e8||!value&&mode!=='设为'){setError('请输入有效的净重。');return;}
+      setBusy(true);setError('');
+      void save(value,mode).then(ok=>{if(ok)setAmount('');}).finally(()=>setBusy(false));
+    }}>保存库存调整</button>
+    {error&&<p className="error" role="alert">{error}</p>}
+  </div>;
+}
+function LegacyReview({item,balance,save}:{item:Review;balance:number;save:InventoryProps['review']}) {
+  const [amount,setAmount]=useState('');
+  return <div className="fold-body">
+    <p>{food(item.item).name} · {item.kind} {decimal(item.grams)} 克 · 当前账面 {decimal(balance)} 克</p>
+    <label className="field">核对后应额外计入的净重（克）<input type="number" min="0" step="any" value={amount} onChange={e=>setAmount(e.target.value)}/></label>
+    <div className="actions"><button disabled={!amount.trim()||!Number.isFinite(+amount)||+amount<0||+amount>1e8} onClick={()=>void save(item.id,+amount)}>确认数量</button>
+      <button onClick={()=>void save(item.id,0)}>已核对，无需补录</button></div>
+  </div>;
+}
+function InventoryEvents({events,reversals,receipts,execution,prices,pantry,savePurchase,reverse}:InventoryProps&{events:InventoryEvent[];reversals:Set<string>}) {
+  const [limit,setLimit]=useState(12);
+  const latest=new Set<string>();
+  const list=[...events].reverse();
+  if(!list.length)return <p className="meta">暂无流水</p>;
+  return <div className="fold-body">{list.slice(0,limit).map(r=>{
+    const purchase=receipts[r.source]&&['采购入库','购买修正'].includes(r.kind)&&!latest.has(r.source);
+    if(purchase)latest.add(r.source);
+    const taken=r.kind==='实际取用'&&Boolean(r.reference&&execution?.tasks?.[r.reference]?.taken);
+    const editable=['手动补充','手动扣除','报损丢弃','旧手工库存'].includes(r.kind)&&!reversals.has(r.id);
+    return <details className="item-fold" key={r.id}><summary><span>{r.date??'旧记录'} · {r.kind}</span><span className="unit">{r.delta>0?'+':''}{decimal(r.delta)} 克</span></summary>
+      <div className="fold-body">
+        <p className="meta">原始数量 {decimal(r.quantity)} {r.unit}{r.paid!==undefined?' · 实付 '+yuan(r.paid):''}</p>
+        {purchase&&<><PurchaseForm key={JSON.stringify(receipts[r.source])} id={r.item} previous={receipts[r.source]} price={priceFor(r.item,prices,pantry[r.item])}
+          save={value=>savePurchase(r.source,value)}/><button className="danger" onClick={()=>void savePurchase(r.source)}>撤销购买</button></>}
+        {(editable||taken)&&<button className="danger" onClick={()=>void reverse(r)}>{taken?'撤销该任务取用':'撤销此调整'}</button>}
+      </div></details>;
+  })}{list.length>limit&&<button onClick={()=>setLimit(limit+24)}>查看更早记录</button>}</div>;
 }
 function ConversionEditor({id,options,save}:{id:string;options?:PurchaseOptions;save:(options:PurchaseOptions)=>Promise<boolean>}) {
   const rule=purchaseFood(id).conversion!;
@@ -127,7 +208,7 @@ function ConversionEditor({id,options,save}:{id:string;options?:PurchaseOptions;
   const [rate,setRate]=useState(effective.rate===null||effective.rate===undefined?'':String(effective.rate*100));
   const [ready,setReady]=useState(options?.ready?.includes(id)??false);
   const [error,setError]=useState('');
-  return <details><summary>{food(id).name} · {effective.rate==null?'换算待补充':decimal(effective.rate*100)+'%'} {options?.ready?.includes(id)?'· 买即食':''}</summary>
+  return <details className="item-fold"><summary>{food(id).name} · {effective.rate==null?'换算待补充':decimal(effective.rate*100)+'%'} {options?.ready?.includes(id)?'· 买即食':''}</summary>
     <p className="meta">{food(rule.purchaseIngredientId).name} · {rule.method} · {rule.version} · 初始估算 {decimal(rule.rate*100)}%。<a href={rule.source} target="_blank" rel="noreferrer">查阅估算依据</a></p>
     <label className="check"><input type="checkbox" checked={ready} onChange={e=>setReady(e.target.checked)}/>明确购买这一种无盐即食成品，按包装保质保存</label>
     <label className="field">我的实际出成率（%）<input type="number" min={10} max={1000} step="any" value={rate} onChange={e=>setRate(e.target.value)}/></label>

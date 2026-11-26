@@ -1,4 +1,6 @@
 import {expect,test,type Page} from '@playwright/test';
+import {readFileSync} from 'node:fs';
+import type {Data} from '../src/store';
 import {demo} from './fixtures';
 
 async function setup(page:Page) {
@@ -42,7 +44,8 @@ test('手机问卷、七天食谱、采购、称重、历史与独立存储',asy
   await expect(page.getByRole('checkbox').first()).toBeChecked();
   await expect(page.getByText('采购记录已更新。')).toBeVisible();
   await page.getByRole('button',{name:'备餐清单',exact:true}).click();
-  await expect(page.getByText(/生熟分开/)).toBeVisible();
+  await page.locator('.prep-batch[open]').locator('summary').filter({hasText:/^储存与复热$/}).click();
+  await expect(page.getByText(/生熟分开/).filter({visible:true})).toBeVisible();
   await assertFit(page);
   await nav(page,'首页').click();
   await page.getByRole('button',{name:'记录体重',exact:true}).click();
@@ -244,6 +247,7 @@ test('新生成设置、补充确认、分装进度和三种手机宽度的浅�
   await nav(page,'首页').click();
   await page.getByRole('button',{name:'继续备餐'}).click();
   const selected=page.locator('details.card[open]').filter({has:page.getByText(/备餐第 [123] 批/)}).first();
+  await selected.locator('summary').filter({hasText:/^制作步骤/}).click();
   const task=selected.locator('.prep-task').first();
   await task.locator('summary').click();
   const label=task.getByRole('checkbox',{name:'已分装'});
@@ -251,13 +255,15 @@ test('新生成设置、补充确认、分装进度和三种手机宽度的浅�
   await expect(label).toBeChecked();
   await page.reload();
   await page.getByRole('button',{name:'继续备餐'}).click();
-  const saved=page.locator('details.card[open] summary').filter({hasText:'已分装'}).first();
+  await page.locator('.prep-batch[open]').locator('summary').filter({hasText:/^制作步骤/}).click();
+  const saved=page.locator('.prep-batch[open] .prep-task summary').filter({hasText:'已分装'}).first();
   await saved.click();
   await expect(page.getByRole('checkbox',{name:'已分装',checked:true})).toBeVisible();
   for(const theme of ['浅色','深色']) {
     await nav(page,'我的').click();
     await page.getByLabel('外观').selectOption(theme);
     for(const width of [360,390,430]) {
+      await page.evaluate(()=>{document.documentElement.style.fontSize='20px';});
       await page.setViewportSize({width,height:850});
       for(const name of ['首页','食谱','采购','我的']) {
         await nav(page,name).click();
@@ -297,4 +303,84 @@ test('生成由 Worker 执行，可以取消并留在当前页面',async({page})
   await expect(page.getByText('已取消，现有食谱保持原样。')).toBeVisible();
   await expect(page.getByRole('heading',{name:'你好，测试用户'})).toBeVisible();
   await expect(page.getByRole('button',{name:'生成七天食谱',exact:true})).toBeEnabled();
+});
+
+
+test('从库存页按公斤登记购买，修正后刷新保留且可以撤销',async({page})=>{
+  await setup(page);
+  await nav(page,'我的').click();
+  await page.getByRole('button',{name:'家中库存',exact:true}).click();
+  await expect(page.getByText(/数字是账面库存/)).toBeVisible();
+  await page.getByRole('button',{name:'添加或登记购买'}).click();
+  await page.getByLabel('选择食材').selectOption('chicken');
+  await page.getByLabel('购买单位').selectOption('公斤');
+  await page.getByLabel('实际购买数量').fill('1');
+  await page.getByLabel('实际支付（元，可选）').fill('29');
+  await page.getByRole('button',{name:'保存实际购买'}).click();
+  const chicken=()=>page.locator('summary').filter({hasText:/^鸡胸肉.*1,000 克$/});
+  await expect(chicken()).toBeVisible();
+  expect(await page.getByLabel('可用至').count()).toBe(0);
+  expect(await page.getByLabel('保存方式').count()).toBe(0);
+  await page.reload();
+  await nav(page,'我的').click();
+  await page.getByRole('button',{name:'家中库存',exact:true}).click();
+  await chicken().click();
+  await page.getByText('流水与购买修正',{exact:true}).click();
+  await page.locator('summary').filter({hasText:/采购入库/}).click();
+  await page.getByLabel('实际购买数量').fill('1.2');
+  await page.getByRole('button',{name:'保存实际购买'}).click();
+  await expect(page.locator('summary').filter({hasText:/^鸡胸肉.*1,200 克$/})).toBeVisible();
+  const edit=page.locator('summary').filter({hasText:/\d{4}-\d{2}-\d{2} · 购买修正/});
+  await edit.click();
+  page.once('dialog',d=>d.accept());
+  await page.getByRole('button',{name:'撤销购买',exact:true}).click();
+  await expect(page.getByText('购买记录已撤销。')).toBeVisible();
+  await expect(page.locator('summary').filter({hasText:/^鸡胸肉.*1,200 克$/})).toHaveCount(0);
+});
+
+test('整批取用和食谱完成餐次联动，同一餐只扣一次',async({page})=>{
+  await setup(page);
+  await page.evaluate(async ids=>{
+    await new Promise<void>((resolve,reject)=>{
+      const request=indexedDB.open('tiantianjian',1);
+      request.onsuccess=()=>{
+        const db=request.result, tx=db.transaction('app','readwrite'),store=tx.objectStore('app');
+        const existing=store.get('data');
+        existing.onsuccess=()=>{
+          const data=existing.result;
+          data.supply={ledger:{version:1,review:[],events:ids.map(item=>({
+            id:'测试|'+item,item,source:'测试|'+item,kind:'手动补充',quantity:5000,unit:'克',delta:5000,
+          }))}};
+          store.put(data,'data');
+        };
+        tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);
+      };
+      request.onerror=()=>reject(request.error);
+    });
+  },(JSON.parse(readFileSync(new URL('../src/foods.json',import.meta.url),'utf8')) as {id:string}[]).map(f=>f.id));
+  await page.reload();
+  await generate(page);
+  await nav(page,'首页').click();
+  await page.getByRole('button',{name:'继续备餐'}).click();
+  const batch=page.locator('.prep-batch[open]').first();
+  await expect(batch.locator('summary').filter({hasText:/^食材取用与分装/})).toBeVisible();
+  await batch.locator('summary').filter({hasText:/^调味料用量/}).click();
+  const seasonings=batch.locator('details.group-fold[open]').filter({has:page.locator('summary').filter({hasText:/^调味料用量/})});
+  await expect(seasonings).toContainText('克');
+  await expect(seasonings).not.toContainText('份');
+  page.once('dialog',dialog=>{expect(dialog.message()).toContain('确认从账面库存取用');void dialog.accept();});
+  await batch.getByRole('button',{name:'确认本批实际取用'}).click();
+  await expect(page.getByText('备餐进度已更新。')).toBeVisible();
+  const ledger=()=>page.evaluate(()=>new Promise(resolve=>{
+    const open=indexedDB.open('tiantianjian',1);
+    open.onsuccess=()=>{
+      const db=open.result,r=db.transaction('app').objectStore('app').get('data');
+      r.onsuccess=()=>{db.close();resolve((r.result as Data).supply?.ledger);};
+    };
+  }));
+  const before=await ledger();
+  await nav(page,'食谱').click();
+  await page.getByRole('button',{name:'完成本餐',exact:true}).first().click();
+  await expect(page.getByText('本餐已完成')).toBeVisible();
+  expect(await ledger()).toEqual(before);
 });

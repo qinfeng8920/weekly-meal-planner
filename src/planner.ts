@@ -1,4 +1,5 @@
-import {dateStock} from './execution';
+import {stockForPlanning} from './execution';
+import {currentLedger} from './inventory';
 import {purchaseFood,recipeMakesIngredients,type PurchaseOptions} from './purchase-food';
 import {addDays} from './batches';
 import {buildWeeklyPool,capOf,counts,fitsPool,ingredientPools,normalizeIds,poolGroup,poolGroups,recipeFoodIds,weekUsage,type PoolCandidate,type PoolSettings,type WeeklyIngredientPool} from './ingredient-pool';
@@ -16,9 +17,9 @@ import {mealConflict,overlapPenalty,recipeMeaning,sameFood} from './food-semanti
 import {cookingFit,mealComplexity,type MealComplexity} from './cooking';
 import {cookingRule,usesNamedBreakfast,type CookingSelection} from './cooking-profile';
 
-export const algorithmVersion = '2.1.0';
+export const algorithmVersion = '2.2.0';
 const compatibleCatalog=(version:string)=>version===catalogVersion||version==='2026.11-sr3';
-const compatibleVersion=(version:string)=>version===algorithmVersion||version==='2.0.0'||version==='1.2.0';
+const compatibleVersion=(version:string)=>version===algorithmVersion||version==='2.1.0'||version==='2.0.0'||version==='1.2.0';
 export type Plan = {id:string; name:string; created:string; start:string; seed:string; targets:Targets; days:Day[];
   profile:Profile; weight:number; purchases:Purchase[]; prep:Prep; algorithmVersion:string; catalogVersion:string; favorite:boolean;cookingOverride?:CookingSelection;logistics?:Logistics;pool?:WeeklyIngredientPool};
 export type Lock = {day:number; meal:number; dish:number; serving:Serving};
@@ -475,8 +476,8 @@ export function regenerate(p:Profile,records:Weight[],pantry:Pantry,blocked:stri
     const recipe=recipeMap.get(id);
     return recipe?idsFor(recipe):[];
   }),supply?.products);
-  const physical=supply?.execution?dateStock(start,start,p,pantry,supply.receipts??{},supply.execution):null;
-  const ranked=physical?Object.fromEntries(Object.keys({...pantry,...physical}).map(id=>[id,{...pantry[id],stock:physical[id]?.stock??0}])):pantry;
+  const physical=stockForPlanning(currentLedger(pantry,supply));
+  const ranked=Object.fromEntries(Object.keys({...pantry,...physical}).map(id=>[id,{...pantry[id],stock:physical[id]?.stock??0}]));
   const usedBefore=new Set(normalizeIds(previous?.used.map(i=>i.id)??[],supply?.products));
   const candidates=change?[{selected:before,chosen}]:options?.keep?
     [{selected:usedBefore,chosen},{selected:before,chosen}]:

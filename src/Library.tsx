@@ -31,21 +31,21 @@ export function Library({favorites,blocked,toggleFavorite,toggleBlocked}:{favori
     {tab==='早餐搭配'?<section className="card">
       <SectionTitle title={breakfastMenus.length+' 套早餐搭配'}/>
       <p className="meta">查看食材与做法。在「生成设置 → 固定搭配」可以固定其中一套。</p>
-      {menus.length?menus.slice(0,limit).map(m=><details key={m.id}>
+      {menus.length?menus.slice(0,limit).map(m=><details className="group-fold" key={m.id}>
         <summary>{menuName(m.recipes)} · {m.style}</summary>
-        {m.recipes.map(id=>{const r=recipeMap.get(id)!;return <details key={id}><summary>{r.name}</summary><RecipeInfo recipe={r}/></details>;})}
+        {m.recipes.map(id=>{const r=recipeMap.get(id)!;return <details className="item-fold" key={id}><summary>{r.name}</summary><RecipeInfo recipe={r}/></details>;})}
       </details>):<p>未找到符合条件的早餐搭配。</p>}
     </section>:tab==='食材'?<section className="card"><SectionTitle title="食材营养成分"/>
       <p className="meta">每 100 克相应状态的可食部，缺失指标显示未知。</p>
       {!ingredients.length&&<p>未找到相符的食材。</p>}
-      {ingredients.slice(0,limit).map(f=><details key={f.id}><summary>{f.name} · {foodState[f.state]}</summary>
+      {ingredients.slice(0,limit).map(f=><details className="item-fold" key={f.id}><summary>{f.name} · {foodState[f.state]}</summary>
         <p className="meta">{ingredientMeaning(f.id).category} · {ingredientMeaning(f.id).subtype} · {f.aliases.join('、')||'无其他索引名'} · 过敏原 {f.allergens.join('、')||'无标注'}</p>
         <p>能量 {f.nutrients.kcal} 千卡 · 蛋白质 {f.nutrients.protein} 克 · 碳水 {f.nutrients.carbs} 克 · 脂肪 {f.nutrients.fat} 克 · 纤维 {f.nutrients.fiber} 克</p>
         <p>钠 {f.nutrients.sodium===null?'未知':decimal(f.nutrients.sodium)+' 毫克'} · 钙 {f.nutrients.calcium===null?'未知':decimal(f.nutrients.calcium)+' 毫克'} · 钾 {f.nutrients.potassium===null?'未知':decimal(f.nutrients.potassium)+' 毫克'} · 维生素 C {f.nutrients.vitaminC===null?'未知':decimal(f.nutrients.vitaminC)+' 毫克'}</p>
         <p className="meta">{f.description} · 可食率和生熟换算未知，使用标注状态称量。</p>
         <a href={`https://fdc.nal.usda.gov/food-details/${f.fdc}/nutrients`} target="_blank" rel="noreferrer">查看 USDA 原始条目</a>
       </details>)}
-    </section>:list.length?<div className="library-grid">{list.slice(0,limit).map(r=><details className="card recipe-card" key={r.id}>
+    </section>:list.length?<div className="card library-list">{list.slice(0,limit).map(r=><details className="item-fold recipe-card" key={r.id}>
       <summary><span><strong>{r.name}</strong><small>{labels(r).tags.join('、')} · {recipeMeaning(r).types.join('、')} · {r.prep+r.cook} 分钟 · {categoriesOf(r).join('、')||r.cuisine}</small></span></summary>
       <RecipeInfo recipe={r}/>
       <div className="actions"><button onClick={()=>toggleFavorite(r.id)}>{favorites.includes(r.id)?'取消收藏':'收藏菜谱'}</button>

@@ -71,12 +71,12 @@ test('500 克包装结转、实际库存与预计库存分离，费用对账',()
   equal(q.lines[0].buy,500);
   equal(q.purchase.known,12);
   equal(q.consumed.known,10.08);
-  deepEqual(q.inventory[0],{id:'oats',home:0,confirmed:0,projected:80,usable:0,taken:0});
+  deepEqual(q.inventory[0],{id:'oats',home:0,confirmed:0,projected:80,usable:0,taken:0,demand:420,shortage:500});
   equal(q.batches.reduce((n,b)=>n+b.purchase.known,0),q.purchase.known);
   const first=q.batches[0].lines[0];
   const l=planLogistics(oats,profile,start,{}, {settings:setting,receipts:{[first.receiptKey]:{gross:500,net:500,paid:22}}});
   equal(l.purchase.known,22);equal(l.remaining.known,0);equal(l.paid.known,22);
-  deepEqual(l.inventory[0],{id:'oats',home:0,confirmed:500,projected:80,usable:0,taken:0});
+  deepEqual(l.inventory[0],{id:'oats',home:500,confirmed:500,projected:80,usable:500,taken:0,demand:420,shortage:0});
   const inventory=planLogistics(oats,profile,start,{oats:{stock:50}},{settings:setting,execution:{stock:{oats:{storage:'干燥常温',expires:'2027-01-01'}}}});
   equal(inventory.lines[0].stock,50);equal(inventory.inventory[0].projected,130);
   const partial=planLogistics(oats,profile,start,{}, {settings:setting,receipts:{[first.receiptKey]:{gross:500,net:500,paid:8,paidGross:200}}});

@@ -8,7 +8,8 @@ import {counts,defaultPool,ingredientPools,poolGroups,poolModes,recipeFoodIds,vi
 import {mealConflict} from '../src/food-semantics';
 import {planLogistics,parallelSessions,receiptKey,type PrepJob,type Receipt} from '../src/logistics';
 import {addDays,splitWeek} from '../src/batches';
-import {consumedBySource,dateStock,homeKey,updateTask,type Execution} from '../src/execution';
+import {balances,legacyLedger} from '../src/inventory';
+import {executeJobs,type Execution} from '../src/execution';
 import {fresh,parseBackup} from '../src/store';
 import {logisticsSchema,supplySchema} from '../src/logistics-storage';
 
@@ -116,30 +117,29 @@ test('库存优先实际参与食材候选评分',()=>{
   ok(priorities[0].selected.has('bass'));
 });
 
-test('分装与库存事件可撤销、不会重复扣减、核验保存日期及跨周',()=>{
-  const start='2026-11-23', now='2026-11-23';
+test('分装、制作和撤销使用同一取用记录，旧日期保留账面库存',()=>{
+  const start='2026-11-23', now='2026-12-28';
   const job:PrepJob={key:start+'|0|早餐|quick-oats',at:0,day:0,meal:'早餐',name:'燕麦',method:'当天制作',active:2,waiting:4,tools:['煮锅'],steps:[],ingredients:[{id:'oats',grams:120}]};
   const pantry={oats:{stock:50},chicken:{stock:90}};
   const execution:Execution={stock:{oats:{expires:'2026-12-20',storage:'干燥常温'},chicken:{expires:'2026-11-22',storage:'冷藏'}}};
   const key=receiptKey(start,0,'oats');
-  const receipts:Record<string,Receipt>={[key]:{gross:500,net:500,paid:20,storage:{expires:'2026-12-20',storage:'干燥常温'}}};
-  const update=(current:Execution,action:Parameters<typeof updateTask>[2],value:boolean,j=job)=>updateTask(current,j,action,value,start,now,demo,pantry,receipts);
-  const prepared=update(update(execution,'分装',true),'制作',true);
-  const completed=update(prepared,'取用',true);
-  equal((consumedBySource(completed).get(key)??0)+(consumedBySource(completed).get(homeKey('oats'))??0),120);
-  deepEqual(update(completed,'取用',true),completed);
-  equal(dateStock(start,now,demo,pantry,receipts,completed).oats.stock,430);
-  equal(dateStock(start,now,demo,pantry,receipts,completed).chicken,undefined);
-  equal(dateStock(addDays(start,7),addDays(start,7),demo,pantry,receipts,completed).oats.stock,430);
+  const receipts:Record<string,Receipt>={[key]:{gross:500,net:500,paid:20}};
+  const initial=legacyLedger(pantry,{receipts,execution});
+  const packed=executeJobs(initial,execution,[job],'分装',true,now);
+  equal(packed.ledger,initial);
+  const prepared=executeJobs(packed.ledger,packed.execution,[job],'制作',true,now);
+  equal(balances(prepared.ledger).get('oats'),380);
+  equal(balances(prepared.ledger).get('chicken'),90);
+  const completed=executeJobs(prepared.ledger,prepared.execution,[job],'取用',true,now);
+  equal(completed.ledger,prepared.ledger);
   const bigger={...job,ingredients:[{id:'oats',grams:160}]};
-  equal(dateStock(start,now,demo,pantry,receipts,update(completed,'取用',true,bigger)).oats.stock,390);
-  equal(dateStock(start,now,demo,pantry,receipts,update(completed,'取用',false)).oats.stock,550);
-  throws(()=>update(completed,'取用',true,{...bigger,ingredients:[{id:'chicken',grams:60}]}),/实际库存还缺/);
-  ok(supplySchema.safeParse({execution:completed,receipts}).success);
-  const state={...fresh(),supply:{execution:completed,receipts}};
+  equal(executeJobs(completed.ledger,completed.execution,[bigger],'取用',true,now).ledger,completed.ledger);
+  equal(balances(executeJobs(completed.ledger,completed.execution,[job],'取用',false,now).ledger).get('oats'),500);
+  throws(()=>executeJobs(completed.ledger,completed.execution,[{...job,key:start+'|1|午餐|quick-oats',ingredients:[{id:'chicken',grams:95}]}],'取用',true,now),/账面库存不足/);
+  ok(supplySchema.safeParse({execution:completed.execution,receipts,ledger:completed.ledger}).success);
+  const state={...fresh(),supply:{execution:completed.execution,receipts,ledger:completed.ledger}};
   deepEqual(parseBackup(JSON.stringify(state)),JSON.parse(JSON.stringify(state)));
 });
-
 test('分装克数核对、周期覆盖、实际购入跨批结转以及并行厨具计算',()=>{
   const plan=baseline!;
   const settings={prep:'每2～3天' as const,purchase:'一次采购' as const,pattern:[3,2,2]};

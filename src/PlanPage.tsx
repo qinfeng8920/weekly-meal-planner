@@ -1,11 +1,10 @@
+import {WithdrawalControl} from './InventoryInputs';
+import type {PrepJob} from './logistics';
+import type {Execution} from './execution';
 import {useState} from 'react';
 import {foodMap,foodState} from './catalog';
-import {sum} from './nutrition';
 import {algorithmVersion,dayNutrition,type Change,type Plan,type Lock} from './planner';
 import {cookingRule,usesNamedBreakfast} from './cooking-profile';
-
-
-
 import {mealPreference,type MealName,type Profile} from './profile';
 import {breakfastMenus,labels} from './meal-catalog';
 import {nutritionReview} from './diet-check';
@@ -21,7 +20,7 @@ type Props = {plan:Plan|null;profile:Profile|null;busy:boolean;stale:boolean;pro
   change:(pos:Change)=>void; lock:(lock:Lock)=>void; favorite:(id:string)=>void;block:(id:string)=>void;
   revise:(day:number,meal:number,dish:number,grams:number[])=>Promise<boolean>;
   save:()=>void; share:(plan:Plan,share:boolean)=>void; exportText:(plan:Plan)=>void;
-  openPool?:()=>void;keepPool?:()=>void;readonly?:boolean};
+  execution?:Execution;mealJobs?:PrepJob[];completeMeal?:(jobs:PrepJob[])=>Promise<boolean>;openPool?:()=>void;keepPool?:()=>void;readonly?:boolean};
 export function PlanPage(props:Props) {
   const {plan,profile,day,setDay,busy,stale,locks,favorites,generate,editProfile,openHistory,change,lock,favorite,block,revise,save,share,exportText,readonly,products}=props;
   const [open,setOpen]=useState('');
@@ -40,7 +39,7 @@ export function PlanPage(props:Props) {
         onClick={profile?generate:editProfile}>{busy?'正在校验…':profile?(plan?'重生成七天':'生成七天食谱'):'填写档案'}</button></div>}</div>
     {!plan&&<Empty title="还没有每周食谱"><p>{profile?'生成后可锁定喜欢的菜、调整份量和查看采购清单。':'先完成档案和健康筛查。'}</p></Empty>}
     {plan&&current&&n&&<>
-      {legacy&&<p className="hint">这是用旧版算法生成的食谱。原方案可继续查看，重新生成后将采用新餐次规则。</p>}
+      {legacy&&<p className="hint">这是旧版本生成的食谱，原菜谱和历史记录继续保留。</p>}
       {stale&&!legacy&&<p className="hint" role="status">个人档案、体重或屏蔽设置已更新。当前展示保存时的计划。若要调整，请先生成新方案。</p>}
       <div className="day-tabs" aria-label="选择星期">{dates.map((name,i)=><button aria-pressed={day===i} key={name}
         onClick={()=>{setDay(i);setOpen('');setGrams(null);}}><span>{name.split(' ')[0]}</span><small>{name.split(' ')[1]}</small></button>)}</div>
@@ -48,13 +47,14 @@ export function PlanPage(props:Props) {
         <NutritionRow value={n}/>
         {nutritionReview([current]).some(r=>['低于','高于','数据不全'].some(v=>r.status.includes(v)))&&
           <p className="hint">部分微量营养指标需关注，展开查看。</p>}
-        <details><summary>每日微量营养与覆盖</summary><NutrientReview days={[current]}/></details>
-        <details><summary>全周日均营养检查</summary><NutrientReview days={plan.days}/></details>
+        <details className="item-fold"><summary>每日微量营养与覆盖</summary><NutrientReview days={[current]}/></details>
+        <details className="item-fold"><summary>全周日均营养检查</summary><NutrientReview days={plan.days}/></details>
       </section>
       {current.meals.map((meal,mi)=>{
         const name=meal.name as MealName, rule=cookingRule(plan.profile,name,day,plan.cookingOverride);
         const fixedMeal=name==='早餐'?rule.fixedBreakfast:mealPreference(plan.profile,name).fixed;
-        const isLocked=locks.some(l=>l.day===day&&l.meal===mi);
+        const jobs=props.mealJobs?.filter(job=>job.day===day&&job.meal===meal.name)??[];
+        const eaten=jobs.length>0&&jobs.every(job=>job.key&&props.execution?.tasks?.[job.key]?.eaten);
         return <section className="card meal-card" key={meal.name}>
         <SectionTitle title={meal.name}>{!readonlyOrStale&&<button className="small" disabled={busy||fixedMeal} onClick={()=>change({day,meal:mi})}>换一餐</button>}</SectionTitle>
         {fixedMeal&&<p className="meta">已固定搭配</p>}
@@ -79,6 +79,8 @@ export function PlanPage(props:Props) {
             </>}
           </div>;
         })}
+        {!readonly&&jobs.length>0&&props.completeMeal&&(eaten?<p className="meta">本餐已完成</p>:
+          <WithdrawalControl key={day+meal.name} label="完成本餐" jobs={jobs} tasks={props.execution?.tasks} execute={props.completeMeal}/>)}
       </section>;})}
       {pool&&<details className="card"><summary>本周食材池</summary><PoolOverview pool={pool}>{!readonly&&props.keepPool&&<button disabled={busy} onClick={props.keepPool}>保留食材重新生成</button>}</PoolOverview></details>}
       <section className="card"><p className="meta">随机种子 {plan.seed} · 算法 {plan.algorithmVersion} · 菜谱库 {plan.catalogVersion}</p>

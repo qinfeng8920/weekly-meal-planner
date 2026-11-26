@@ -1,6 +1,7 @@
 import {ingredientPoolSchema,poolSettingsSchema,poolTemplateSchema} from './pool-storage';
 import {defaultPool,type PoolSettings,type PoolTemplate} from './ingredient-pool';
-import {logisticsSchema,supplySchema} from './logistics-storage';
+import {logisticsSchema,supplySchema,validLedger} from './logistics-storage';
+import {legacyLedger} from './inventory';
 import type {SupplyState} from './logistics';
 import {z} from 'zod';
 import {initialProfile, type Profile, type Weight} from './profile';
@@ -52,8 +53,9 @@ const schema = z.strictObject({version:z.literal(1),profile:profile.nullable(),
   locks:z.array(z.strictObject({day:z.int().min(0).max(6),meal:z.int().min(0).max(3),dish:z.int().min(0).max(5),serving})).max(168),
   theme:z.enum(['系统','浅色','深色']),supply:supplySchema.optional(),poolSettings:poolSettingsSchema.optional(),poolTemplates:z.array(poolTemplateSchema).max(50).optional()});
 
+export const backupLimit=64_000_000;
 export function parseBackup(contents:string):Data {
-  if (contents.length>12_000_000) throw Error('备份文件过大。');
+  if (contents.length>backupLimit) throw Error('备份文件过大。');
   let input:unknown;
   try {input=JSON.parse(contents);} catch {throw Error('此文件不是有效的 JSON 备份。');}
   const result=schema.safeParse(input);
@@ -62,6 +64,12 @@ export function parseBackup(contents:string):Data {
   if (new Set(data.weights.map(w=>w.date)).size!==data.weights.length ||
       new Set(data.history.map(p=>p.id)).size!==data.history.length ||
       (data.locks.length && !data.plan)) throw Error('备份包含重复记录或无法关联的锁定信息。');
+  if(data.supply?.ledger) {
+    if(!validLedger(data.supply.ledger))throw Error('库存流水存在重复或负余额，备份未应用。');
+  } else {
+    const ledger=legacyLedger(data.pantry,data.supply);
+    if(ledger.events.length||ledger.review.length)data.supply=supplySchema.parse({...data.supply,ledger}) as SupplyState;
+  }
   return data;
 }
 
@@ -79,12 +87,19 @@ function db():Promise<IDBDatabase> {
 export async function loadData() {
   const database=await db();
   try {
-    const raw=await new Promise<unknown>((resolve,reject)=>{
-      const request=database.transaction('app').objectStore('app').get('data');
-      request.onsuccess=()=>resolve(request.result);
-      request.onerror=()=>reject(storageError());
+    return await new Promise<Data>((resolve,reject)=>{
+      const tx=database.transaction('app','readwrite'),store=tx.objectStore('app'), request=store.get('data');
+      let result:Data;
+      request.onsuccess=()=>{
+        try {
+          const raw=request.result as Data|undefined;
+          result=raw===undefined?fresh():parseBackup(JSON.stringify(raw));
+          if(raw&&!raw.supply?.ledger&&result.supply?.ledger)store.put(result,'data');
+        }catch(e){reject(e);tx.abort();}
+      };
+      tx.oncomplete=()=>resolve(result!);
+      tx.onerror=tx.onabort=()=>reject(storageError());
     });
-    return raw===undefined?fresh():parseBackup(JSON.stringify(raw));
   } finally {database.close();}
 }
 export async function writeData(data:Data,previous:Data) {

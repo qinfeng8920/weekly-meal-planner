@@ -1,5 +1,7 @@
 import {PoolPage,type GenerationDraft} from './PoolPage';
-import {consumedBySource,homeKey,updateTask,type StockInfo} from './execution';
+import {executeJobs,type TaskAction} from './execution';
+import {adjustStock,currentLedger,recordPurchase,resolveReview,reverseAdjustment,type InventoryEvent} from './inventory';
+import type {PrepJob,Receipt} from './logistics';
 import {food,recipeList} from './catalog';
 import {buildWeeklyPool,defaultPool,type PoolSettings} from './ingredient-pool';
 import {InventoryManager,PriceManager} from './SupplyEditors';
@@ -15,14 +17,14 @@ import {PlanPage} from './PlanPage';
 import {Library} from './Library';
 import {ShoppingPage,type SupplyActions} from './ShoppingPage';
 import {dateKey,initialProfile,type Profile,type Weight} from './profile';
-import {addDays,shoppingOffsets,shoppingSchedule,supplyDefaults} from './batches';
+import {shoppingOffsets,shoppingSchedule,supplyDefaults} from './batches';
 import {planLogistics,type Logistics} from './logistics';
 import {parsePriceBackup} from './logistics-storage';
 import {type PriceBook} from './prices';
 import {nutrition} from './nutrition';
 import {algorithmVersion,newPlanStart,regenerate,revise,verifyAgainst,type Change,type Lock,type Plan,type StartChoice} from './planner';
 import {prepPlan,purchasesFromLogistics,type Pantry} from './shopping';
-import {downloadFile,fresh,loadData,parseBackup,writeData,type Data} from './store';
+import {backupLimit,downloadFile,fresh,loadData,parseBackup,writeData,type Data} from './store';
 import {decimal,Empty,planText,SectionTitle,shareText,planDay} from './ui';
 import './style.css';
 
@@ -120,10 +122,11 @@ function App() {
     catch(e) {reason=errorText(e);}
   }
   const latestWeight=[...weights].sort((a,b)=>b.date.localeCompare(a.date))[0]?.kg??Number(profile?.weight);
-  const stale=Boolean(plan && (!['1.2.0','2.0.0',algorithmVersion].includes(plan.algorithmVersion) || !profile || !targets || latestWeight!==plan.weight ||
+  const stale=Boolean(plan && (!['1.2.0','2.0.0','2.1.0',algorithmVersion].includes(plan.algorithmVersion) || !profile || !targets || latestWeight!==plan.weight ||
     Math.abs(targets.kcal-plan.targets.kcal)>.01 || JSON.stringify(planningProfile(profile))!==JSON.stringify(planningProfile(plan.profile)) ||
     plan.days.some(d=>d.meals.some(m=>m.dishes.some(s=>data.blocked.includes(s.recipe.id))))));
   const supply={...data.supply,execution:data.supply?.execution??{}};
+  const ledger=currentLedger(pantry,supply);
   const storedSettings=supply.settings??supplyDefaults(profile??plan?.profile??initialProfile);
   const activeSettings=profile?{prep:storedSettings.prep,pattern:storedSettings.pattern,prepDates:storedSettings.prepDates,
     shopping:shoppingSchedule(storedSettings,profile)}:storedSettings;
@@ -260,24 +263,45 @@ function App() {
   }
   async function restore(file:File) {
     try {
-      if (file.size>12_000_000) throw Error('备份文件过大。');
+      if (file.size>backupLimit) throw Error('备份文件过大。');
       const state=parseBackup(await file.text());
       if (confirm('用这份备份覆盖本机数据？如需保留现有资料，请先导出。')) await mutate({...state,supply:state.supply,poolSettings:state.poolSettings,poolTemplates:state.poolTemplates},'备份已恢复。');
     } catch(e){notify(errorText(e),true);}
   }
+  async function receipt(source:string,value?:Receipt) {
+    try {
+      const receipts={...supply.receipts};
+      const previous=receipts[source];
+      if(!value&&previous&&!confirm('撤销这笔购买并扣回 '+decimal(previous.net)+' 克库存？流水会保留撤销记录。'))return false;
+      const next=recordPurchase(ledger,source,previous,value,dateKey());
+      if(value)receipts[source]=value;
+      else delete receipts[source];
+      return await mutate({supply:{...supply,receipts,ledger:next}},value?'采购记录已更新。实际库存已入账。':'购买记录已撤销。');
+    }catch(e){notify(errorText(e),true);return false;}
+  }
+  async function task(jobs:Pick<PrepJob,'key'|'ingredients'>[],action:TaskAction,checked:boolean) {
+    try {
+      const result=executeJobs(ledger,supply.execution,jobs,action,checked,dateKey(),supply.products);
+      if(result.withdrawals.length&&!confirm('确认从账面库存取用？\n'+result.withdrawals.map(r=>food(r.id).name+' '+decimal(r.grams)+' 克').join('、')))return false;
+      if(action==='取用'&&!checked&&!confirm('撤销这次取用并将已记账净量加回库存？'))return false;
+      return await mutate({supply:{...supply,execution:result.execution,ledger:result.ledger}},'备餐进度已更新。');
+    }catch(e){notify(errorText(e),true);return false;}
+  }
+  async function stock(id:string,quantity:number,mode:'增加'|'扣除'|'报损'|'设为') {
+    try {
+      const next=adjustStock(ledger,id,quantity,mode,dateKey(),'调整|'+crypto.randomUUID()+'|'+id);
+      return await mutate({supply:{...supply,ledger:next}},'实际库存已更新。');
+    }catch(e){notify(errorText(e),true);return false;}
+  }
+  async function removeInventory(event:InventoryEvent) {
+    if(event.kind==='实际取用'&&event.reference)return task([{key:event.reference,ingredients:[]}],'取用',false);
+    if(!confirm('撤销这笔库存调整并按原数量修正余额？流水会保留撤销记录。'))return false;
+    try {
+      return await mutate({supply:{...supply,ledger:reverseAdjustment(ledger,event.id,dateKey())}},'库存已按撤销修正。');
+    }catch(e){notify(errorText(e),true);return false;}
+  }
   const supplyActions:SupplyActions={
-    stock:(id,n,info:StockInfo)=>{
-      const taken=consumedBySource(supply.execution).get(homeKey(id))??0;
-      return mutate({pantry:{...data.pantry,[id]:{...data.pantry[id],stock:n+taken}},
-        supply:{...supply,execution:{...supply.execution,stock:{...supply.execution.stock,[id]:info}}}},'库存与采购费用已更新。');
-    },
-    task:(job,action,checked)=>{
-      if(!plan||!profile||stale){notify('请切换到当前有效食谱，再登记备餐任务。',true);return Promise.resolve(false);}
-      try {
-        const execution=updateTask(supply.execution,job,action,checked,plan.start,dateKey(),profile,data.pantry,supply.receipts??{},supply.products);
-        return mutate({supply:{...supply,execution}},'备餐进度已更新。');
-      }catch(e){notify(errorText(e),true);return Promise.resolve(false);}
-    },
+    task,receipt,
     savePrice:(id,value)=>{
       const book={...supply.prices};
       if(value)book[id]={...value,date:value.date??dateKey()};
@@ -299,15 +323,6 @@ function App() {
         const prices=parsePriceBackup(await file.text());
         if(confirm('用这份价格备份覆盖自定义价格？'))await mutate({supply:{...supply,prices},pantry:clearLegacyPrices(data.pantry)},'价格备份已恢复。');
       } catch(e){notify(errorText(e),true);}
-    },
-    receipt:(row,value)=>{
-      if((value?.net??0)<(consumedBySource(supply.execution).get(row.receiptKey)??0)) {
-        notify('此采购批次已有食材被实际取用。请先撤销对应取用记录，再修改购买量。',true);return Promise.resolve(false);
-      }
-      const receipts={...supply.receipts};
-      if(value)receipts[row.receiptKey]=value;
-      else delete receipts[row.receiptKey];
-      return mutate({supply:{...supply,receipts}},'采购记录已更新。');
     },
   };
   const shoppingOutput={
@@ -332,6 +347,7 @@ function App() {
     editProfile:()=>go('编辑档案'),openHistory:()=>go('历史方案'),change:(p:Change)=>void generate(p),lock,
     favorite:(id:string)=>toggle('favorites',id),block:(id:string)=>toggle('blocked',id),revise:adjust,save:savePlan,
     products:supply.products,livePool,openPool:()=>go('生成设置'),keepPool:()=>void generate(undefined,plan?.pool?.settings,true),
+    execution:supply.execution,mealJobs:quote?.prep.flatMap(b=>b.jobs)??[],completeMeal:(jobs:PrepJob[])=>task(jobs,'用餐',true),
     share:(p:Plan,share:boolean)=>void send(planText(p),share),exportText:(p:Plan)=>downloadFile('天天减-七天食谱.txt',planText(p),'text/plain;charset=utf-8'),
   };
 
@@ -377,14 +393,14 @@ function App() {
           saveProducts={products=>mutate({supply:{...supply,products}},'换算与采购费用已更新。')}
           resetAll={supplyActions.resetPrices} exportPrices={supplyActions.exportPrices} importPrices={supplyActions.importPrices}/></>}
       {page==='库存'&&<><div className="page-title"><h1>库存</h1><button onClick={()=>go('我的')}>返回我的</button></div>
-        <InventoryManager pantry={pantry} inventory={Object.fromEntries(quote?.inventory.map(row=>[row.id,row])??[])}
-          execution={supply.execution} save={supplyActions.stock}/>
-        {Object.keys(supply.receipts??{}).length>0&&<details className="card"><summary>历史购入凭证</summary>
-          <ul className="ingredients">{Object.entries(supply.receipts??{}).sort(([a],[b])=>b.localeCompare(a)).map(([key,r])=>{
-            const [start,offset,id]=key.split('|');
-            return <li key={key}><span>{r.date??addDays(start,+offset)} · {food(id).name}</span><b className="unit">{decimal(r.net)} 克净料{r.paid!==undefined?' · ¥'+r.paid.toFixed(2):''}</b></li>;
-          })}</ul>
-        </details>}
+        <InventoryManager pantry={pantry} prices={supply.prices??{}} ledger={ledger} receipts={supply.receipts??{}} execution={supply.execution}
+          inventory={Object.fromEntries(quote?.inventory.map(row=>[row.id,row])??[])}
+          save={stock} savePurchase={receipt} reverse={removeInventory}
+          review={async(id,grams)=>{
+            try {
+              return await mutate({supply:{...supply,ledger:resolveReview(ledger,id,grams,dateKey())}},'旧库存已核对。');
+            }catch(e){notify(errorText(e),true);return false;}
+          }}/>
       </>}
       {page==='菜谱库'&&<Library favorites={data.favorites} blocked={data.blocked} toggleFavorite={planProps.favorite} toggleBlocked={planProps.block}/>}
       {page==='我的'&&<>
@@ -395,7 +411,7 @@ function App() {
           <div className="actions"><button className="primary" onClick={()=>go('编辑档案')}>{profile?'编辑档案':'填写档案'}</button>
             <button onClick={()=>go('历史方案')}>历史方案 · {data.history.length}</button><button onClick={()=>go('食材价格')}>食材价格</button><button onClick={()=>go('库存')}>家中库存</button><button onClick={()=>go('菜谱库')}>菜谱库与收藏</button></div>
         </section>
-        {profile&&<details className="card"><summary>饮食、厨具与采购偏好</summary>
+        {profile&&<details className="card group-fold"><summary>饮食、厨具与采购偏好</summary>
           <p>{profile.meals==='4'?'三餐和加餐':profile.meals==='2'?'两餐':'三餐'} · {profile.cooking?.mode??'简单'}烹饪 · {supply.settings?.prep??supplyDefaults(profile).prep}备餐</p>
           <p className="meta">{profile.tools.join('、')||'未选择厨具'}</p>
           <div className="actions"><button onClick={()=>go('生成设置')}>本周生成偏好</button></div>
@@ -413,12 +429,12 @@ function App() {
           {confirmDelete&&<div className="hint"><p>删除本机的档案、食谱、库存和体重记录。请确认已取得需要的备份。</p><div className="actions">
             <button onClick={()=>setConfirmDelete(false)}>取消</button><button className="danger" onClick={()=>void mutate({...fresh(),supply:undefined,poolTemplates:undefined},'本机个人数据已清除。').then(ok=>{if(ok)setConfirmDelete(false);})}>确认删除</button></div></div>}
         </section>
-        <details className="card"><summary>隐私与健康说明</summary><p>应用无需账号。档案、体重及健康信息在设备上处理，分享食谱只包含餐次、菜名和食材重量。访问网站由静态托管服务处理普通网页请求。</p>
+        <details className="card group-fold"><summary>隐私与健康说明</summary><p>应用无需账号。档案、体重及健康信息在设备上处理，分享食谱只包含餐次、菜名和食材重量。访问网站由静态托管服务处理普通网页请求。</p>
           <p>营养计算是面向一般成年人的估算。涉及疾病、药物和特殊饮食医嘱时，请向医生或注册营养师咨询。食物过敏者需核查包装标签和厨房交叉接触。</p></details>
       </>}
       {page==='历史方案'&&<>
         <div className="page-title"><div><h1>历史方案</h1><p>保留每次保存时的完整搭配和营养信息。</p></div><button onClick={()=>go('食谱')}>返回食谱</button></div>
-        {data.history.length?data.history.map(p=><section className="card" key={p.id}><SectionTitle title={p.name}/>
+        {data.history.length?data.history.map(p=><section className="card history-item" key={p.id}><SectionTitle title={p.name}/>
           <p className="meta">从 {p.start} 起 · 七天 · 生成体重 {p.weight} 千克 · {p.favorite?'已收藏':'历史方案'}</p>
           <div className="actions">
             <button onClick={()=>{setArchived(p);setHistoryQuote(undefined);setDay(0);go('查看历史');}}>查看</button><button onClick={()=>editHistory(p)}>改名</button>

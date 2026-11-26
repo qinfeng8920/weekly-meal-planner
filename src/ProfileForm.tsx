@@ -69,7 +69,7 @@ export function ProfileForm({value,onSave,onCancel}:{value:Profile|null;onSave:(
     </>}
     {step===3&&<>
       {multi('cuisines','喜欢的菜系',cuisines)}
-      {preferences.map(([key,label,options])=><details key={key}><summary>{label}{p[key].length?(' · 已选 '+p[key].length):''}</summary>{multi(key,label,options)}</details>)}
+      {preferences.map(([key,label,options])=><details className="group-fold" key={key}><summary>{label}{p[key].length?(' · 已选 '+p[key].length):''}</summary>{multi(key,label,options)}</details>)}
       {text('preferred','自定义偏好，用顿号分隔')}
       {grids(select('fruit','水果',['正常摄入','优先低糖水果','自定义摄入量','不吃水果']),
         p.fruit==='自定义摄入量'?text('fruitGrams','每日水果克数','number'):null,
