@@ -1,0 +1,132 @@
+import {expect,test,type Page} from '@playwright/test';
+import {demo} from './fixtures';
+
+async function setup(page:Page) {
+  await page.goto('./');
+  await page.getByRole('button',{name:'开始填写档案'}).click();
+  await page.getByLabel('昵称（选填）').fill(demo.name);
+  await page.getByLabel('公式使用的性别').selectOption(demo.sex);
+  await page.getByLabel('年龄（岁）').fill(demo.age);
+  await page.getByLabel('身高（厘米）').fill(demo.height);
+  await page.getByLabel('当前体重（千克）').fill(demo.weight);
+  await page.getByLabel('目标体重（千克）').fill(demo.target);
+  await page.getByRole('button',{name:'继续',exact:true}).click();
+  await page.getByRole('button',{name:'继续',exact:true}).click();
+  await page.getByRole('button',{name:'继续',exact:true}).click();
+  await expect(page.getByRole('alert')).toContainText('完成并确认');
+  await page.getByText('我已核对年龄、孕哺期、进食障碍及医嘱筛查').click();
+  await page.getByText('我已核对过敏原与其他强制忌口').click();
+  for(let i=0;i<3;i++) await page.getByRole('button',{name:'继续',exact:true}).click();
+  await page.getByRole('button',{name:'保存档案'}).click();
+  await expect(page.getByRole('heading',{name:'你好，测试用户'})).toBeVisible();
+}
+async function generate(page:Page) {
+  await page.getByRole('button',{name:'生成本周食谱',exact:true}).click();
+  await expect(page.getByText('七天食谱已生成。')).toBeVisible({timeout:12000});
+}
+const nav=(page:Page, name:string)=>page.getByRole('navigation',{name:'主导航'}).getByRole('button',{name,exact:true});
+async function assertFit(page:Page) {
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+}
+test('手机问卷、七天食谱、采购、称重、历史与独立存储',async({page,browser})=>{
+  const errors:string[]=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  await setup(page);
+  await generate(page);
+  expect(await page.getByRole('button',{name:/^周[一二三四五六日]$/}).count()).toBe(7);
+  page.once('dialog',d=>d.accept('测试快照'));
+  await page.getByRole('button',{name:'保存到历史'}).click();
+  await expect(page.getByText('已保存到历史方案。')).toBeVisible();
+  await nav(page,'采购').click();
+  await page.getByRole('checkbox').first().click();
+  await expect(page.getByRole('checkbox').first()).toBeChecked();
+  await expect(page.getByText('采购记录已更新。')).toBeVisible();
+  await page.getByRole('button',{name:'备餐',exact:true}).click();
+  await expect(page.getByText(/生熟分开/)).toBeVisible();
+  await assertFit(page);
+  await nav(page,'首页').click();
+  await page.getByRole('button',{name:'记录体重',exact:true}).click();
+  await page.getByLabel('体重（千克）',{exact:true}).fill('81.5');
+  await page.getByRole('button',{name:'保存体重'}).click();
+  await page.getByRole('button',{name:'关闭',exact:true}).click();
+  await expect(page.getByText(/81.5 千克/).first()).toBeVisible();
+  await generate(page);
+  await page.getByRole('button',{name:'历史方案',exact:true}).click();
+  await expect(page.getByText(/生成体重 83 千克/)).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading',{name:'你好，测试用户'})).toBeVisible();
+  await nav(page,'我的').click();
+  await page.getByRole('button',{name:/历史方案/}).click();
+  await expect(page.getByRole('heading',{name:'测试快照'})).toBeVisible();
+  await assertFit(page);
+  const separate=await browser.newContext();
+  const visitor=await separate.newPage();
+  await visitor.goto(page.url());
+  await expect(visitor.getByRole('button',{name:'开始填写档案'})).toBeVisible();
+  await separate.close();
+  expect(errors).toEqual([]);
+});
+test('备份往返、分享净化、深色及 320 像素布局',async({page})=>{
+  await setup(page);
+  await generate(page);
+  const file=page.waitForEvent('download');
+  await page.getByRole('button',{name:'下载食谱文本'}).click();
+  const text=await (await file).createReadStream();
+  const chunks:Buffer[]=[];
+  for await(const c of text)chunks.push(c as Buffer);
+  const exported=Buffer.concat(chunks).toString('utf8');
+  expect(exported).toContain('天天减 · 七天食谱');
+  for(const word of [demo.name,'体重','疾病','身高','年龄']) expect(exported).not.toContain(word);
+  await nav(page,'我的').click();
+  await page.getByLabel('外观').selectOption('深色');
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  const backup=page.waitForEvent('download');
+  await page.getByRole('button',{name:'导出个人备份'}).click();
+  const path=await (await backup).path();
+  await page.getByRole('button',{name:'删除全部数据'}).click();
+  await page.getByRole('button',{name:'确认删除'}).click();
+  await expect(page.getByText('本机个人数据已清除。')).toBeVisible();
+  page.once('dialog',d=>d.accept());
+  await page.getByLabel('导入并恢复').setInputFiles(path!);
+  await expect(page.getByText('备份已恢复。')).toBeVisible();
+  await page.setViewportSize({width:320,height:640});
+  for(const name of ['首页','食谱','采购','菜谱库','我的']){await nav(page,name).click();await assertFit(page);}
+});
+test('子路径资源、安装清单、离线重新打开和生成',async({page,context})=>{
+  await setup(page);
+  await page.evaluate(async()=>{
+    await navigator.serviceWorker.ready;
+    if(!navigator.serviceWorker.controller) await new Promise<void>(r=>navigator.serviceWorker.addEventListener('controllerchange',()=>r(),{once:true}));
+  });
+  const manifest=await page.evaluate(async()=>await (await fetch('./manifest.webmanifest')).json());
+  expect(manifest.start_url).toBe('./');expect(manifest.display).toBe('standalone');
+  expect(manifest.icons).toHaveLength(2);
+  for(const icon of manifest.icons) expect((await page.request.get(icon.src)).ok()).toBe(true);
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByText(/当前离线/)).toBeVisible();
+  await generate(page);
+  await page.reload();
+  await nav(page,'食谱').click();
+  await expect(page.getByRole('heading',{name:/周.营养/})).toBeVisible();
+});
+
+test('新 Service Worker 版本生效后仍能读取历史',async({page})=>{
+  await setup(page);
+  await generate(page);
+  page.once('dialog',d=>d.accept('更新前保存'));
+  await page.getByRole('button',{name:'保存到历史'}).click();
+  await expect(page.getByText('已保存到历史方案。')).toBeVisible();
+  await page.evaluate(async()=>{await navigator.serviceWorker.ready;});
+  await page.reload();
+  expect(await page.evaluate(()=>Boolean(navigator.serviceWorker.controller))).toBe(true);
+  expect((await page.request.post('./__test_update')).ok()).toBe(true);
+  await page.evaluate(async()=>{await (await navigator.serviceWorker.ready).update();});
+  const apply=page.getByRole('button',{name:'应用新版本'});
+  await expect(apply).toBeVisible();
+  await apply.click();
+  await expect(apply).toBeHidden();
+  await nav(page,'我的').click();
+  await page.getByRole('button',{name:/历史方案/}).click();
+  await expect(page.getByRole('heading',{name:'更新前保存'})).toBeVisible();
+});

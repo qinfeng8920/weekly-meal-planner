@@ -1,0 +1,98 @@
+import {z} from 'zod';
+import {initialProfile, type Profile, type Weight} from './profile';
+import type {Lock, Plan} from './planner';
+import type {Pantry} from './shopping';
+
+export type Data = {version:1; profile:Profile|null; weights:Weight[]; plan:Plan|null; history:Plan[];
+  pantry:Pantry; blocked:string[]; favorites:string[]; locks:Lock[]; theme:'系统'|'浅色'|'深色'};
+export const fresh = ():Data => ({version:1,profile:null,weights:[],plan:null,history:[],pantry:{},blocked:[],favorites:[],locks:[],theme:'系统'});
+
+const string = z.string().max(800);
+const names = z.array(string).max(180);
+const num = z.number().min(0).max(1e8);
+const date = z.iso.date();
+const profile = z.strictObject(Object.fromEntries(Object.entries(initialProfile).map(([key,value])=>
+  [key,typeof value==='boolean'?z.boolean():Array.isArray(value)?names:string])));
+const ingredient = z.strictObject({id:z.string().regex(/^[a-z][a-z0-9-]{0,49}$/),grams:num.positive().max(2000)});
+const recipe = z.strictObject({id:string,name:string,group:z.enum(['蛋白质菜','蔬菜','主食','早餐','水果','加餐','汤类']),
+  ingredients:z.array(ingredient).min(1).max(25),tools:names,prep:num,cook:num,steps:names,cuisine:string,flavor:string,skill:string,batch:z.boolean(),min:num,max:num});
+const macros = {kcal:num,protein:num,carbs:num,fat:num,fiber:num};
+const nutrients = z.strictObject({...macros,sodium:num.nullable(),calcium:num.nullable(),potassium:num.nullable(),vitaminC:num.nullable()});
+const serving = z.strictObject({recipe,ingredients:z.array(ingredient).min(1).max(25),nutrients});
+const purchase = z.strictObject({id:string,name:string,category:string,state:string,need:num,stock:num,buy:num,bought:num,
+  done:z.boolean(),cost:num.nullable(),extra:num,part:z.array(num).min(1).max(7),uncertain:z.boolean()});
+const plan = z.strictObject({id:string,name:string,created:z.iso.datetime(),start:date,seed:string,profile,weight:num,
+  days:z.array(z.strictObject({meals:z.array(z.strictObject({name:string,dishes:z.array(serving).min(1).max(6)})).min(2).max(4)})).length(7),
+  targets:z.strictObject({...macros,bmi:num,bmr:num,tdee:num,water:num.nullable(),message:string}),
+  purchases:z.array(purchase).max(180),prep:z.strictObject({mode:string,notice:names,days:z.array(z.strictObject({date,task:string,minutes:num,meals:names})).length(7)}),
+  algorithmVersion:string,catalogVersion:string,favorite:z.boolean()});
+const metrics = z.record(z.string().regex(/^[a-z][a-z0-9-]{0,49}$/),
+  z.strictObject({stock:num.optional(),bought:num.optional(),price:num.optional(),pack:num.positive().optional(),yieldPercent:num.min(1).max(100).optional()}));
+const schema = z.strictObject({version:z.literal(1),profile:profile.nullable(),
+  weights:z.array(z.strictObject({date,kg:z.number().min(35).max(260),waist:z.number().min(35).max(250).optional()})).max(20000),
+  plan:plan.nullable(),history:z.array(plan).max(500),pantry:metrics,blocked:names,favorites:names,
+  locks:z.array(z.strictObject({day:z.int().min(0).max(6),meal:z.int().min(0).max(3),dish:z.int().min(0).max(5),serving})).max(168),
+  theme:z.enum(['系统','浅色','深色'])});
+
+export function parseBackup(contents:string):Data {
+  if (contents.length>12_000_000) throw Error('备份文件过大。');
+  let input:unknown;
+  try {input=JSON.parse(contents);} catch {throw Error('此文件不是有效的 JSON 备份。');}
+  const result=schema.safeParse(input);
+  if (!result.success) throw Error('备份版本不受支持，或内容存在缺失及无效字段。');
+  const data = result.data as unknown as Data;
+  if (new Set(data.weights.map(w=>w.date)).size!==data.weights.length ||
+      new Set(data.history.map(p=>p.id)).size!==data.history.length ||
+      (data.locks.length && !data.plan)) throw Error('备份包含重复记录或无法关联的锁定信息。');
+  return data;
+}
+
+const storageError = () => Error('无法访问本机存储。请检查浏览器隐私设置和剩余空间。');
+function db():Promise<IDBDatabase> {
+  return new Promise((resolve,reject)=>{
+    if (!('indexedDB' in globalThis)) return reject(storageError());
+    const request=indexedDB.open('tiantianjian',1);
+    request.onupgradeneeded=()=>{ if (!request.result.objectStoreNames.contains('app')) request.result.createObjectStore('app'); };
+    request.onblocked=()=>reject(Error('请关闭其他打开天天减的页面后重试。'));
+    request.onerror=()=>reject(storageError());
+    request.onsuccess=()=>resolve(request.result);
+  });
+}
+export async function loadData() {
+  const database=await db();
+  try {
+    const raw=await new Promise<unknown>((resolve,reject)=>{
+      const request=database.transaction('app').objectStore('app').get('data');
+      request.onsuccess=()=>resolve(request.result);
+      request.onerror=()=>reject(storageError());
+    });
+    return raw===undefined?fresh():parseBackup(JSON.stringify(raw));
+  } finally {database.close();}
+}
+export async function writeData(data:Data,previous:Data) {
+  const checked=parseBackup(JSON.stringify(data));
+  const database=await db();
+  try {
+    await new Promise<void>((resolve,reject)=>{
+      const tx=database.transaction('app','readwrite');
+      const store=tx.objectStore('app');
+      const read=store.get('data');
+      read.onsuccess=()=>{
+        try {
+          const current=read.result===undefined?fresh():parseBackup(JSON.stringify(read.result));
+          if (JSON.stringify(current)!==JSON.stringify(parseBackup(JSON.stringify(previous)))) {
+            reject(Error('另一个页面已更新本机数据。请刷新后重试。'));tx.abort();return;
+          }
+          store.put(checked,'data');
+        } catch(e) {reject(e);tx.abort();}
+      };
+      tx.oncomplete=()=>resolve();
+      tx.onerror=tx.onabort=()=>reject(storageError());
+    });
+  } finally {database.close();}
+}
+export function downloadFile(name:string,contents:string,type='application/json') {
+  const url=URL.createObjectURL(new Blob([contents],{type}));
+  const link=document.createElement('a'); link.href=url; link.download=name; link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+}

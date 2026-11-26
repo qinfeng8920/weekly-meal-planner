@@ -1,0 +1,2787 @@
+[
+  {
+    "id": "chicken",
+    "name": "鸡胸肉",
+    "category": "肉类",
+    "fdc": 171077,
+    "description": "Chicken, broiler or fryers, breast, skinless, boneless, meat only, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "鸡肉"
+    ],
+    "nutrients": {
+      "kcal": 120.0,
+      "protein": 22.5,
+      "carbs": 0.0,
+      "fat": 2.62,
+      "fiber": 0.0,
+      "sodium": 45.0,
+      "calcium": 5.0,
+      "potassium": 334.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "thigh",
+    "name": "去皮鸡腿肉",
+    "category": "肉类",
+    "fdc": 173627,
+    "description": "Chicken, broilers or fryers, dark meat, thigh, meat only, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "鸡腿",
+      "鸡肉"
+    ],
+    "nutrients": {
+      "kcal": 121.0,
+      "protein": 19.66,
+      "carbs": 0.0,
+      "fat": 4.12,
+      "fiber": 0.0,
+      "sodium": 95.0,
+      "calcium": 7.0,
+      "potassium": 242.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "beef",
+    "name": "瘦牛肉",
+    "category": "肉类",
+    "fdc": 171757,
+    "description": "Beef, round, top round steak, boneless, separable lean only, trimmed to 0\" fat, all grades, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "牛肉"
+    ],
+    "nutrients": {
+      "kcal": 121.0,
+      "protein": 23.59,
+      "carbs": 0.0,
+      "fat": 2.94,
+      "fiber": 0.0,
+      "sodium": 54.0,
+      "calcium": 13.0,
+      "potassium": 313.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "pork",
+    "name": "猪里脊",
+    "category": "肉类",
+    "fdc": 168249,
+    "description": "Pork, fresh, loin, tenderloin, separable lean only, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "猪肉"
+    ],
+    "nutrients": {
+      "kcal": 109.0,
+      "protein": 20.95,
+      "carbs": 0.0,
+      "fat": 2.17,
+      "fiber": 0.0,
+      "sodium": 53.0,
+      "calcium": 5.0,
+      "potassium": 399.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "turkey",
+    "name": "火鸡胸肉",
+    "category": "肉类",
+    "fdc": 171098,
+    "description": "Turkey, whole, breast, meat only, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 114.0,
+      "protein": 23.66,
+      "carbs": 0.14,
+      "fat": 1.48,
+      "fiber": 0.0,
+      "sodium": 113.0,
+      "calcium": 11.0,
+      "potassium": 242.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "salmon",
+    "name": "三文鱼",
+    "category": "鱼虾",
+    "fdc": 175167,
+    "description": "Fish, salmon, Atlantic, farmed, raw",
+    "state": "raw",
+    "allergens": [
+      "鱼"
+    ],
+    "aliases": [
+      "鲑鱼",
+      "鱼肉"
+    ],
+    "nutrients": {
+      "kcal": 208.0,
+      "protein": 20.42,
+      "carbs": 0.0,
+      "fat": 13.42,
+      "fiber": 0.0,
+      "sodium": 59.0,
+      "calcium": 9.0,
+      "potassium": 363.0,
+      "vitaminC": 3.9
+    }
+  },
+  {
+    "id": "tilapia",
+    "name": "罗非鱼",
+    "category": "鱼虾",
+    "fdc": 175176,
+    "description": "Fish, tilapia, raw",
+    "state": "raw",
+    "allergens": [
+      "鱼"
+    ],
+    "aliases": [
+      "鱼肉"
+    ],
+    "nutrients": {
+      "kcal": 96.0,
+      "protein": 20.08,
+      "carbs": 0.0,
+      "fat": 1.7,
+      "fiber": 0.0,
+      "sodium": 52.0,
+      "calcium": 10.0,
+      "potassium": 302.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "bass",
+    "name": "鲈鱼",
+    "category": "鱼虾",
+    "fdc": 175142,
+    "description": "Fish, sea bass, mixed species, raw",
+    "state": "raw",
+    "allergens": [
+      "鱼"
+    ],
+    "aliases": [
+      "鱼肉"
+    ],
+    "nutrients": {
+      "kcal": 97.0,
+      "protein": 18.43,
+      "carbs": 0.0,
+      "fat": 2.0,
+      "fiber": 0.0,
+      "sodium": 68.0,
+      "calcium": 10.0,
+      "potassium": 256.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "cod",
+    "name": "太平洋鳕鱼",
+    "category": "鱼虾",
+    "fdc": 174191,
+    "description": "Fish, cod, Pacific, raw (may have been previously frozen)",
+    "state": "raw",
+    "allergens": [
+      "鱼"
+    ],
+    "aliases": [
+      "鳕鱼",
+      "鱼肉"
+    ],
+    "nutrients": {
+      "kcal": 69.0,
+      "protein": 15.27,
+      "carbs": 0.0,
+      "fat": 0.41,
+      "fiber": 0.0,
+      "sodium": 303.0,
+      "calcium": 8.0,
+      "potassium": 235.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "trout",
+    "name": "虹鳟",
+    "category": "鱼虾",
+    "fdc": 173717,
+    "description": "Fish, trout, rainbow, farmed, raw",
+    "state": "raw",
+    "allergens": [
+      "鱼"
+    ],
+    "aliases": [
+      "鱼肉"
+    ],
+    "nutrients": {
+      "kcal": 141.0,
+      "protein": 19.94,
+      "carbs": 0.0,
+      "fat": 6.18,
+      "fiber": 0.0,
+      "sodium": 51.0,
+      "calcium": 25.0,
+      "potassium": 377.0,
+      "vitaminC": 2.9
+    }
+  },
+  {
+    "id": "mackerel",
+    "name": "大西洋鲭鱼",
+    "category": "鱼虾",
+    "fdc": 175119,
+    "description": "Fish, mackerel, Atlantic, raw",
+    "state": "raw",
+    "allergens": [
+      "鱼"
+    ],
+    "aliases": [
+      "鲭鱼",
+      "鱼肉"
+    ],
+    "nutrients": {
+      "kcal": 205.0,
+      "protein": 18.6,
+      "carbs": 0.0,
+      "fat": 13.89,
+      "fiber": 0.0,
+      "sodium": 90.0,
+      "calcium": 12.0,
+      "potassium": 314.0,
+      "vitaminC": 0.4
+    }
+  },
+  {
+    "id": "tuna",
+    "name": "黄鳍金枪鱼",
+    "category": "鱼虾",
+    "fdc": 175159,
+    "description": "Fish, tuna, fresh, yellowfin, raw",
+    "state": "raw",
+    "allergens": [
+      "鱼"
+    ],
+    "aliases": [
+      "金枪鱼",
+      "鱼肉"
+    ],
+    "nutrients": {
+      "kcal": 109.0,
+      "protein": 24.4,
+      "carbs": 0.0,
+      "fat": 0.49,
+      "fiber": 0.0,
+      "sodium": 45.0,
+      "calcium": 4.0,
+      "potassium": 441.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "shrimp",
+    "name": "虾仁",
+    "category": "鱼虾",
+    "fdc": 174210,
+    "description": "Crustaceans, shrimp, mixed species, raw (may contain additives to retain moisture)",
+    "state": "raw",
+    "allergens": [
+      "甲壳类"
+    ],
+    "aliases": [
+      "虾",
+      "海鲜"
+    ],
+    "nutrients": {
+      "kcal": 71.0,
+      "protein": 13.61,
+      "carbs": 0.91,
+      "fat": 1.01,
+      "fiber": 0.0,
+      "sodium": 566.0,
+      "calcium": 54.0,
+      "potassium": 113.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "scallop",
+    "name": "鲜贝柱",
+    "category": "鱼虾",
+    "fdc": 174220,
+    "description": "Mollusks, scallop, mixed species, raw",
+    "state": "raw",
+    "allergens": [
+      "软体动物"
+    ],
+    "aliases": [
+      "扇贝",
+      "海鲜"
+    ],
+    "nutrients": {
+      "kcal": 69.0,
+      "protein": 12.06,
+      "carbs": 3.18,
+      "fat": 0.49,
+      "fiber": 0.0,
+      "sodium": 392.0,
+      "calcium": 6.0,
+      "potassium": 205.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "squid",
+    "name": "鱿鱼",
+    "category": "鱼虾",
+    "fdc": 174223,
+    "description": "Mollusks, squid, mixed species, raw",
+    "state": "raw",
+    "allergens": [
+      "软体动物"
+    ],
+    "aliases": [
+      "海鲜"
+    ],
+    "nutrients": {
+      "kcal": 92.0,
+      "protein": 15.58,
+      "carbs": 3.08,
+      "fat": 1.38,
+      "fiber": 0.0,
+      "sodium": 44.0,
+      "calcium": 32.0,
+      "potassium": 246.0,
+      "vitaminC": 4.7
+    }
+  },
+  {
+    "id": "egg",
+    "name": "全鸡蛋",
+    "category": "蛋",
+    "fdc": 171287,
+    "description": "Egg, whole, raw, fresh",
+    "state": "raw",
+    "allergens": [
+      "蛋"
+    ],
+    "aliases": [
+      "鸡蛋"
+    ],
+    "nutrients": {
+      "kcal": 143.0,
+      "protein": 12.56,
+      "carbs": 0.72,
+      "fat": 9.51,
+      "fiber": 0.0,
+      "sodium": 142.0,
+      "calcium": 56.0,
+      "potassium": 138.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "eggwhite",
+    "name": "鸡蛋清",
+    "category": "蛋",
+    "fdc": 172183,
+    "description": "Egg, white, raw, fresh",
+    "state": "raw",
+    "allergens": [
+      "蛋"
+    ],
+    "aliases": [
+      "蛋清",
+      "鸡蛋"
+    ],
+    "nutrients": {
+      "kcal": 52.0,
+      "protein": 10.9,
+      "carbs": 0.73,
+      "fat": 0.17,
+      "fiber": 0.0,
+      "sodium": 166.0,
+      "calcium": 7.0,
+      "potassium": 163.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "tofu",
+    "name": "北豆腐",
+    "category": "豆制品",
+    "fdc": 172475,
+    "description": "Tofu, raw, firm, prepared with calcium sulfate",
+    "state": "raw",
+    "allergens": [
+      "大豆"
+    ],
+    "aliases": [
+      "豆腐",
+      "硬豆腐"
+    ],
+    "nutrients": {
+      "kcal": 144.0,
+      "protein": 17.27,
+      "carbs": 2.78,
+      "fat": 8.72,
+      "fiber": 2.3,
+      "sodium": 14.0,
+      "calcium": 683.0,
+      "potassium": 237.0,
+      "vitaminC": 0.2
+    }
+  },
+  {
+    "id": "softtofu",
+    "name": "普通豆腐",
+    "category": "豆制品",
+    "fdc": 172476,
+    "description": "Tofu, raw, regular, prepared with calcium sulfate",
+    "state": "raw",
+    "allergens": [
+      "大豆"
+    ],
+    "aliases": [
+      "豆腐"
+    ],
+    "nutrients": {
+      "kcal": 76.0,
+      "protein": 8.08,
+      "carbs": 1.87,
+      "fat": 4.78,
+      "fiber": 0.3,
+      "sodium": 7.0,
+      "calcium": 350.0,
+      "potassium": 121.0,
+      "vitaminC": 0.1
+    }
+  },
+  {
+    "id": "chickpea",
+    "name": "无盐熟鹰嘴豆",
+    "category": "豆制品",
+    "fdc": 173757,
+    "description": "Chickpeas (garbanzo beans, bengal gram), mature seeds, cooked, boiled, without salt",
+    "state": "cooked",
+    "allergens": [],
+    "aliases": [
+      "鹰嘴豆"
+    ],
+    "nutrients": {
+      "kcal": 164.0,
+      "protein": 8.86,
+      "carbs": 27.42,
+      "fat": 2.59,
+      "fiber": 7.6,
+      "sodium": 7.0,
+      "calcium": 49.0,
+      "potassium": 291.0,
+      "vitaminC": 1.3
+    }
+  },
+  {
+    "id": "lentil",
+    "name": "干扁豆",
+    "category": "豆制品",
+    "fdc": 172420,
+    "description": "Lentils, raw",
+    "state": "dry",
+    "allergens": [],
+    "aliases": [
+      "扁豆"
+    ],
+    "nutrients": {
+      "kcal": 352.0,
+      "protein": 24.63,
+      "carbs": 63.35,
+      "fat": 1.06,
+      "fiber": 10.7,
+      "sodium": 6.0,
+      "calcium": 35.0,
+      "potassium": 677.0,
+      "vitaminC": 4.5
+    }
+  },
+  {
+    "id": "blackbean",
+    "name": "干黑豆",
+    "category": "豆制品",
+    "fdc": 173734,
+    "description": "Beans, black, mature seeds, raw",
+    "state": "dry",
+    "allergens": [],
+    "aliases": [
+      "黑豆"
+    ],
+    "nutrients": {
+      "kcal": 341.0,
+      "protein": 21.6,
+      "carbs": 62.36,
+      "fat": 1.42,
+      "fiber": 15.5,
+      "sodium": 5.0,
+      "calcium": 123.0,
+      "potassium": 1483.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "mung",
+    "name": "干绿豆",
+    "category": "豆制品",
+    "fdc": 174256,
+    "description": "Mung beans, mature seeds, raw",
+    "state": "dry",
+    "allergens": [],
+    "aliases": [
+      "绿豆"
+    ],
+    "nutrients": {
+      "kcal": 347.0,
+      "protein": 23.86,
+      "carbs": 62.62,
+      "fat": 1.15,
+      "fiber": 16.3,
+      "sodium": 15.0,
+      "calcium": 132.0,
+      "potassium": 1246.0,
+      "vitaminC": 4.8
+    }
+  },
+  {
+    "id": "edamame",
+    "name": "冷冻毛豆仁",
+    "category": "豆制品",
+    "fdc": 168410,
+    "description": "Edamame, frozen, unprepared",
+    "state": "frozen",
+    "allergens": [
+      "大豆"
+    ],
+    "aliases": [
+      "毛豆"
+    ],
+    "nutrients": {
+      "kcal": 109.0,
+      "protein": 11.22,
+      "carbs": 7.61,
+      "fat": 4.73,
+      "fiber": 4.8,
+      "sodium": 6.0,
+      "calcium": 60.0,
+      "potassium": 482.0,
+      "vitaminC": 9.7
+    }
+  },
+  {
+    "id": "rice",
+    "name": "白米",
+    "category": "主食",
+    "fdc": 169756,
+    "description": "Rice, white, long-grain, regular, raw, unenriched",
+    "state": "dry",
+    "allergens": [],
+    "aliases": [
+      "米饭",
+      "白米饭"
+    ],
+    "nutrients": {
+      "kcal": 365.0,
+      "protein": 7.13,
+      "carbs": 79.95,
+      "fat": 0.66,
+      "fiber": 1.3,
+      "sodium": 5.0,
+      "calcium": 28.0,
+      "potassium": 115.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "brown",
+    "name": "糙米",
+    "category": "主食",
+    "fdc": 169703,
+    "description": "Rice, brown, long-grain, raw (Includes foods for USDA's Food Distribution Program)",
+    "state": "dry",
+    "allergens": [],
+    "aliases": [
+      "杂粮饭",
+      "糙米杂粮饭"
+    ],
+    "nutrients": {
+      "kcal": 367.0,
+      "protein": 7.54,
+      "carbs": 76.25,
+      "fat": 3.2,
+      "fiber": 3.6,
+      "sodium": 5.0,
+      "calcium": 9.0,
+      "potassium": 250.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "millet",
+    "name": "小米",
+    "category": "主食",
+    "fdc": 169702,
+    "description": "Millet, raw",
+    "state": "dry",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 378.0,
+      "protein": 11.02,
+      "carbs": 72.85,
+      "fat": 4.22,
+      "fiber": 8.5,
+      "sodium": 5.0,
+      "calcium": 8.0,
+      "potassium": 195.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "oats",
+    "name": "无糖燕麦片",
+    "category": "主食",
+    "fdc": 173904,
+    "description": "Cereals, oats, regular and quick, not fortified, dry",
+    "state": "dry",
+    "allergens": [],
+    "aliases": [
+      "燕麦"
+    ],
+    "nutrients": {
+      "kcal": 379.0,
+      "protein": 13.15,
+      "carbs": 67.7,
+      "fat": 6.52,
+      "fiber": 10.1,
+      "sodium": 6.0,
+      "calcium": 52.0,
+      "potassium": 362.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "quinoa",
+    "name": "藜麦",
+    "category": "主食",
+    "fdc": 168874,
+    "description": "Quinoa, uncooked",
+    "state": "dry",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 368.0,
+      "protein": 14.12,
+      "carbs": 64.16,
+      "fat": 6.07,
+      "fiber": 7.0,
+      "sodium": 5.0,
+      "calcium": 47.0,
+      "potassium": 563.0,
+      "vitaminC": null
+    }
+  },
+  {
+    "id": "buckwheat",
+    "name": "烘焙荞麦米",
+    "category": "主食",
+    "fdc": 170685,
+    "description": "Buckwheat groats, roasted, dry",
+    "state": "dry",
+    "allergens": [],
+    "aliases": [
+      "荞麦"
+    ],
+    "nutrients": {
+      "kcal": 346.0,
+      "protein": 11.73,
+      "carbs": 74.95,
+      "fat": 2.71,
+      "fiber": 10.3,
+      "sodium": 11.0,
+      "calcium": 17.0,
+      "potassium": 320.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "barley",
+    "name": "珍珠大麦",
+    "category": "主食",
+    "fdc": 170284,
+    "description": "Barley, pearled, raw",
+    "state": "dry",
+    "allergens": [],
+    "aliases": [
+      "大麦"
+    ],
+    "nutrients": {
+      "kcal": 352.0,
+      "protein": 9.91,
+      "carbs": 77.72,
+      "fat": 1.16,
+      "fiber": 15.6,
+      "sodium": 9.0,
+      "calcium": 29.0,
+      "potassium": 280.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "corn",
+    "name": "鲜玉米粒",
+    "category": "主食",
+    "fdc": 169998,
+    "description": "Corn, sweet, yellow, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "玉米"
+    ],
+    "nutrients": {
+      "kcal": 86.0,
+      "protein": 3.27,
+      "carbs": 18.7,
+      "fat": 1.35,
+      "fiber": 2.0,
+      "sodium": 15.0,
+      "calcium": 2.0,
+      "potassium": 270.0,
+      "vitaminC": 6.8
+    }
+  },
+  {
+    "id": "potato",
+    "name": "带皮土豆",
+    "category": "主食",
+    "fdc": 170026,
+    "description": "Potatoes, flesh and skin, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "马铃薯",
+      "土豆"
+    ],
+    "nutrients": {
+      "kcal": 77.0,
+      "protein": 2.05,
+      "carbs": 17.49,
+      "fat": 0.09,
+      "fiber": 2.1,
+      "sodium": 6.0,
+      "calcium": 12.0,
+      "potassium": 425.0,
+      "vitaminC": 19.7
+    }
+  },
+  {
+    "id": "sweet",
+    "name": "红薯",
+    "category": "主食",
+    "fdc": 168482,
+    "description": "Sweet potato, raw, unprepared (Includes foods for USDA's Food Distribution Program)",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "地瓜"
+    ],
+    "nutrients": {
+      "kcal": 86.0,
+      "protein": 1.57,
+      "carbs": 20.12,
+      "fat": 0.05,
+      "fiber": 3.0,
+      "sodium": 55.0,
+      "calcium": 30.0,
+      "potassium": 337.0,
+      "vitaminC": 2.4
+    }
+  },
+  {
+    "id": "pasta",
+    "name": "全麦意面",
+    "category": "主食",
+    "fdc": 169738,
+    "description": "Pasta, whole-wheat, dry (Includes foods for USDA's Food Distribution Program)",
+    "state": "dry",
+    "allergens": [
+      "小麦"
+    ],
+    "aliases": [
+      "面条"
+    ],
+    "nutrients": {
+      "kcal": 352.0,
+      "protein": 13.87,
+      "carbs": 73.37,
+      "fat": 2.93,
+      "fiber": 9.2,
+      "sodium": 6.0,
+      "calcium": 29.0,
+      "potassium": 434.0,
+      "vitaminC": null
+    }
+  },
+  {
+    "id": "bread",
+    "name": "全麦面包",
+    "category": "主食",
+    "fdc": 172688,
+    "description": "Bread, whole-wheat, commercially prepared",
+    "state": "ready",
+    "allergens": [
+      "小麦"
+    ],
+    "aliases": [
+      "面包"
+    ],
+    "nutrients": {
+      "kcal": 252.0,
+      "protein": 12.45,
+      "carbs": 42.71,
+      "fat": 3.5,
+      "fiber": 6.0,
+      "sodium": 455.0,
+      "calcium": 161.0,
+      "potassium": 254.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "broccoli",
+    "name": "西兰花",
+    "category": "蔬菜",
+    "fdc": 170379,
+    "description": "Broccoli, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "青花菜"
+    ],
+    "nutrients": {
+      "kcal": 34.0,
+      "protein": 2.82,
+      "carbs": 6.64,
+      "fat": 0.37,
+      "fiber": 2.6,
+      "sodium": 33.0,
+      "calcium": 47.0,
+      "potassium": 316.0,
+      "vitaminC": 89.2
+    }
+  },
+  {
+    "id": "cauliflower",
+    "name": "白花菜",
+    "category": "蔬菜",
+    "fdc": 169986,
+    "description": "Cauliflower, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "菜花",
+      "花椰菜"
+    ],
+    "nutrients": {
+      "kcal": 25.0,
+      "protein": 1.92,
+      "carbs": 4.97,
+      "fat": 0.28,
+      "fiber": 2.0,
+      "sodium": 30.0,
+      "calcium": 22.0,
+      "potassium": 299.0,
+      "vitaminC": 48.2
+    }
+  },
+  {
+    "id": "cabbage",
+    "name": "包菜",
+    "category": "蔬菜",
+    "fdc": 169975,
+    "description": "Cabbage, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "卷心菜"
+    ],
+    "nutrients": {
+      "kcal": 25.0,
+      "protein": 1.28,
+      "carbs": 5.8,
+      "fat": 0.1,
+      "fiber": 2.5,
+      "sodium": 18.0,
+      "calcium": 40.0,
+      "potassium": 170.0,
+      "vitaminC": 36.6
+    }
+  },
+  {
+    "id": "redcabbage",
+    "name": "紫甘蓝",
+    "category": "蔬菜",
+    "fdc": 169977,
+    "description": "Cabbage, red, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 31.0,
+      "protein": 1.43,
+      "carbs": 7.37,
+      "fat": 0.16,
+      "fiber": 2.1,
+      "sodium": 27.0,
+      "calcium": 45.0,
+      "potassium": 243.0,
+      "vitaminC": 57.0
+    }
+  },
+  {
+    "id": "napa",
+    "name": "大白菜",
+    "category": "蔬菜",
+    "fdc": 169979,
+    "description": "Cabbage, chinese (pe-tsai), raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "白菜"
+    ],
+    "nutrients": {
+      "kcal": 16.0,
+      "protein": 1.2,
+      "carbs": 3.23,
+      "fat": 0.2,
+      "fiber": 1.2,
+      "sodium": 9.0,
+      "calcium": 77.0,
+      "potassium": 238.0,
+      "vitaminC": 27.0
+    }
+  },
+  {
+    "id": "bok",
+    "name": "小白菜",
+    "category": "蔬菜",
+    "fdc": 170390,
+    "description": "Cabbage, chinese (pak-choi), raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "青菜"
+    ],
+    "nutrients": {
+      "kcal": 13.0,
+      "protein": 1.5,
+      "carbs": 2.18,
+      "fat": 0.2,
+      "fiber": 1.0,
+      "sodium": 65.0,
+      "calcium": 105.0,
+      "potassium": 252.0,
+      "vitaminC": 45.0
+    }
+  },
+  {
+    "id": "carrot",
+    "name": "胡萝卜",
+    "category": "蔬菜",
+    "fdc": 170393,
+    "description": "Carrots, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 41.0,
+      "protein": 0.93,
+      "carbs": 9.58,
+      "fat": 0.24,
+      "fiber": 2.8,
+      "sodium": 69.0,
+      "calcium": 33.0,
+      "potassium": 320.0,
+      "vitaminC": 5.9
+    }
+  },
+  {
+    "id": "spinach",
+    "name": "菠菜",
+    "category": "蔬菜",
+    "fdc": 168462,
+    "description": "Spinach, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 23.0,
+      "protein": 2.86,
+      "carbs": 3.63,
+      "fat": 0.39,
+      "fiber": 2.2,
+      "sodium": 79.0,
+      "calcium": 99.0,
+      "potassium": 558.0,
+      "vitaminC": 28.1
+    }
+  },
+  {
+    "id": "tomato",
+    "name": "番茄",
+    "category": "蔬菜",
+    "fdc": 170457,
+    "description": "Tomatoes, red, ripe, raw, year round average",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "西红柿"
+    ],
+    "nutrients": {
+      "kcal": 18.0,
+      "protein": 0.88,
+      "carbs": 3.89,
+      "fat": 0.2,
+      "fiber": 1.2,
+      "sodium": 5.0,
+      "calcium": 10.0,
+      "potassium": 237.0,
+      "vitaminC": 13.7
+    }
+  },
+  {
+    "id": "cucumber",
+    "name": "黄瓜",
+    "category": "蔬菜",
+    "fdc": 168409,
+    "description": "Cucumber, with peel, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 15.0,
+      "protein": 0.65,
+      "carbs": 3.63,
+      "fat": 0.11,
+      "fiber": 0.5,
+      "sodium": 2.0,
+      "calcium": 16.0,
+      "potassium": 147.0,
+      "vitaminC": 2.8
+    }
+  },
+  {
+    "id": "redpepper",
+    "name": "红甜椒",
+    "category": "蔬菜",
+    "fdc": 170108,
+    "description": "Peppers, sweet, red, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "彩椒"
+    ],
+    "nutrients": {
+      "kcal": 26.0,
+      "protein": 0.99,
+      "carbs": 6.03,
+      "fat": 0.3,
+      "fiber": 2.1,
+      "sodium": 4.0,
+      "calcium": 7.0,
+      "potassium": 211.0,
+      "vitaminC": 127.7
+    }
+  },
+  {
+    "id": "yellowpepper",
+    "name": "黄甜椒",
+    "category": "蔬菜",
+    "fdc": 169383,
+    "description": "Peppers, sweet, yellow, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "彩椒"
+    ],
+    "nutrients": {
+      "kcal": 27.0,
+      "protein": 1.0,
+      "carbs": 6.32,
+      "fat": 0.21,
+      "fiber": 0.9,
+      "sodium": 2.0,
+      "calcium": 11.0,
+      "potassium": 212.0,
+      "vitaminC": 183.5
+    }
+  },
+  {
+    "id": "whitefungi",
+    "name": "白蘑菇",
+    "category": "蔬菜",
+    "fdc": 169251,
+    "description": "Mushrooms, white, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "口蘑",
+      "蘑菇"
+    ],
+    "nutrients": {
+      "kcal": 22.0,
+      "protein": 3.09,
+      "carbs": 3.26,
+      "fat": 0.34,
+      "fiber": 1.0,
+      "sodium": 5.0,
+      "calcium": 3.0,
+      "potassium": 318.0,
+      "vitaminC": 2.1
+    }
+  },
+  {
+    "id": "shiitake",
+    "name": "鲜香菇",
+    "category": "蔬菜",
+    "fdc": 169242,
+    "description": "Mushrooms, shiitake, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "香菇"
+    ],
+    "nutrients": {
+      "kcal": 34.0,
+      "protein": 2.24,
+      "carbs": 6.79,
+      "fat": 0.49,
+      "fiber": 2.5,
+      "sodium": 9.0,
+      "calcium": 2.0,
+      "potassium": 304.0,
+      "vitaminC": null
+    }
+  },
+  {
+    "id": "oystermushroom",
+    "name": "平菇",
+    "category": "蔬菜",
+    "fdc": 168580,
+    "description": "Mushrooms, oyster, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 33.0,
+      "protein": 3.31,
+      "carbs": 6.09,
+      "fat": 0.41,
+      "fiber": 2.3,
+      "sodium": 18.0,
+      "calcium": 3.0,
+      "potassium": 420.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "enoki",
+    "name": "金针菇",
+    "category": "蔬菜",
+    "fdc": 169382,
+    "description": "Mushrooms, enoki, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 37.0,
+      "protein": 2.66,
+      "carbs": 7.81,
+      "fat": 0.29,
+      "fiber": 2.7,
+      "sodium": 3.0,
+      "calcium": 0.0,
+      "potassium": 359.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "zucchini",
+    "name": "西葫芦",
+    "category": "蔬菜",
+    "fdc": 169291,
+    "description": "Squash, summer, zucchini, includes skin, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 17.0,
+      "protein": 1.21,
+      "carbs": 3.11,
+      "fat": 0.32,
+      "fiber": 1.0,
+      "sodium": 8.0,
+      "calcium": 16.0,
+      "potassium": 261.0,
+      "vitaminC": 17.9
+    }
+  },
+  {
+    "id": "pumpkin",
+    "name": "南瓜",
+    "category": "蔬菜",
+    "fdc": 168448,
+    "description": "Pumpkin, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 26.0,
+      "protein": 1.0,
+      "carbs": 6.5,
+      "fat": 0.1,
+      "fiber": 0.5,
+      "sodium": 1.0,
+      "calcium": 21.0,
+      "potassium": 340.0,
+      "vitaminC": 9.0
+    }
+  },
+  {
+    "id": "asparagus",
+    "name": "芦笋",
+    "category": "蔬菜",
+    "fdc": 168389,
+    "description": "Asparagus, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 20.0,
+      "protein": 2.2,
+      "carbs": 3.88,
+      "fat": 0.12,
+      "fiber": 2.1,
+      "sodium": 2.0,
+      "calcium": 24.0,
+      "potassium": 202.0,
+      "vitaminC": 5.6
+    }
+  },
+  {
+    "id": "greenbean",
+    "name": "四季豆",
+    "category": "蔬菜",
+    "fdc": 169961,
+    "description": "Beans, snap, green, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "菜豆"
+    ],
+    "nutrients": {
+      "kcal": 31.0,
+      "protein": 1.83,
+      "carbs": 6.97,
+      "fat": 0.22,
+      "fiber": 2.7,
+      "sodium": 6.0,
+      "calcium": 37.0,
+      "potassium": 211.0,
+      "vitaminC": 12.2
+    }
+  },
+  {
+    "id": "peas",
+    "name": "豌豆仁",
+    "category": "蔬菜",
+    "fdc": 170419,
+    "description": "Peas, green, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "豌豆"
+    ],
+    "nutrients": {
+      "kcal": 81.0,
+      "protein": 5.42,
+      "carbs": 14.45,
+      "fat": 0.4,
+      "fiber": 5.7,
+      "sodium": 5.0,
+      "calcium": 25.0,
+      "potassium": 244.0,
+      "vitaminC": 40.0
+    }
+  },
+  {
+    "id": "onion",
+    "name": "洋葱",
+    "category": "蔬菜",
+    "fdc": 170000,
+    "description": "Onions, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 40.0,
+      "protein": 1.1,
+      "carbs": 9.34,
+      "fat": 0.1,
+      "fiber": 1.7,
+      "sodium": 4.0,
+      "calcium": 23.0,
+      "potassium": 146.0,
+      "vitaminC": 7.4
+    }
+  },
+  {
+    "id": "celery",
+    "name": "西芹",
+    "category": "蔬菜",
+    "fdc": 169988,
+    "description": "Celery, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "芹菜"
+    ],
+    "nutrients": {
+      "kcal": 14.0,
+      "protein": 0.69,
+      "carbs": 2.97,
+      "fat": 0.17,
+      "fiber": 1.6,
+      "sodium": 80.0,
+      "calcium": 40.0,
+      "potassium": 260.0,
+      "vitaminC": 3.1
+    }
+  },
+  {
+    "id": "eggplant",
+    "name": "茄子",
+    "category": "蔬菜",
+    "fdc": 169228,
+    "description": "Eggplant, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 25.0,
+      "protein": 0.98,
+      "carbs": 5.88,
+      "fat": 0.18,
+      "fiber": 3.0,
+      "sodium": 2.0,
+      "calcium": 9.0,
+      "potassium": 229.0,
+      "vitaminC": 2.2
+    }
+  },
+  {
+    "id": "romaine",
+    "name": "罗马生菜",
+    "category": "蔬菜",
+    "fdc": 169247,
+    "description": "Lettuce, cos or romaine, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "生菜"
+    ],
+    "nutrients": {
+      "kcal": 17.0,
+      "protein": 1.23,
+      "carbs": 3.29,
+      "fat": 0.3,
+      "fiber": 2.1,
+      "sodium": 8.0,
+      "calcium": 33.0,
+      "potassium": 247.0,
+      "vitaminC": 4.0
+    }
+  },
+  {
+    "id": "daikon",
+    "name": "白萝卜",
+    "category": "蔬菜",
+    "fdc": 168451,
+    "description": "Radishes, oriental, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 18.0,
+      "protein": 0.6,
+      "carbs": 4.1,
+      "fat": 0.1,
+      "fiber": 1.6,
+      "sodium": 21.0,
+      "calcium": 27.0,
+      "potassium": 227.0,
+      "vitaminC": 22.0
+    }
+  },
+  {
+    "id": "turnip",
+    "name": "芜菁",
+    "category": "蔬菜",
+    "fdc": 170465,
+    "description": "Turnips, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 28.0,
+      "protein": 0.9,
+      "carbs": 6.43,
+      "fat": 0.1,
+      "fiber": 1.8,
+      "sodium": 67.0,
+      "calcium": 30.0,
+      "potassium": 191.0,
+      "vitaminC": 21.0
+    }
+  },
+  {
+    "id": "beet",
+    "name": "甜菜根",
+    "category": "蔬菜",
+    "fdc": 169145,
+    "description": "Beets, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 43.0,
+      "protein": 1.61,
+      "carbs": 9.56,
+      "fat": 0.17,
+      "fiber": 2.8,
+      "sodium": 78.0,
+      "calcium": 16.0,
+      "potassium": 325.0,
+      "vitaminC": 4.9
+    }
+  },
+  {
+    "id": "okra",
+    "name": "秋葵",
+    "category": "蔬菜",
+    "fdc": 169260,
+    "description": "Okra, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 33.0,
+      "protein": 1.93,
+      "carbs": 7.45,
+      "fat": 0.19,
+      "fiber": 3.2,
+      "sodium": 7.0,
+      "calcium": 82.0,
+      "potassium": 299.0,
+      "vitaminC": 23.0
+    }
+  },
+  {
+    "id": "kale",
+    "name": "羽衣甘蓝",
+    "category": "蔬菜",
+    "fdc": 168421,
+    "description": "Kale, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 35.0,
+      "protein": 2.92,
+      "carbs": 4.42,
+      "fat": 1.49,
+      "fiber": 4.1,
+      "sodium": 53.0,
+      "calcium": 254.0,
+      "potassium": 348.0,
+      "vitaminC": 93.4
+    }
+  },
+  {
+    "id": "mustard",
+    "name": "芥菜",
+    "category": "蔬菜",
+    "fdc": 169256,
+    "description": "Mustard greens, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 27.0,
+      "protein": 2.86,
+      "carbs": 4.67,
+      "fat": 0.42,
+      "fiber": 3.2,
+      "sodium": 20.0,
+      "calcium": 115.0,
+      "potassium": 384.0,
+      "vitaminC": 70.0
+    }
+  },
+  {
+    "id": "watercress",
+    "name": "西洋菜",
+    "category": "蔬菜",
+    "fdc": 170068,
+    "description": "Watercress, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 11.0,
+      "protein": 2.3,
+      "carbs": 1.29,
+      "fat": 0.1,
+      "fiber": 0.5,
+      "sodium": 41.0,
+      "calcium": 120.0,
+      "potassium": 330.0,
+      "vitaminC": 43.0
+    }
+  },
+  {
+    "id": "arugula",
+    "name": "芝麻菜",
+    "category": "蔬菜",
+    "fdc": 169387,
+    "description": "Arugula, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 25.0,
+      "protein": 2.58,
+      "carbs": 3.65,
+      "fat": 0.66,
+      "fiber": 1.6,
+      "sodium": 27.0,
+      "calcium": 160.0,
+      "potassium": 369.0,
+      "vitaminC": 15.0
+    }
+  },
+  {
+    "id": "leek",
+    "name": "韭葱",
+    "category": "蔬菜",
+    "fdc": 169246,
+    "description": "Leeks, (bulb and lower leaf-portion), raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 61.0,
+      "protein": 1.5,
+      "carbs": 14.15,
+      "fat": 0.3,
+      "fiber": 1.8,
+      "sodium": 20.0,
+      "calcium": 59.0,
+      "potassium": 180.0,
+      "vitaminC": 12.0
+    }
+  },
+  {
+    "id": "apple",
+    "name": "带皮苹果",
+    "category": "水果",
+    "fdc": 171688,
+    "description": "Apples, raw, with skin (Includes foods for USDA's Food Distribution Program)",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "苹果"
+    ],
+    "nutrients": {
+      "kcal": 52.0,
+      "protein": 0.26,
+      "carbs": 13.81,
+      "fat": 0.17,
+      "fiber": 2.4,
+      "sodium": 1.0,
+      "calcium": 6.0,
+      "potassium": 107.0,
+      "vitaminC": 4.6
+    }
+  },
+  {
+    "id": "pear",
+    "name": "梨",
+    "category": "水果",
+    "fdc": 169118,
+    "description": "Pears, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 57.0,
+      "protein": 0.36,
+      "carbs": 15.23,
+      "fat": 0.14,
+      "fiber": 3.1,
+      "sodium": 1.0,
+      "calcium": 9.0,
+      "potassium": 116.0,
+      "vitaminC": 4.3
+    }
+  },
+  {
+    "id": "asianpear",
+    "name": "亚洲梨",
+    "category": "水果",
+    "fdc": 168177,
+    "description": "Pears, asian, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "砂梨"
+    ],
+    "nutrients": {
+      "kcal": 42.0,
+      "protein": 0.5,
+      "carbs": 10.65,
+      "fat": 0.23,
+      "fiber": 3.6,
+      "sodium": 0.0,
+      "calcium": 4.0,
+      "potassium": 121.0,
+      "vitaminC": 3.8
+    }
+  },
+  {
+    "id": "strawberry",
+    "name": "草莓",
+    "category": "水果",
+    "fdc": 167762,
+    "description": "Strawberries, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 32.0,
+      "protein": 0.67,
+      "carbs": 7.68,
+      "fat": 0.3,
+      "fiber": 2.0,
+      "sodium": 1.0,
+      "calcium": 16.0,
+      "potassium": 153.0,
+      "vitaminC": 58.8
+    }
+  },
+  {
+    "id": "blueberry",
+    "name": "蓝莓",
+    "category": "水果",
+    "fdc": 171711,
+    "description": "Blueberries, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 57.0,
+      "protein": 0.74,
+      "carbs": 14.49,
+      "fat": 0.33,
+      "fiber": 2.4,
+      "sodium": 1.0,
+      "calcium": 6.0,
+      "potassium": 77.0,
+      "vitaminC": 9.7
+    }
+  },
+  {
+    "id": "kiwi",
+    "name": "绿色猕猴桃",
+    "category": "水果",
+    "fdc": 168153,
+    "description": "Kiwifruit, green, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "猕猴桃",
+      "奇异果"
+    ],
+    "nutrients": {
+      "kcal": 61.0,
+      "protein": 1.14,
+      "carbs": 14.66,
+      "fat": 0.52,
+      "fiber": 3.0,
+      "sodium": 3.0,
+      "calcium": 34.0,
+      "potassium": 312.0,
+      "vitaminC": 92.7
+    }
+  },
+  {
+    "id": "banana",
+    "name": "香蕉",
+    "category": "水果",
+    "fdc": 173944,
+    "description": "Bananas, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 89.0,
+      "protein": 1.09,
+      "carbs": 22.84,
+      "fat": 0.33,
+      "fiber": 2.6,
+      "sodium": 1.0,
+      "calcium": 5.0,
+      "potassium": 358.0,
+      "vitaminC": 8.7
+    }
+  },
+  {
+    "id": "orange",
+    "name": "橙子",
+    "category": "水果",
+    "fdc": 169097,
+    "description": "Oranges, raw, all commercial varieties",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 47.0,
+      "protein": 0.94,
+      "carbs": 11.75,
+      "fat": 0.12,
+      "fiber": 2.4,
+      "sodium": 0.0,
+      "calcium": 40.0,
+      "potassium": 181.0,
+      "vitaminC": 53.2
+    }
+  },
+  {
+    "id": "mandarin",
+    "name": "橘子",
+    "category": "水果",
+    "fdc": 169105,
+    "description": "Tangerines, (mandarin oranges), raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "柑橘"
+    ],
+    "nutrients": {
+      "kcal": 53.0,
+      "protein": 0.81,
+      "carbs": 13.34,
+      "fat": 0.31,
+      "fiber": 1.8,
+      "sodium": 2.0,
+      "calcium": 37.0,
+      "potassium": 166.0,
+      "vitaminC": 26.7
+    }
+  },
+  {
+    "id": "grape",
+    "name": "葡萄",
+    "category": "水果",
+    "fdc": 174683,
+    "description": "Grapes, red or green (European type, such as Thompson seedless), raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 69.0,
+      "protein": 0.72,
+      "carbs": 18.1,
+      "fat": 0.16,
+      "fiber": 0.9,
+      "sodium": 2.0,
+      "calcium": 10.0,
+      "potassium": 191.0,
+      "vitaminC": 3.2
+    }
+  },
+  {
+    "id": "peach",
+    "name": "黄桃",
+    "category": "水果",
+    "fdc": 169928,
+    "description": "Peaches, yellow, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "桃子"
+    ],
+    "nutrients": {
+      "kcal": 39.0,
+      "protein": 0.91,
+      "carbs": 9.54,
+      "fat": 0.25,
+      "fiber": 1.5,
+      "sodium": 0.0,
+      "calcium": 6.0,
+      "potassium": 190.0,
+      "vitaminC": 6.6
+    }
+  },
+  {
+    "id": "plum",
+    "name": "李子",
+    "category": "水果",
+    "fdc": 169949,
+    "description": "Plums, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 46.0,
+      "protein": 0.7,
+      "carbs": 11.42,
+      "fat": 0.28,
+      "fiber": 1.4,
+      "sodium": 0.0,
+      "calcium": 6.0,
+      "potassium": 157.0,
+      "vitaminC": 9.5
+    }
+  },
+  {
+    "id": "watermelon",
+    "name": "西瓜",
+    "category": "水果",
+    "fdc": 167765,
+    "description": "Watermelon, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 30.0,
+      "protein": 0.61,
+      "carbs": 7.55,
+      "fat": 0.15,
+      "fiber": 0.4,
+      "sodium": 1.0,
+      "calcium": 7.0,
+      "potassium": 112.0,
+      "vitaminC": 8.1
+    }
+  },
+  {
+    "id": "melon",
+    "name": "甜瓜",
+    "category": "水果",
+    "fdc": 169092,
+    "description": "Melons, cantaloupe, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "哈密瓜"
+    ],
+    "nutrients": {
+      "kcal": 34.0,
+      "protein": 0.84,
+      "carbs": 8.16,
+      "fat": 0.19,
+      "fiber": 0.9,
+      "sodium": 16.0,
+      "calcium": 9.0,
+      "potassium": 267.0,
+      "vitaminC": 36.7
+    }
+  },
+  {
+    "id": "pineapple",
+    "name": "菠萝",
+    "category": "水果",
+    "fdc": 169124,
+    "description": "Pineapple, raw, all varieties",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "凤梨"
+    ],
+    "nutrients": {
+      "kcal": 50.0,
+      "protein": 0.54,
+      "carbs": 13.12,
+      "fat": 0.12,
+      "fiber": 1.4,
+      "sodium": 1.0,
+      "calcium": 13.0,
+      "potassium": 109.0,
+      "vitaminC": 47.8
+    }
+  },
+  {
+    "id": "mango",
+    "name": "芒果",
+    "category": "水果",
+    "fdc": 169910,
+    "description": "Mangos, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 60.0,
+      "protein": 0.82,
+      "carbs": 14.98,
+      "fat": 0.38,
+      "fiber": 1.6,
+      "sodium": 1.0,
+      "calcium": 11.0,
+      "potassium": 168.0,
+      "vitaminC": 36.4
+    }
+  },
+  {
+    "id": "papaya",
+    "name": "木瓜",
+    "category": "水果",
+    "fdc": 169926,
+    "description": "Papayas, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 43.0,
+      "protein": 0.47,
+      "carbs": 10.82,
+      "fat": 0.26,
+      "fiber": 1.7,
+      "sodium": 8.0,
+      "calcium": 20.0,
+      "potassium": 182.0,
+      "vitaminC": 60.9
+    }
+  },
+  {
+    "id": "pomegranate",
+    "name": "石榴",
+    "category": "水果",
+    "fdc": 169134,
+    "description": "Pomegranates, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 83.0,
+      "protein": 1.67,
+      "carbs": 18.7,
+      "fat": 1.17,
+      "fiber": 4.0,
+      "sodium": 3.0,
+      "calcium": 10.0,
+      "potassium": 236.0,
+      "vitaminC": 10.2
+    }
+  },
+  {
+    "id": "avocado",
+    "name": "牛油果",
+    "category": "水果",
+    "fdc": 171705,
+    "description": "Avocados, raw, all commercial varieties",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "鳄梨"
+    ],
+    "nutrients": {
+      "kcal": 160.0,
+      "protein": 2.0,
+      "carbs": 8.53,
+      "fat": 14.66,
+      "fiber": 6.7,
+      "sodium": 7.0,
+      "calcium": 12.0,
+      "potassium": 485.0,
+      "vitaminC": 10.0
+    }
+  },
+  {
+    "id": "apricot",
+    "name": "杏",
+    "category": "水果",
+    "fdc": 171697,
+    "description": "Apricots, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 48.0,
+      "protein": 1.4,
+      "carbs": 11.12,
+      "fat": 0.39,
+      "fiber": 2.0,
+      "sodium": 1.0,
+      "calcium": 13.0,
+      "potassium": 259.0,
+      "vitaminC": 10.0
+    }
+  },
+  {
+    "id": "fig",
+    "name": "鲜无花果",
+    "category": "水果",
+    "fdc": 173021,
+    "description": "Figs, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "无花果"
+    ],
+    "nutrients": {
+      "kcal": 74.0,
+      "protein": 0.75,
+      "carbs": 19.18,
+      "fat": 0.3,
+      "fiber": 2.9,
+      "sodium": 1.0,
+      "calcium": 35.0,
+      "potassium": 232.0,
+      "vitaminC": 2.0
+    }
+  },
+  {
+    "id": "milk",
+    "name": "2%脂肪纯牛奶",
+    "category": "乳制品",
+    "fdc": 172205,
+    "description": "Milk, reduced fat, fluid, 2% milkfat, without added vitamin A and vitamin D",
+    "state": "ready",
+    "allergens": [
+      "奶"
+    ],
+    "aliases": [
+      "奶",
+      "牛奶"
+    ],
+    "nutrients": {
+      "kcal": 50.0,
+      "protein": 3.3,
+      "carbs": 4.8,
+      "fat": 1.98,
+      "fiber": 0.0,
+      "sodium": 47.0,
+      "calcium": 120.0,
+      "potassium": 140.0,
+      "vitaminC": 0.2
+    }
+  },
+  {
+    "id": "yogurt",
+    "name": "原味全脂无糖酸奶",
+    "category": "乳制品",
+    "fdc": 171284,
+    "description": "Yogurt, plain, whole milk",
+    "state": "ready",
+    "allergens": [
+      "奶"
+    ],
+    "aliases": [
+      "酸奶",
+      "无糖酸奶"
+    ],
+    "nutrients": {
+      "kcal": 61.0,
+      "protein": 3.47,
+      "carbs": 4.66,
+      "fat": 3.25,
+      "fiber": 0.0,
+      "sodium": 46.0,
+      "calcium": 121.0,
+      "potassium": 155.0,
+      "vitaminC": 0.5
+    }
+  },
+  {
+    "id": "greek",
+    "name": "原味低脂希腊酸奶",
+    "category": "乳制品",
+    "fdc": 170903,
+    "description": "Yogurt, Greek, plain, lowfat",
+    "state": "ready",
+    "allergens": [
+      "奶"
+    ],
+    "aliases": [
+      "酸奶",
+      "无糖酸奶"
+    ],
+    "nutrients": {
+      "kcal": 73.0,
+      "protein": 9.95,
+      "carbs": 3.94,
+      "fat": 1.92,
+      "fiber": 0.0,
+      "sodium": 34.0,
+      "calcium": 115.0,
+      "potassium": 141.0,
+      "vitaminC": 0.8
+    }
+  },
+  {
+    "id": "cheese",
+    "name": "全脂马苏里拉奶酪",
+    "category": "乳制品",
+    "fdc": 170845,
+    "description": "Cheese, mozzarella, whole milk",
+    "state": "ready",
+    "allergens": [
+      "奶"
+    ],
+    "aliases": [
+      "奶酪"
+    ],
+    "nutrients": {
+      "kcal": 299.0,
+      "protein": 22.17,
+      "carbs": 2.4,
+      "fat": 22.14,
+      "fiber": 0.0,
+      "sodium": 486.0,
+      "calcium": 505.0,
+      "potassium": 76.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "almond",
+    "name": "原味杏仁",
+    "category": "坚果种子",
+    "fdc": 170567,
+    "description": "Nuts, almonds",
+    "state": "ready",
+    "allergens": [
+      "树坚果"
+    ],
+    "aliases": [
+      "杏仁"
+    ],
+    "nutrients": {
+      "kcal": 579.0,
+      "protein": 21.15,
+      "carbs": 21.55,
+      "fat": 49.93,
+      "fiber": 12.5,
+      "sodium": 1.0,
+      "calcium": 269.0,
+      "potassium": 733.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "walnut",
+    "name": "原味核桃仁",
+    "category": "坚果种子",
+    "fdc": 170187,
+    "description": "Nuts, walnuts, english",
+    "state": "ready",
+    "allergens": [
+      "树坚果"
+    ],
+    "aliases": [
+      "核桃"
+    ],
+    "nutrients": {
+      "kcal": 654.0,
+      "protein": 15.23,
+      "carbs": 13.71,
+      "fat": 65.21,
+      "fiber": 6.7,
+      "sodium": 2.0,
+      "calcium": 98.0,
+      "potassium": 441.0,
+      "vitaminC": 1.3
+    }
+  },
+  {
+    "id": "cashew",
+    "name": "原味腰果",
+    "category": "坚果种子",
+    "fdc": 170162,
+    "description": "Nuts, cashew nuts, raw",
+    "state": "ready",
+    "allergens": [
+      "树坚果"
+    ],
+    "aliases": [
+      "腰果"
+    ],
+    "nutrients": {
+      "kcal": 553.0,
+      "protein": 18.22,
+      "carbs": 30.19,
+      "fat": 43.85,
+      "fiber": 3.3,
+      "sodium": 12.0,
+      "calcium": 37.0,
+      "potassium": 660.0,
+      "vitaminC": 0.5
+    }
+  },
+  {
+    "id": "pistachio",
+    "name": "原味开心果仁",
+    "category": "坚果种子",
+    "fdc": 170184,
+    "description": "Nuts, pistachio nuts, raw",
+    "state": "ready",
+    "allergens": [
+      "树坚果"
+    ],
+    "aliases": [
+      "开心果"
+    ],
+    "nutrients": {
+      "kcal": 560.0,
+      "protein": 20.16,
+      "carbs": 27.17,
+      "fat": 45.32,
+      "fiber": 10.6,
+      "sodium": 1.0,
+      "calcium": 105.0,
+      "potassium": 1025.0,
+      "vitaminC": 5.6
+    }
+  },
+  {
+    "id": "hazelnut",
+    "name": "原味榛子仁",
+    "category": "坚果种子",
+    "fdc": 170581,
+    "description": "Nuts, hazelnuts or filberts",
+    "state": "ready",
+    "allergens": [
+      "树坚果"
+    ],
+    "aliases": [
+      "榛子"
+    ],
+    "nutrients": {
+      "kcal": 628.0,
+      "protein": 14.95,
+      "carbs": 16.7,
+      "fat": 60.75,
+      "fiber": 9.7,
+      "sodium": 0.0,
+      "calcium": 114.0,
+      "potassium": 680.0,
+      "vitaminC": 6.3
+    }
+  },
+  {
+    "id": "peanut",
+    "name": "生花生仁",
+    "category": "坚果种子",
+    "fdc": 172430,
+    "description": "Peanuts, all types, raw",
+    "state": "raw",
+    "allergens": [
+      "花生"
+    ],
+    "aliases": [
+      "花生"
+    ],
+    "nutrients": {
+      "kcal": 567.0,
+      "protein": 25.8,
+      "carbs": 16.13,
+      "fat": 49.24,
+      "fiber": 8.5,
+      "sodium": 18.0,
+      "calcium": 92.0,
+      "potassium": 705.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "chia",
+    "name": "奇亚籽",
+    "category": "坚果种子",
+    "fdc": 170554,
+    "description": "Seeds, chia seeds, dried",
+    "state": "dry",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 486.0,
+      "protein": 16.54,
+      "carbs": 42.12,
+      "fat": 30.74,
+      "fiber": 34.4,
+      "sodium": 16.0,
+      "calcium": 631.0,
+      "potassium": 407.0,
+      "vitaminC": 1.6
+    }
+  },
+  {
+    "id": "flax",
+    "name": "亚麻籽",
+    "category": "坚果种子",
+    "fdc": 169414,
+    "description": "Seeds, flaxseed",
+    "state": "dry",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 534.0,
+      "protein": 18.29,
+      "carbs": 28.88,
+      "fat": 42.16,
+      "fiber": 27.3,
+      "sodium": 30.0,
+      "calcium": 255.0,
+      "potassium": 813.0,
+      "vitaminC": 0.6
+    }
+  },
+  {
+    "id": "pumpkinseed",
+    "name": "干南瓜籽仁",
+    "category": "坚果种子",
+    "fdc": 170556,
+    "description": "Seeds, pumpkin and squash seed kernels, dried",
+    "state": "dry",
+    "allergens": [],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 559.0,
+      "protein": 30.23,
+      "carbs": 10.71,
+      "fat": 49.05,
+      "fiber": 6.0,
+      "sodium": 7.0,
+      "calcium": 46.0,
+      "potassium": 809.0,
+      "vitaminC": 1.9
+    }
+  },
+  {
+    "id": "sesameseed",
+    "name": "干芝麻",
+    "category": "坚果种子",
+    "fdc": 170150,
+    "description": "Seeds, sesame seeds, whole, dried",
+    "state": "dry",
+    "allergens": [
+      "芝麻"
+    ],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 573.0,
+      "protein": 17.73,
+      "carbs": 23.45,
+      "fat": 49.67,
+      "fiber": 11.8,
+      "sodium": 11.0,
+      "calcium": 975.0,
+      "potassium": 468.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "canola",
+    "name": "菜籽油",
+    "category": "调味品",
+    "fdc": 172336,
+    "description": "Oil, canola",
+    "state": "ready",
+    "allergens": [],
+    "aliases": [
+      "植物油"
+    ],
+    "nutrients": {
+      "kcal": 884.0,
+      "protein": 0.0,
+      "carbs": 0.0,
+      "fat": 100.0,
+      "fiber": 0.0,
+      "sodium": 0.0,
+      "calcium": 0.0,
+      "potassium": 0.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "olive",
+    "name": "橄榄油",
+    "category": "调味品",
+    "fdc": 171413,
+    "description": "Oil, olive, salad or cooking",
+    "state": "ready",
+    "allergens": [],
+    "aliases": [
+      "植物油"
+    ],
+    "nutrients": {
+      "kcal": 884.0,
+      "protein": 0.0,
+      "carbs": 0.0,
+      "fat": 100.0,
+      "fiber": 0.0,
+      "sodium": 2.0,
+      "calcium": 1.0,
+      "potassium": 1.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "sesameoil",
+    "name": "芝麻油",
+    "category": "调味品",
+    "fdc": 171016,
+    "description": "Oil, sesame, salad or cooking",
+    "state": "ready",
+    "allergens": [
+      "芝麻"
+    ],
+    "aliases": [
+      "香油"
+    ],
+    "nutrients": {
+      "kcal": 884.0,
+      "protein": 0.0,
+      "carbs": 0.0,
+      "fat": 100.0,
+      "fiber": 0.0,
+      "sodium": 0.0,
+      "calcium": 0.0,
+      "potassium": 0.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "peanutoil",
+    "name": "花生油",
+    "category": "调味品",
+    "fdc": 171410,
+    "description": "Oil, peanut, salad or cooking",
+    "state": "ready",
+    "allergens": [
+      "花生"
+    ],
+    "aliases": [],
+    "nutrients": {
+      "kcal": 884.0,
+      "protein": 0.0,
+      "carbs": 0.0,
+      "fat": 100.0,
+      "fiber": 0.0,
+      "sodium": 0.0,
+      "calcium": 0.0,
+      "potassium": 0.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "soy",
+    "name": "生抽酱油",
+    "category": "调味品",
+    "fdc": 174277,
+    "description": "Soy sauce made from soy and wheat (shoyu)",
+    "state": "ready",
+    "allergens": [
+      "大豆",
+      "小麦"
+    ],
+    "aliases": [
+      "生抽",
+      "酱油"
+    ],
+    "nutrients": {
+      "kcal": 53.0,
+      "protein": 8.14,
+      "carbs": 4.93,
+      "fat": 0.57,
+      "fiber": 0.8,
+      "sodium": 5493.0,
+      "calcium": 33.0,
+      "potassium": 435.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "salt",
+    "name": "食盐",
+    "category": "调味品",
+    "fdc": 173468,
+    "description": "Salt, table",
+    "state": "ready",
+    "allergens": [],
+    "aliases": [
+      "盐"
+    ],
+    "nutrients": {
+      "kcal": 0.0,
+      "protein": 0.0,
+      "carbs": 0.0,
+      "fat": 0.0,
+      "fiber": 0.0,
+      "sodium": 38758.0,
+      "calcium": 24.0,
+      "potassium": 8.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "pepper",
+    "name": "黑胡椒粉",
+    "category": "调味品",
+    "fdc": 170931,
+    "description": "Spices, pepper, black",
+    "state": "ready",
+    "allergens": [],
+    "aliases": [
+      "黑胡椒"
+    ],
+    "nutrients": {
+      "kcal": 251.0,
+      "protein": 10.39,
+      "carbs": 63.95,
+      "fat": 3.26,
+      "fiber": 25.3,
+      "sodium": 20.0,
+      "calcium": 443.0,
+      "potassium": 1329.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "vinegar",
+    "name": "苹果醋",
+    "category": "调味品",
+    "fdc": 173469,
+    "description": "Vinegar, cider",
+    "state": "ready",
+    "allergens": [],
+    "aliases": [
+      "醋"
+    ],
+    "nutrients": {
+      "kcal": 21.0,
+      "protein": 0.0,
+      "carbs": 0.93,
+      "fat": 0.0,
+      "fiber": 0.0,
+      "sodium": 5.0,
+      "calcium": 7.0,
+      "potassium": 73.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "ginger",
+    "name": "生姜",
+    "category": "调味品",
+    "fdc": 169231,
+    "description": "Ginger root, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "姜"
+    ],
+    "nutrients": {
+      "kcal": 80.0,
+      "protein": 1.82,
+      "carbs": 17.77,
+      "fat": 0.75,
+      "fiber": 2.0,
+      "sodium": 13.0,
+      "calcium": 16.0,
+      "potassium": 415.0,
+      "vitaminC": 5.0
+    }
+  },
+  {
+    "id": "garlic",
+    "name": "大蒜",
+    "category": "调味品",
+    "fdc": 169230,
+    "description": "Garlic, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "蒜"
+    ],
+    "nutrients": {
+      "kcal": 149.0,
+      "protein": 6.36,
+      "carbs": 33.06,
+      "fat": 0.5,
+      "fiber": 2.1,
+      "sodium": 17.0,
+      "calcium": 181.0,
+      "potassium": 401.0,
+      "vitaminC": 31.2
+    }
+  },
+  {
+    "id": "scallion",
+    "name": "葱",
+    "category": "调味品",
+    "fdc": 170005,
+    "description": "Onions, spring or scallions (includes tops and bulb), raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "小葱"
+    ],
+    "nutrients": {
+      "kcal": 32.0,
+      "protein": 1.83,
+      "carbs": 7.34,
+      "fat": 0.19,
+      "fiber": 2.6,
+      "sodium": 16.0,
+      "calcium": 72.0,
+      "potassium": 276.0,
+      "vitaminC": 18.8
+    }
+  },
+  {
+    "id": "cilantro",
+    "name": "香菜",
+    "category": "调味品",
+    "fdc": 169997,
+    "description": "Coriander (cilantro) leaves, raw",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "芫荽"
+    ],
+    "nutrients": {
+      "kcal": 23.0,
+      "protein": 2.13,
+      "carbs": 3.67,
+      "fat": 0.52,
+      "fiber": 2.8,
+      "sodium": 46.0,
+      "calcium": 67.0,
+      "potassium": 521.0,
+      "vitaminC": 27.0
+    }
+  },
+  {
+    "id": "lemon",
+    "name": "柠檬果肉",
+    "category": "调味品",
+    "fdc": 167746,
+    "description": "Lemons, raw, without peel",
+    "state": "raw",
+    "allergens": [],
+    "aliases": [
+      "柠檬"
+    ],
+    "nutrients": {
+      "kcal": 29.0,
+      "protein": 1.1,
+      "carbs": 9.32,
+      "fat": 0.3,
+      "fiber": 2.8,
+      "sodium": 2.0,
+      "calcium": 26.0,
+      "potassium": 138.0,
+      "vitaminC": 53.0
+    }
+  },
+  {
+    "id": "cinnamon",
+    "name": "肉桂粉",
+    "category": "调味品",
+    "fdc": 171320,
+    "description": "Spices, cinnamon, ground",
+    "state": "ready",
+    "allergens": [],
+    "aliases": [
+      "肉桂"
+    ],
+    "nutrients": {
+      "kcal": 247.0,
+      "protein": 3.99,
+      "carbs": 80.59,
+      "fat": 1.24,
+      "fiber": 53.1,
+      "sodium": 10.0,
+      "calcium": 1002.0,
+      "potassium": 431.0,
+      "vitaminC": 3.8
+    }
+  },
+  {
+    "id": "cumin",
+    "name": "孜然粒",
+    "category": "调味品",
+    "fdc": 170923,
+    "description": "Spices, cumin seed",
+    "state": "ready",
+    "allergens": [],
+    "aliases": [
+      "孜然"
+    ],
+    "nutrients": {
+      "kcal": 375.0,
+      "protein": 17.81,
+      "carbs": 44.24,
+      "fat": 22.27,
+      "fiber": 10.5,
+      "sodium": 168.0,
+      "calcium": 931.0,
+      "potassium": 1788.0,
+      "vitaminC": 7.7
+    }
+  },
+  {
+    "id": "turmeric",
+    "name": "姜黄粉",
+    "category": "调味品",
+    "fdc": 172231,
+    "description": "Spices, turmeric, ground",
+    "state": "ready",
+    "allergens": [],
+    "aliases": [
+      "姜黄"
+    ],
+    "nutrients": {
+      "kcal": 312.0,
+      "protein": 9.68,
+      "carbs": 67.14,
+      "fat": 3.25,
+      "fiber": 22.7,
+      "sodium": 27.0,
+      "calcium": 168.0,
+      "potassium": 2080.0,
+      "vitaminC": 0.7
+    }
+  }
+]

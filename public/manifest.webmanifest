@@ -1,0 +1,17 @@
+{
+  "id": "./",
+  "name": "天天减",
+  "short_name": "天天减",
+  "lang": "zh-CN",
+  "description": "个人饮食搭配、七天食谱和采购备餐。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f7f8f3",
+  "theme_color": "#214f3b",
+  "icons": [
+    {"src":"./icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"./icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}

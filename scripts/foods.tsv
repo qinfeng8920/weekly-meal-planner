@@ -1,0 +1,121 @@
+chicken	鸡胸肉	肉类	171077	raw		鸡肉
+thigh	去皮鸡腿肉	肉类	173627	raw		鸡腿,鸡肉
+beef	瘦牛肉	肉类	171757	raw		牛肉
+pork	猪里脊	肉类	168249	raw		猪肉
+turkey	火鸡胸肉	肉类	171098	raw
+salmon	三文鱼	鱼虾	175167	raw	鱼	鲑鱼,鱼肉
+tilapia	罗非鱼	鱼虾	175176	raw	鱼	鱼肉
+bass	鲈鱼	鱼虾	175142	raw	鱼	鱼肉
+cod	太平洋鳕鱼	鱼虾	174191	raw	鱼	鳕鱼,鱼肉
+trout	虹鳟	鱼虾	173717	raw	鱼	鱼肉
+mackerel	大西洋鲭鱼	鱼虾	175119	raw	鱼	鲭鱼,鱼肉
+tuna	黄鳍金枪鱼	鱼虾	175159	raw	鱼	金枪鱼,鱼肉
+shrimp	虾仁	鱼虾	174210	raw	甲壳类	虾,海鲜
+scallop	鲜贝柱	鱼虾	174220	raw	软体动物	扇贝,海鲜
+squid	鱿鱼	鱼虾	174223	raw	软体动物	海鲜
+egg	全鸡蛋	蛋	171287	raw	蛋	鸡蛋
+eggwhite	鸡蛋清	蛋	172183	raw	蛋	蛋清,鸡蛋
+tofu	北豆腐	豆制品	172475	raw	大豆	豆腐,硬豆腐
+softtofu	普通豆腐	豆制品	172476	raw	大豆	豆腐
+chickpea	无盐熟鹰嘴豆	豆制品	173757	cooked		鹰嘴豆
+lentil	干扁豆	豆制品	172420	dry		扁豆
+blackbean	干黑豆	豆制品	173734	dry		黑豆
+mung	干绿豆	豆制品	174256	dry		绿豆
+edamame	冷冻毛豆仁	豆制品	168410	frozen	大豆	毛豆
+rice	白米	主食	169756	dry		米饭,白米饭
+brown	糙米	主食	169703	dry		杂粮饭,糙米杂粮饭
+millet	小米	主食	169702	dry
+oats	无糖燕麦片	主食	173904	dry		燕麦
+quinoa	藜麦	主食	168874	dry
+buckwheat	烘焙荞麦米	主食	170685	dry		荞麦
+barley	珍珠大麦	主食	170284	dry		大麦
+corn	鲜玉米粒	主食	169998	raw		玉米
+potato	带皮土豆	主食	170026	raw		马铃薯,土豆
+sweet	红薯	主食	168482	raw		地瓜
+pasta	全麦意面	主食	169738	dry	小麦	面条
+bread	全麦面包	主食	172688	ready	小麦	面包
+broccoli	西兰花	蔬菜	170379	raw		青花菜
+cauliflower	白花菜	蔬菜	169986	raw		菜花,花椰菜
+cabbage	包菜	蔬菜	169975	raw		卷心菜
+redcabbage	紫甘蓝	蔬菜	169977	raw
+napa	大白菜	蔬菜	169979	raw		白菜
+bok	小白菜	蔬菜	170390	raw		青菜
+carrot	胡萝卜	蔬菜	170393	raw
+spinach	菠菜	蔬菜	168462	raw
+tomato	番茄	蔬菜	170457	raw		西红柿
+cucumber	黄瓜	蔬菜	168409	raw
+redpepper	红甜椒	蔬菜	170108	raw		彩椒
+yellowpepper	黄甜椒	蔬菜	169383	raw		彩椒
+whitefungi	白蘑菇	蔬菜	169251	raw		口蘑,蘑菇
+shiitake	鲜香菇	蔬菜	169242	raw		香菇
+oystermushroom	平菇	蔬菜	168580	raw
+enoki	金针菇	蔬菜	169382	raw
+zucchini	西葫芦	蔬菜	169291	raw
+pumpkin	南瓜	蔬菜	168448	raw
+asparagus	芦笋	蔬菜	168389	raw
+greenbean	四季豆	蔬菜	169961	raw		菜豆
+peas	豌豆仁	蔬菜	170419	raw		豌豆
+onion	洋葱	蔬菜	170000	raw
+celery	西芹	蔬菜	169988	raw		芹菜
+eggplant	茄子	蔬菜	169228	raw
+romaine	罗马生菜	蔬菜	169247	raw		生菜
+daikon	白萝卜	蔬菜	168451	raw
+turnip	芜菁	蔬菜	170465	raw
+beet	甜菜根	蔬菜	169145	raw
+okra	秋葵	蔬菜	169260	raw
+kale	羽衣甘蓝	蔬菜	168421	raw
+mustard	芥菜	蔬菜	169256	raw
+watercress	西洋菜	蔬菜	170068	raw
+arugula	芝麻菜	蔬菜	169387	raw
+leek	韭葱	蔬菜	169246	raw
+apple	带皮苹果	水果	171688	raw		苹果
+pear	梨	水果	169118	raw
+asianpear	亚洲梨	水果	168177	raw		砂梨
+strawberry	草莓	水果	167762	raw
+blueberry	蓝莓	水果	171711	raw
+kiwi	绿色猕猴桃	水果	168153	raw		猕猴桃,奇异果
+banana	香蕉	水果	173944	raw
+orange	橙子	水果	169097	raw
+mandarin	橘子	水果	169105	raw		柑橘
+grape	葡萄	水果	174683	raw
+peach	黄桃	水果	169928	raw		桃子
+plum	李子	水果	169949	raw
+watermelon	西瓜	水果	167765	raw
+melon	甜瓜	水果	169092	raw		哈密瓜
+pineapple	菠萝	水果	169124	raw		凤梨
+mango	芒果	水果	169910	raw
+papaya	木瓜	水果	169926	raw
+pomegranate	石榴	水果	169134	raw
+avocado	牛油果	水果	171705	raw		鳄梨
+apricot	杏	水果	171697	raw
+fig	鲜无花果	水果	173021	raw		无花果
+milk	2%脂肪纯牛奶	乳制品	172205	ready	奶	奶,牛奶
+yogurt	原味全脂无糖酸奶	乳制品	171284	ready	奶	酸奶,无糖酸奶
+greek	原味低脂希腊酸奶	乳制品	170903	ready	奶	酸奶,无糖酸奶
+cheese	全脂马苏里拉奶酪	乳制品	170845	ready	奶	奶酪
+almond	原味杏仁	坚果种子	170567	ready	树坚果	杏仁
+walnut	原味核桃仁	坚果种子	170187	ready	树坚果	核桃
+cashew	原味腰果	坚果种子	170162	ready	树坚果	腰果
+pistachio	原味开心果仁	坚果种子	170184	ready	树坚果	开心果
+hazelnut	原味榛子仁	坚果种子	170581	ready	树坚果	榛子
+peanut	生花生仁	坚果种子	172430	raw	花生	花生
+chia	奇亚籽	坚果种子	170554	dry
+flax	亚麻籽	坚果种子	169414	dry
+pumpkinseed	干南瓜籽仁	坚果种子	170556	dry
+sesameseed	干芝麻	坚果种子	170150	dry	芝麻
+canola	菜籽油	调味品	172336	ready		植物油
+olive	橄榄油	调味品	171413	ready		植物油
+sesameoil	芝麻油	调味品	171016	ready	芝麻	香油
+peanutoil	花生油	调味品	171410	ready	花生
+soy	生抽酱油	调味品	174277	ready	大豆,小麦	生抽,酱油
+salt	食盐	调味品	173468	ready		盐
+pepper	黑胡椒粉	调味品	170931	ready		黑胡椒
+vinegar	苹果醋	调味品	173469	ready		醋
+ginger	生姜	调味品	169231	raw		姜
+garlic	大蒜	调味品	169230	raw		蒜
+scallion	葱	调味品	170005	raw		小葱
+cilantro	香菜	调味品	169997	raw		芫荽
+lemon	柠檬果肉	调味品	167746	raw		柠檬
+cinnamon	肉桂粉	调味品	171320	ready		肉桂
+cumin	孜然粒	调味品	170923	ready		孜然
+turmeric	姜黄粉	调味品	172231	ready		姜黄
