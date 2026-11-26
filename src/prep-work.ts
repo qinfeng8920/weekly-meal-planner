@@ -30,8 +30,16 @@ export function prepWork(batch:PrepBatch,products?:PurchaseOptions,readyStock:Re
     }
     for(const {id,grams} of job.ingredients) {
       const product=purchaseFood(id,products);
-      if((id==='cookedbrown'||id==='cookedchicken')&&product.conversion&&product.rate&&!readyStock.get(id)) {
-        add(id,{kind:'煮熟',id:product.purchaseIngredientId,conversionId:id},{job,raw:rawNetGrams(grams,product.rate),grams});
+      if((id==='cookedbrown'||id==='cookedchicken')&&product.conversion&&product.rate) {
+        const taken=execution?.tasks?.[job.key]?.taken;
+        if(taken) {
+          const rawParts=taken.allocation.filter(part=>part.id===id&&part.source.split('|').at(-1)===product.purchaseIngredientId);
+          const raw=roundGrams(rawParts.reduce((n,part)=>n+part.grams,0));
+          const cooked=roundGrams(rawParts.reduce((n,part)=>n+(part.recipeGrams??0),0));
+          if(raw&&cooked)add(id,{kind:'煮熟',id:product.purchaseIngredientId,conversionId:id},{job,raw,grams:cooked});
+        } else if(!readyStock.get(id)) {
+          add(id,{kind:'煮熟',id:product.purchaseIngredientId,conversionId:id},{job,raw:rawNetGrams(grams,product.rate),grams});
+        }
       }
       if(id==='chicken') add(id,{kind:'称量分装',id},{job,raw:grams,grams});
       if(id==='brown'&&recipe==='grain-brown') {

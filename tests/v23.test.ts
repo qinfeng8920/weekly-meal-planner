@@ -100,6 +100,8 @@ test('同日同工序集中，独立储存批次分开，共享进度不产生�
   equal(groups[0].raw,125);
   equal(groups[0].cooked,350);
   equal(prepWork(batch,{},new Map([['cookedbrown',350]])).length,0);
+  const readyTaken={tasks:{[rows[0].key!]:{taken:{date:start,allocation:[{id:'cookedbrown',source:'家中|cookedbrown',grams:140}]}}}};
+  equal(prepWork(batch,{},new Map(),readyTaken).length,0);
   equal(prepWork(batch,{},new Map(),{shared:{[groups[0].key]:true}})[0].key,groups[0].key);
 });
 
