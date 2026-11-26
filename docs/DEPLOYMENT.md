@@ -1,6 +1,6 @@
 # 部署与手机验收
 
-[正式网站](https://qinfeng8920.github.io/weekly-meal-planner/) · [V2.0 发布工作流](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/45793874324)
+[正式网站](https://qinfeng8920.github.io/weekly-meal-planner/) · [V2.1 发布工作流](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/45801879129)
 
 正式托管设计为 GitHub Pages。GitHub Actions 运行单元测试、构建和 Chromium 浏览器测试，再上传 `dist`。Vite 的相对路径与 Service Worker 的 scope 保证站点可放在仓库子路径。
 
@@ -14,3 +14,8 @@
 ## V2.0 正式验收
 
 发布代码提交为 `93425a2`。GitHub Actions 完成模块测试、生产构建和浏览器测试，Pages 部署成功。正式网址使用空白 Chromium 手机模拟上下文验证匿名访问、安装清单和图标、离线食材池生成、分批备餐、分装勾选、广东监测价及版本 V2.0.0。正式 Service Worker 与本地构建字节一致，缓存标识为 `f2d1c7ebbf92`。
+
+
+## V2.1 正式验收
+
+代码提交 `68201b0` 通过 GitHub Actions 的 39 项模块测试、9 项 Chromium 测试和生产构建，随后发布至原 GitHub Pages 地址。正式网址匿名打开并通过安装资源、离线生成、真实日期、2 次购物与 3 批备餐、分装进度、换算入口和 V2.1.0 版本验收。正式 Service Worker 与本地构建字节一致，缓存标识为 `892b216ee362`。
