@@ -115,7 +115,8 @@ input[type=checkbox] { width:18px; height:18px; flex:none; accent-color:#2f6b47 
 .notice button { background:transparent; border:0 }
 .error { color:var(--danger); background:var(--danger-bg); padding:9px 12px; border-radius:9px }
 .network button { margin-left:8px }
-.nutrition-row { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:5px; padding:10px 0 }
+.nutrition-row { display:flex; flex-wrap:wrap; gap:5px; padding:10px 0 }
+.nutrition-row > div { flex:1 1 4.4rem; min-width:min-content }
 .nutrition-row strong { font-size:clamp(.95rem,2.2vw,1.24rem) }
 .nutrition-row small { color:var(--muted) }
 .dish { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 0 }
@@ -215,7 +216,6 @@ summary small {display:block; margin-top:3px; font-size:.78rem; color:var(--mute
 .home-metrics span {display:block;color:var(--muted);font-size:.82rem}
 .home-plan-meta {font-size:.95rem}
 
-.nutrition-row {grid-template-columns:repeat(auto-fit,minmax(min(100%,4.4rem),1fr))}
 @media(max-width:420px) {
   .nutrition-row strong {font-size:.91rem}
   .nutrition-row small {font-size:.69rem}

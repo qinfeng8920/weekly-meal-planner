@@ -269,10 +269,11 @@ test('新生成设置、补充确认、分装进度和三种手机宽度的浅�
         await nav(page,name).click();
         await assertFit(page);
         await expect(nav(page,name)).toBeVisible();
-        expect(await page.locator('.nutrition-row > div').evaluateAll(cells=>cells.every(cell=>{
+        const overflowing=await page.locator('.nutrition-row > div').evaluateAll(cells=>cells.flatMap(cell=>{
           const value=cell.querySelector('.unit');
-          return !value||value.getBoundingClientRect().right<=cell.getBoundingClientRect().right+1;
-        }))).toBe(true);
+          return value&&value.getBoundingClientRect().right>cell.getBoundingClientRect().right+1?[value.textContent]:[];
+        }));
+        expect(overflowing,theme+' '+width+' 像素 '+name).toEqual([]);
       }
       await expect(page.getByRole('navigation',{name:'主导航'}).getByRole('button')).toHaveCount(4);
       await nav(page,'采购').click();
