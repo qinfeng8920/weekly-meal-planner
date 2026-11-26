@@ -41,6 +41,10 @@
 - 升级按确定性 ID 导入确认购买、手工库存及已取用凭证。旧手工余额可能包含同项购买时，重叠部分保留为待核对。原始凭证、旧价格及历史快照随完整备份保留。
 - 食材是否仍适合食用由用户核对。库存保存在此浏览器。更换手机、清除站点数据前请先导出完整备份。
 
+## 查看采购进度
+
+批次、分类和全周汇总的折叠标题会显示已购项数。全周按批次累计，同一种食材若需要在两个批次分别购买，分别计入进度。已登记部分实购量的行显示「已买部分」，补足后计入已购。库存已覆盖、不需要购买的行不计入待购项数。
+
 ## 食品安全
 
 没有冰箱时，易腐品宜在食用当天取得并制作。选定购物日保持固定，保存条件不足的食材在清单单独提示。只有冷藏时，普通熟食的计划提前量最多一天，熟米饭优先现做。叶菜及生鲜水产优先食用当天处理，带冷冻室才建议提前冻结鱼虾生料；另有当日购买现做选项。避免对已经熟制并需要复热的米饭再次安排提前烹熟。分装冷却、解冻及复热要求以以下资料为依据。 [FoodSafety.gov 冷藏时间](https://www.foodsafety.gov/food-safety-charts/cold-food-storage-charts) · [FoodSafety.gov 安全处理](https://www.foodsafety.gov/keep-food-safe/4-steps-to-food-safety) · [英国食品标准局米饭指引](https://www.food.gov.uk/print/pdf/node/4286) · [USDA 安全温度](https://www.foodsafety.gov/food-safety-charts/safe-minimum-internal-temperatures)

@@ -141,6 +141,11 @@ summary small {display:block; margin-top:3px; font-size:.78rem; color:var(--mute
 .batch-fold > summary {font-size:1.05rem; font-weight:690; color:var(--accent)}
 .group-fold {padding:2px 0; border:0; margin-block:5px}
 .group-fold > summary {padding-inline:9px; background:var(--tint); border-radius:5px; font-size:1rem; font-weight:650}
+.purchase-progress {display:block; white-space:nowrap; color:var(--muted); font-size:.78rem; font-weight:500; font-variant-numeric:tabular-nums}
+summary > .purchase-progress {margin-inline-start:auto; flex-shrink:0}
+summary > span > .purchase-progress {margin-top:3px}
+.purchase-item-status {margin-inline-start:6px; color:var(--muted); font-size:.75rem; white-space:nowrap}
+.purchase-progress.complete,.purchase-item-status.complete {color:var(--accent); font-weight:700}
 .item-fold {padding:0; border-top:0; border-bottom:1px solid var(--line)}
 .item-fold:last-child {border-bottom:0}
 .group-fold > .item-fold, .group-fold > .ledger-list {margin-inline-start:8px}

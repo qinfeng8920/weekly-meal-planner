@@ -23,6 +23,27 @@ export type SupplyActions={
 export const costText=(cost:Cost)=>cost.missing?(cost.items===cost.missing?'价格待补充':yuan(cost.known)+' + 待补充')+
   '（'+(cost.items-cost.missing)+'/'+cost.items+' 项已知）':yuan(cost.known);
 const pendingPrice=(r:BuyLine)=>r.price?`${yuan(r.price.amount)}/${r.price.unit} · ${r.price.basis} · ${r.price.kind}`:'待补充单价';
+function purchaseStatus(row:BuyLine) {
+  if (row.confirmed>0) return row.remaining||row.estimate===null?'已买部分':'已购';
+  if (row.remaining>0) return '待买';
+  return row.estimate===null?'待核对':'无需补购';
+}
+function purchaseProgress(rows:BuyLine[]) {
+  let done=0,total=0;
+  for (const row of rows) {
+    const status=purchaseStatus(row);
+    if (status==='无需补购') continue;
+    total++;
+    if (status==='已购') done++;
+  }
+  return {done,total};
+}
+function PurchaseProgress({progress:{done,total}}:{progress:ReturnType<typeof purchaseProgress>}) {
+  const complete=total>0&&done===total;
+  return <span className={'purchase-progress'+(complete?' complete':'')}>
+    {complete&&<span aria-hidden="true">✓ </span>}{total?`已购 ${done}/${total} 项`:'无需补购'}
+  </span>;
+}
 const sizeText=(r:BuyLine)=>{
   const unit=r.price&&gramsPerPriceUnit(r.price);
   const counted=r.price&&['个','盒','袋','瓶'].includes(r.price.unit);
@@ -63,12 +84,14 @@ export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab=
   const today=dateKey();
   const prepIndex=quote?.prep.findIndex(b=>b.end>=today&&b.jobs.some(j=>j.key&&!state?.execution?.tasks?.[j.key]?.taken))??-1;
   const shoppingIndex=quote?.batches.findIndex(b=>b.lines.some(l=>l.remaining>0))??-1;
+  const weeklyRows=quote?.batches.flatMap(batch=>batch.lines)??[];
+  const weeklyProgress=purchaseProgress(weeklyRows);
   const editPrice=actions?.savePrice;
   return <>
     <div className="page-title"><h1>采购</h1>
       {onSettings&&<button className="flat" onClick={onSettings}>生成设置</button>}
       {reprice&&<button onClick={reprice}>{repriced?'返回历史价格快照':'按最新价格重新估算'}</button>}</div>
-    {quote&&<Overview quote={quote}/>}
+    {quote&&<Overview quote={quote} progress={weeklyProgress}/>}
     {quote?.conflicts?.length? <section className="hint error" role="alert"><strong>这份采购计划有待解决的日期或换算问题</strong>
       <ul>{quote.conflicts.slice(0,5).map(t=><li key={t}>{t}</li>)}</ul>
       {quote.conflicts.length>5&&<p>另有 {quote.conflicts.length-5} 项待核对</p>}
@@ -88,15 +111,15 @@ export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab=
           <button onClick={()=>copy(batchPurchaseText(quote.lines,'全周清单'),true)}>分享清单</button>
           <button onClick={()=>download(batchPurchaseText(quote.lines,'全周清单'))}>下载清单</button></div></details></div>
       {quote.batches.map((batch,index)=>{
-        const lines=batch.lines.filter(r=>r.buy>0||r.estimate===null);
+        const lines=batch.lines.filter(r=>purchaseStatus(r)!=='无需补购');
         return <details className="card batch-fold" key={batch.date} open={index===Math.max(shoppingIndex,0)?true:undefined}>
-          <summary><span>采购第 {index+1} 批 · {dateLabel(batch.date)}</span><span className="unit">{costText(batch.purchase)}</span></summary>
+          <summary><span>采购第 {index+1} 批 · {dateLabel(batch.date)}<PurchaseProgress progress={purchaseProgress(lines)}/></span><span className="unit">{costText(batch.purchase)}</span></summary>
           {lines.length? <><GroupedLines rows={lines} start={quote.start} detail={detail} setDetail={setDetail} receipt={actions?.receipt} editPrice={editPrice}/>
             <button className="small" onClick={()=>copy(batchPurchaseText(lines,'采购 '+batch.date))}>复制这一批采购</button></>:<p className="meta">无需采购</p>}
         </details>;
       })}
-      <details className="card"><summary>全周食材汇总</summary>
-        <GroupedLines rows={quote.lines} start={quote.start} detail={detail} setDetail={setDetail} editPrice={editPrice}/>
+      <details className="card"><summary><span>全周食材汇总<PurchaseProgress progress={weeklyProgress}/></span></summary>
+        <GroupedLines rows={quote.lines} progressRows={weeklyRows} start={quote.start} detail={detail} setDetail={setDetail} editPrice={editPrice}/>
       </details>
       {quote.actualBatches?.length? <details className="card"><summary>另有实际购买记录 · {quote.actualBatches.reduce((n,b)=>n+b.lines.length,0)} 项</summary>
         <p className="meta">包含计划日期以外的实付和旧商品，单独记账。</p>
@@ -168,12 +191,12 @@ export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab=
   </>;
 }
 
-function Overview({quote:q}:{quote:Logistics}) {
+function Overview({quote:q,progress:{done,total}}:{quote:Logistics;progress:ReturnType<typeof purchaseProgress>}) {
   const paidEstimate=[...q.batches,...q.actualBatches??[]].some(batch=>batch.lines.some(row=>row.paidEstimated));
   const avg={...q.consumed,known:q.consumed.known/7};
   return <section className="card"><SectionTitle title="本周采购"><strong className="unit">{costText(q.purchase)}</strong></SectionTitle>
-    <p className="meta">{q.lines.filter(r=>r.uses.length).length} 种食材 · 预定采购 {q.batches.length} 次 · 完成 {q.checked}/{q.toBuy} 项</p>
-    <progress value={q.checked} max={q.toBuy||1} aria-label="采购完成进度"/>
+    <p className="meta">{q.lines.filter(r=>r.uses.length).length} 种食材 · 预定采购 {q.batches.length} 次 · {total?`已购 ${done}/${total} 项`:'无需补购'}</p>
+    {total>0&&<progress value={done} max={total} aria-label="采购完成进度"/>}
     <details><summary>费用明细</summary><dl className="supply-summary">
       <div><dt>实际已付{paidEstimate?'（部分参考估计）':''}</dt><dd>{costText(q.paid)}</dd></div>
       {purchaseCategories.map(category=><div key={category}><dt>{category==='常备调味料'?'常备调味料补货':category}费用</dt><dd>{q.categories[category]?costText(q.categories[category]):'无需补购'}</dd></div>)}
@@ -187,11 +210,12 @@ function Overview({quote:q}:{quote:Logistics}) {
 }
 type LineProps={rows:BuyLine[];start:string;detail:string;setDetail:(d:string)=>void;
   receipt?:(source:string,value?:Receipt)=>Promise<boolean>;editPrice?:SupplyActions['savePrice']};
-function GroupedLines({rows,...props}:LineProps) {
+function GroupedLines({rows,progressRows=rows,...props}:LineProps&{progressRows?:BuyLine[]}) {
   return <>{purchaseCategories.map(category=>{
     const matching=rows.filter(row=>purchaseCategory(row.id)===category);
+    const progress=purchaseProgress(progressRows.filter(row=>purchaseCategory(row.id)===category));
     return <details className="group-fold" key={category} open={category==='主要食材'?true:undefined}>
-      <summary>{category==='常备调味料'?'常备调味料补货':category}<span className="meta unit">{matching.length?matching.length+' 项':'无需补购'}</span></summary>
+      <summary><span>{category==='常备调味料'?'常备调味料补货':category}</span><PurchaseProgress progress={progress}/></summary>
       {matching.length>0&&<LineList {...props} rows={matching}/>}
     </details>;
   })}</>;
@@ -199,6 +223,7 @@ function GroupedLines({rows,...props}:LineProps) {
 function LineList({rows,start,detail,setDetail,receipt,editPrice}:LineProps) {
   return <ul className="purchase-list">{rows.map(row=>{
     const k=row.receiptKey||row.id, f=food(row.id);
+    const status=purchaseStatus(row);
     return <li key={k}><div className="purchase-row"><label className="check">
       {receipt&&row.buy>0&&<input type="checkbox" checked={row.remaining===0} onChange={e=>{
         const checked=e.target.checked;
@@ -206,7 +231,7 @@ function LineList({rows,start,detail,setDetail,receipt,editPrice}:LineProps) {
         void receipt(row.receiptKey,checked?{gross:row.buy,quantity:row.buy,unit:'克',date:dateKey(),
           net:Math.round((row.netConfirmed+row.remaining*edibleRate(row.price))*100)/100,
           ...(row.paidActual!==undefined?{paid:row.paidActual,paidGross:row.paidGross}:{})}:undefined);
-      }}/>}<span>{f.name}</span></label><b className="unit">{row.estimate===null&&!row.buy?'待补全':sizeText(row)}</b>
+      }}/>}<span>{f.name}{(status==='已购'||status==='已买部分')&&<small className={'purchase-item-status'+(status==='已购'?' complete':'')}>{status}</small>}</span></label><b className="unit">{row.estimate===null&&!row.buy?'待补全':sizeText(row)}</b>
       <button className="small flat" aria-expanded={detail===k} onClick={()=>setDetail(detail===k?'':k)}>{detail===k?'收起':'详情'}</button></div>
       <p className="meta purchase-price">{editPrice?<button className="small flat" onClick={()=>setDetail(detail===k?'':k)} aria-label={'编辑'+f.name+'单价'}>{pendingPrice(row)}</button>:pendingPrice(row)}
         <b className="unit">{costText(row.cost)}</b></p>
