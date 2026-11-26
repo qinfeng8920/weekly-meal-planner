@@ -1,3 +1,4 @@
+import type {CookingProfile} from './cooking-profile';
 export const equipment = ['煮锅','蒸锅','炒锅','电饭煲','微波炉','空气炸锅','烤箱','压力锅','冰箱','冷冻室','电子厨房秤'];
 export const allergens = ['奶','蛋','鱼','甲壳类','软体动物','大豆','小麦','花生','树坚果','芝麻'];
 export const conditions = ['脂肪肝','高血糖','高血脂','高尿酸','高血压','痤疮','胃肠道问题','肾脏疾病','其他特殊情况'];
@@ -18,7 +19,7 @@ export const initialProfile = {
   fixedBreakfast: '', requiredDish: '', fluidLimit: false,
 };
 
-export type Profile = typeof initialProfile & {mealPreferences?:Partial<Record<MainMeal,MealPreference>>};
+export type Profile = typeof initialProfile & {mealPreferences?:Partial<Record<MainMeal,MealPreference>>;cooking?:CookingProfile};
 export type Weight = { date: string; kg: number; waist?: number };
 export const split = (value: string) => value.split(/[、,，;；\n]/).map(x => x.trim()).filter(Boolean);
 

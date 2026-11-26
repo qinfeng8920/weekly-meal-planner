@@ -162,3 +162,36 @@ test('分餐偏好、固定早餐、营养检查及历史存档',async({page})=>
   await expect(page.getByRole('heading',{name:/43 套早餐搭配/})).toBeVisible();
   await assertFit(page);
 });
+
+test('临时极简模式、分日设置与新版档案备份',async({page})=>{
+  await setup(page);
+  await nav(page,'食谱').click();
+  await page.getByText('烹饪模式与分日设置',{exact:true}).click();
+  await page.getByRole('combobox',{name:'默认烹饪模式',exact:true}).selectOption('混合');
+  await page.getByRole('combobox',{name:'周末模式',exact:true}).selectOption('精致');
+  await page.getByRole('combobox',{name:'应用日期',exact:true}).selectOption('5');
+  await page.getByRole('combobox',{name:'餐次',exact:true}).selectOption('晚餐');
+  await page.getByRole('combobox',{name:'该餐烹饪模式',exact:true}).selectOption('家常');
+  await page.getByRole('combobox',{name:'最长总制作时间',exact:true}).selectOption('40');
+  await page.getByRole('combobox',{name:'允许提前备餐',exact:true}).selectOption('true');
+  await page.getByRole('button',{name:'保存烹饪设置',exact:true}).click();
+  await expect(page.getByText(/烹饪设置已保存/)).toBeVisible();
+  await page.getByText('生成设置',{exact:true}).click();
+  await page.getByRole('combobox',{name:'本次生成模式',exact:true}).selectOption('极简');
+  await page.getByLabel('随机种子（选填）').fill('各模式');
+  await generate(page);
+  await page.getByRole('button',{name:'周一',exact:true}).click();
+  const breakfast=page.locator('section.meal-card').first();
+  await expect(breakfast.getByText(/极简模式/)).toBeVisible();
+  await expect(breakfast.getByText(/主动 [0-8] 分钟/)).toBeVisible();
+  await expect(breakfast.getByText('调整这餐',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'周六',exact:true}).click();
+  await expect(page.locator('section.meal-card').last().getByText(/家常模式/)).toBeVisible();
+  await page.reload();
+  await nav(page,'食谱').click();
+  await page.getByRole('button',{name:'周一',exact:true}).click();
+  await expect(page.locator('section.meal-card').first().getByText(/极简模式/)).toBeVisible();
+  await page.getByText('烹饪模式与分日设置',{exact:true}).click();
+  await expect(page.getByRole('combobox',{name:'默认烹饪模式',exact:true})).toHaveValue('混合');
+  await assertFit(page);
+});

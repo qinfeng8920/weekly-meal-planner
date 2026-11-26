@@ -1,3 +1,5 @@
+import {CookingEditor} from './CookingSettings';
+import {cookingDefaults} from './cooking-profile';
 import {useState, type ReactNode} from 'react';
 import {allergens, conditions, cuisines, equipment, initialProfile, screening, type Profile} from './profile';
 import {foods} from './catalog';
@@ -14,7 +16,7 @@ const preferences: [ArrayKey,string,string[]][] = [
     .map(([key,label,category]): [ArrayKey,string,string[]]=>[key,label,foods.filter(f=>f.category===category).map(f=>f.name)]),
 ];
 export function ProfileForm({value,onSave,onCancel}:{value:Profile|null;onSave:(p:Profile)=>Promise<boolean>;onCancel:()=>void}) {
-  const [p,set]=useState(()=>structuredClone(value??initialProfile));
+  const [p,set]=useState<Profile>(()=>structuredClone(value??initialProfile));
   const [step,setStep]=useState(0);
   const [error,setError]=useState('');
   const [saving,setSaving]=useState(false);
@@ -76,7 +78,7 @@ export function ProfileForm({value,onSave,onCancel}:{value:Profile|null;onSave:(
         select('dairy','乳制品',['正常摄入','减少牛奶','不吃乳制品','乳糖不耐受']))}
     </>}
     {step===4&&<>{multi('tools','可用厨具',equipment)}{grids(select('skill','厨艺',['完全不会','简单做饭','熟练']),
-      select('minutes','每餐制作时间上限',['10','20','40','120'],['10 分钟','20 分钟','40 分钟','不限']))}</>}
+      select('minutes','每餐制作时间上限',['10','20','40','120'],['10 分钟','20 分钟','40 分钟','不限']))}<CookingEditor value={p.cooking??cookingDefaults} onChange={value=>patch('cooking',value)} overrides={false}/></>}
     {step===5&&<>
       {grids(text('country','国家（选填）'),text('city','城市（选填）'),text('budget','全周采购预算（选填）','number'),
         text('people','用餐人数','number'),select('trips','期望采购次数',['1','2'],['一次','分两次']),

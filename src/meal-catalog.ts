@@ -1,8 +1,9 @@
+import {cookingPlacements} from './cooking-recipes';
 import {recipeList,recipeMap,type Recipe} from './catalog';
 import type {MealName} from './profile';
 
 export type MealTag = '早餐'|'午餐'|'晚餐'|'加餐'|'通用主食'|'通用配菜';
-export type Slot = '主食'|'蛋白质'|'蔬菜'|'清汤'|'加餐'|'水果';
+export type Slot = '主食'|'蛋白质'|'蔬菜'|'清汤'|'加餐'|'水果'|'一锅套餐';
 type BreakfastSet = {id:string;style:string;recipes:string[]};
 const menus:Record<string, [string,string,string?][]> = {
   中式: [
@@ -45,6 +46,9 @@ const breakfastProtein = new Set(breakfastMenus.map(m=>m.recipes[1]));
 const lightSoups = new Set(['soup-bok-mushroom','soup-tomato-bok']);
 const lunchOnly = new Set(['lentil-soup','soy-chicken']);
 export function labels(recipe:Recipe):{tags:MealTag[];slot:Slot} {
+  const placement=cookingPlacements.get(recipe.id);
+  if(placement==='早餐套餐') return {tags:['早餐'],slot:'一锅套餐'};
+  if(placement==='正餐套餐') return {tags:['午餐','晚餐'],slot:'一锅套餐'};
   if (breakfastProtein.has(recipe.id) || recipe.id==='boiled-egg') return {tags:['早餐'],slot:'蛋白质'};
   if (lightSoups.has(recipe.id)) return {tags:['午餐','晚餐','通用配菜'],slot:'清汤'};
   switch(recipe.group) {

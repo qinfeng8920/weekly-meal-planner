@@ -3,6 +3,9 @@ import {test} from 'node:test';
 import {food,recipeList,recipeMap,serving} from '../src/catalog';
 import {breakfastMenus,canServe,labels} from '../src/meal-catalog';
 import {fruitMeal,mealNames,mealShape,mealShares} from '../src/meal-rules';
+import {mealConflict} from '../src/food-semantics';
+import {cookingRule} from '../src/cooking-profile';
+import {mealCooking,cookingConflict} from '../src/cooking';
 import {dayNutrition,fruitGoal,regenerate} from '../src/planner';
 import {defaultMealPreference,mealPreference} from '../src/profile';
 import {mealMinutes} from '../src/shopping';
@@ -31,7 +34,7 @@ test('120 个独立种子验收餐次、时间、营养、厨具和采购用量'
     const plan=regenerate(profile,[],{},[],'餐次验收-'+i);
     const names=mealNames(profile), shares=mealShares(profile), amounts=new Map<string,number>();
     equal(plan.days.length,7);
-    for(const day of plan.days) {
+    for(const [dayIndex,day] of plan.days.entries()) {
       const daily=dayNutrition(day);
       ok(Math.abs(daily.kcal-plan.targets.kcal)<=plan.targets.kcal*.05,'热量，种子 '+i);
       ok(daily.fiber>=25 && daily.sodium!==null&&daily.sodium<=2000);
@@ -39,6 +42,10 @@ test('120 个独立种子验收餐次、时间、营养、厨具和采购用量'
       for(const [index,meal] of day.meals.entries()) {
         const name=names[index];
         ok(mealShape(profile,meal,name,fruitGoal(profile)>0&&fruitMeal(profile)===name));
+        const selected=meal.dishes.map(d=>d.recipe);
+        equal(mealConflict(selected),undefined);
+        const rule=cookingRule(profile,name,dayIndex);
+        equal(cookingConflict(mealCooking(selected,rule,profile.tools.includes('冰箱')),rule),undefined);
         ok(mealMinutes(meal)<=+mealPreference(profile,name).minutes);
         const energy=meal.dishes.reduce((sum,s)=>sum+s.nutrients.kcal,0);
         ok(Math.abs(energy/daily.kcal-shares[index])<=(name==='加餐'?.045:.085));

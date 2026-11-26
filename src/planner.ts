@@ -1,17 +1,29 @@
 import {catalogVersion, food, foodMap, recipeList, recipeMap, serving, type Recipe, type Serving} from './catalog';
 import {nutrition, sum, type Targets} from './nutrition';
 import {dateKey, mealPreference, split, type MealName, type Profile, type Weight} from './profile';
-import {shopping, prepPlan, mealMinutes, type Day, type Meal, type Pantry, type Purchase, type Prep} from './shopping';
+import {shopping, prepPlan, type Day, type Meal, type Pantry, type Purchase, type Prep} from './shopping';
 
 import {breakfastMenus, labels, pairingOk, type Slot} from './meal-catalog';
-import {fruitMeal, mealNames, mealShape, mealShares, namedIngredients, recipeFitsMeal, repeatIsLimited} from './meal-rules';
+import {fruitMeal, mealNames, mealShapeError, mealTemplates, mealShares, namedIngredients, recipeFitsMeal, repeatIsLimited} from './meal-rules';
 import {calciumCeiling,nutrientPenalty} from './diet-check';
 
-export const algorithmVersion = '1.1.0';
+import {mealConflict,overlapPenalty,recipeMeaning,sameFood} from './food-semantics';
+import {cookingConflict,cookingFit,mealCooking,type CookingStats} from './cooking';
+import {cookingRule,usesNamedBreakfast,type CookingSelection} from './cooking-profile';
+
+export const algorithmVersion = '1.2.0';
 export type Plan = {id:string; name:string; created:string; start:string; seed:string; targets:Targets; days:Day[];
-  profile:Profile; weight:number; purchases:Purchase[]; prep:Prep; algorithmVersion:string; catalogVersion:string; favorite:boolean};
+  profile:Profile; weight:number; purchases:Purchase[]; prep:Prep; algorithmVersion:string; catalogVersion:string; favorite:boolean;cookingOverride?:CookingSelection};
 export type Lock = {day:number; meal:number; dish:number; serving:Serving};
-type Change = {day:number; meal?:number; dish?:number};
+export type Change = {day:number; meal?:number; dish?:number; intent?:'简单一点'|'丰富一点'|'减少一道菜'|'更换同类食材'|'改成一锅料理'};
+function meetsIntent(intent:Change['intent'],next:CookingStats,prior:CookingStats) {
+  if(intent==='简单一点') return next.level<=prior.level&&next.active<=prior.active&&next.count<=prior.count&&
+    (next.level<prior.level||next.active<prior.active||next.total<prior.total);
+  if(intent==='丰富一点') return next.count>prior.count||next.count>=prior.count&&next.level>prior.level;
+  if(intent==='减少一道菜') return next.count===prior.count-1;
+  if(intent==='改成一锅料理') return next.onePot;
+  return true;
+}
 const allowedFruit = new Set(['strawberry','kiwi','orange','peach','pear']);
 const skillLevel = ['完全不会','简单做饭','熟练'];
 export const monday = () => {
@@ -72,7 +84,7 @@ function limits(p:Profile,t:Targets,day:Day) {
     (grams === 0 ? fruit === 0 : Math.abs(fruit-grams)<=Math.min(25,grams*.18));
   const names=mealNames(p);
   const shares=mealShares(p);
-  const timeOK = day.meals.every((m,i)=>mealMinutes(m)<=+mealPreference(p,names[i]).minutes);
+
   const distributionOK = day.meals.every((m,i)=>{
     const share=sum(m.dishes.map(s=>s.nutrients)).kcal/total.kcal;
     return Math.abs(share-shares[i])<=(names[i]==='加餐'?.045:.085);
@@ -87,9 +99,8 @@ function limits(p:Profile,t:Targets,day:Day) {
   if (!calciumOK) messages.push('钙超过参考上限');
   if (veg<300) messages.push('蔬菜');
   if (grams===0 ? fruit!==0 : Math.abs(fruit-grams)>Math.min(25,grams*.18)) messages.push('水果份量');
-  if (!timeOK) messages.push('每餐用时');
   if (!distributionOK) messages.push('分餐热量');
-  return {valid: valid&&timeOK&&distributionOK,messages};
+  return {valid: valid&&distributionOK,messages};
 }
 
 function verifyInput(p:Profile) {
@@ -105,12 +116,12 @@ function verifyInput(p:Profile) {
   if (mealNames(p).some(name=>![5,10,15,20,30,40,60,120].includes(+mealPreference(p,name).minutes))) throw Error('请检查各餐制作时间。');
 }
 
-function checkStructure(days:Day[], p:Profile, t:Targets, blocked:string[], pantry:Pantry) {
+function checkStructure(days:Day[], p:Profile, t:Targets, blocked:string[], pantry:Pantry,temporary?:CookingSelection) {
   if (days.length!==7) throw Error('方案需要完整七天。');
   const used = new Set<string>();
   const seenByMeal = new Set<string>();
   const names=mealNames(p);
-  const fixed = fixedIds(p);
+  const namedIds = fixedIds(p);
   const fixedMenu=breakfastMenus.some(menu=>menu.id===p.fixedBreakfast);
   const fixedPatterns=new Map<string,string>();
   const hasFruit=fruitGoal(p)>0;
@@ -118,17 +129,21 @@ function checkStructure(days:Day[], p:Profile, t:Targets, blocked:string[], pant
     if (day.meals.length!==names.length) throw Error('方案餐次数与当前设置不同。');
     for (const [i,meal] of day.meals.entries()) {
       const name=names[i], prefs=mealPreference(p,name);
-      if (!mealShape(p,meal,name,hasFruit&&fruitMeal(p)===name)) throw Error(name+'菜谱、份量结构或用时不符合当前设置。');
+      const rule=cookingRule(p,name,index,temporary);
+      const fixedMeal=name==='早餐'?rule.fixedBreakfast:prefs.fixed;
+      const conflict=mealShapeError(p,meal,name,hasFruit&&fruitMeal(p)===name,rule);
+      if (conflict) throw Error('第 '+(index+1)+' 天'+name+'需调整：'+conflict+'。');
       const pattern=meal.dishes.filter(s=>labels(s.recipe).slot!=='水果').map(s=>s.recipe.id).join(',');
-      if (prefs.fixed) {
+      if (fixedMeal) {
         if (fixedPatterns.has(name) && fixedPatterns.get(name)!==pattern) throw Error(name+'已设置固定搭配。');
         fixedPatterns.set(name,pattern);
       }
-      if (name==='早餐' && (fixed.some((id,position)=>meal.dishes[position]?.recipe.id!==id)||
+      const fixed=name==='早餐'&&usesNamedBreakfast(p,index)?namedIds:[];
+      if (fixed.length&&(fixed.some((id,position)=>meal.dishes[position]?.recipe.id!==id)||
         fixedMenu&&meal.dishes.filter(s=>labels(s.recipe).slot!=='水果').length!==fixed.length)) throw Error('固定早餐缺失。');
       for (const {recipe} of meal.dishes) {
         const key=name+':'+recipe.id;
-        if (!prefs.fixed && !(name==='早餐'&&fixed.includes(recipe.id)) && repeatIsLimited(p,name,recipe) && seenByMeal.has(key)) throw Error(name+'存在重复菜品。');
+        if (!fixedMeal && !(name==='早餐'&&fixed.includes(recipe.id)) && repeatIsLimited(p,name,recipe) && seenByMeal.has(key)) throw Error(name+'存在重复菜品。');
         seenByMeal.add(key);
       }
     }
@@ -167,65 +182,70 @@ type Candidate = {r:Recipe; weight:number};
 type Selected = {candidate:Candidate; value:Serving; retained:boolean};
 const totalCalories=(meal:Selected[])=>meal.reduce((n,s)=>n+s.value.nutrients.kcal,0);
 
-export function regenerate(p:Profile, records:Weight[], pantry:Pantry, blocked:string[], seed:string, old?:Plan, locks:Lock[] = [], change?:Change):Plan {
+export function regenerate(p:Profile, records:Weight[], pantry:Pantry, blocked:string[], seed:string, old?:Plan, locks:Lock[] = [], change?:Change, temporary?:CookingSelection):Plan {
   const t=nutrition(p,records);
   verifyInput(p);
+  const choice=change?old?.cookingOverride:temporary;
+  const names=mealNames(p);
+  const fixedOn=(name:MealName,d:number)=>name==='早餐'?cookingRule(p,name,d,choice).fixedBreakfast:mealPreference(p,name).fixed;
   if(change?.meal!==undefined) {
-    const name=mealNames(p)[change.meal];
+    const name=names[change.meal];
     const replaced=change.dish===undefined?undefined:old?.days[change.day]?.meals[change.meal]?.dishes[change.dish];
-    if((mealPreference(p,name).fixed&&(!replaced||labels(replaced.recipe).slot!=='水果'))||
-      name==='早餐'&&change.dish!==undefined&&change.dish<fixedIds(p).length) throw Error('这个餐次已固定。可先修改生成设置再调整。');
+    if((fixedOn(name,change.day)&&(!replaced||labels(replaced.recipe).slot!=='水果'))||
+      name==='早餐'&&usesNamedBreakfast(p,change.day)&&change.dish!==undefined&&change.dish<fixedIds(p).length) throw Error('这个餐次已固定。可先修改生成设置再调整。');
   }
   if(change && (!old || old.algorithmVersion!==algorithmVersion || old.catalogVersion!==catalogVersion)) throw Error('这份旧版食谱需重新生成后再调整。');
-  const random=seeded(seed), names=mealNames(p), shares=mealShares(p), fruits=fruitGoal(p), fixed=fixedIds(p);
+  const random=seeded(seed), shares=mealShares(p), fruits=fruitGoal(p), namedIds=fixedIds(p);
   const pool=recipeList.filter(r=>allowed(r,p,blocked,pantry));
   const byId=new Map(pool.map(r=>[r.id,r]));
-  const perMeal=names.map(name=>{
-    const pref=mealPreference(p,name);
+  const cold=p.tools.includes('冰箱');
+  const rules=Array.from({length:7},(_,d)=>names.map(name=>cookingRule(p,name,d,choice)));
+  const candidateCache=new Map<string,Record<Slot,Candidate[]>>();
+  const perDay=rules.map(day=>day.map((rule,i)=>{
+    const name=names[i], pref=mealPreference(p,name);
+    const key=name+JSON.stringify(rule);
+    const saved=candidateCache.get(key);
+    if(saved)return saved;
     const likes=[...p.protein,...p.starch,...p.vegetables,...p.fruits,...p.nuts,...p.seasonings,...split(p.preferred),...split(pref.likes)];
-    return (['主食','蛋白质','蔬菜','清汤','加餐','水果'] as Slot[]).reduce((groups,slot)=>{
-      groups[slot]=pool.filter(r=>recipeFitsMeal(r,p,name,slot)).map(r=>({
+    const candidates=(['主食','蛋白质','蔬菜','清汤','加餐','水果','一锅套餐'] as Slot[]).reduce((groups,slot)=>{
+      groups[slot]=pool.filter(r=>recipeFitsMeal(r,p,name,slot,rule)).map(r=>({
         r,weight:1+(pref.cuisines.includes(r.cuisine)?1.1:p.cuisines.includes(r.cuisine)?.35:0)
-          +(namedIngredients(r,likes)?.66:0)+(pref.prep&&p.tools.includes('冰箱')&&r.batch?.24:0)
-          + (r.prep+r.cook<=8?.3:0),
+          +(namedIngredients(r,likes)?.66:0)+(rule.prep&&cold&&r.batch?.24:0)
+          +(r.prep+r.cook<=8?.15:0),
       }));
       return groups;
     },{} as Record<Slot,Candidate[]>);
-  });
+    candidateCache.set(key,candidates);
+    return candidates;
+  }));
   const must=p.requiredDish?byId.get(p.requiredDish):undefined;
   const breakfastIndex=names.indexOf('早餐');
   const fixedMenu=breakfastMenus.some(menu=>menu.id===p.fixedBreakfast);
-  if (fixed.length&&breakfastIndex>=0&&fixed.some(id=>!Object.values(perMeal[breakfastIndex]).flat().some(c=>c.r.id===id))) {
-    throw Error('固定早餐与当前用时、厨具或忌口冲突。请在食谱设置更换固定早餐。');
+  if (namedIds.length&&breakfastIndex>=0&&perDay.some((day,index)=>usesNamedBreakfast(p,index)&&namedIds.some(id=>!Object.values(day[breakfastIndex]).flat().some(c=>c.r.id===id)))) {
+    throw Error('固定早餐与部分日期的用时、厨具或忌口冲突。请在食谱设置更换固定早餐。');
   }
-  if (p.requiredDish&&(!must||!perMeal.some(group=>Object.values(group).flat().some(c=>c.r.id===must.id)))) throw Error('指定菜品与当前餐次或限制冲突。');
-  for (const [i,name] of names.entries()) {
-    const group=perMeal[i];
-    const required:Slot[]=name==='早餐'?['主食','蛋白质']:name==='加餐'?(fruits?['水果']:['加餐']):['主食','蛋白质','蔬菜'];
-    const missing=required.filter(role=>!group[role].length);
-    if (missing.length) throw Error(name+'候选不足：'+missing.join('、')+'。请检查该餐的用时、厨具、忌口或预算单价。');
-  }
+  if (p.requiredDish&&(!must||!perDay.some(day=>day.some(group=>Object.values(group).flat().some(c=>c.r.id===must.id))))) throw Error('指定菜品与当前餐次或限制冲突。');
+  const templateOptions=perDay.map((day,d)=>day.map((group,i)=>{
+    const name=names[i];
+    const fruit=fruits>0&&fruitMeal(p)===name;
+    const options=mealTemplates(name,fruit).filter(shape=>shape.length<=rules[d][i].maxDishes&&shape.every(slot=>group[slot].length));
+    if(!options.length) throw Error('第 '+(d+1)+' 天'+name+'候选不足。请检查用时、菜品数量、厨具、预算单价或过敏忌口设置。');
+    return options;
+  }));
 
   const days:Day[]=[];
   const seen=new Set<string>();
   const produceSeen=new Set<string>();
   const use=new Map<string,number>();
+  const ingredientsUsed=new Map<string,number>();
   const mark=(d:Day)=>d.meals.forEach(m=>m.dishes.forEach(({recipe:r})=>{
     seen.add(m.name+':'+r.id);use.set(r.id,(use.get(r.id)??0)+1);
+    for(const id of recipeMeaning(r).core) ingredientsUsed.set(id,(ingredientsUsed.get(id)??0)+1);
     for(const i of r.ingredients) if(['水果','蔬菜'].includes(food(i.id).category)) produceSeen.add(i.id);
   }));
   const hasMust=(d:Day)=>d.meals.some(m=>m.dishes.some(s=>s.recipe.id===must?.id));
   if (change && old) old.days.forEach((d,i)=>{if(i!==change.day)mark(d);});
-  const fixedSource=change&&old?old.days.find((_,i)=>i!==change.day):undefined;
   const requiredElsewhere=Boolean(change&&old?.days.some((d,i)=>i!==change.day&&hasMust(d)));
-  const templates=(name:MealName,i:number,fixedMeal?:Meal):Slot[][]=>{
-    if(fixedMeal) return [fixedMeal.dishes.map(d=>labels(d.recipe).slot)];
-    const tail:Slot[]=fruits&&fruitMeal(p)===name?['水果']:[];
-    if(name==='早餐') return [['主食','蛋白质',...tail],['主食','蛋白质','加餐',...tail]];
-    if(name==='加餐') return perMeal[i]['加餐'].length&&fruits?[['水果','加餐'],['水果']]:[[...tail,...(fruits?[]:['加餐'] as Slot[])]];
-    if(name==='晚餐') return [['主食','蛋白质','蔬菜'],['主食','蛋白质','清汤']];
-    return [['主食','蛋白质','蔬菜',...tail],['主食','蛋白质','蔬菜','清汤',...tail]];
-  };
   const pick=(candidates:Candidate[])=>{
     const weights=candidates.map(c=>c.weight/(1+(use.get(c.r.id)??0)*(p.waste?.12:.27)));
     let value=random()*weights.reduce((a,b)=>a+b,0);
@@ -242,37 +262,50 @@ export function regenerate(p:Profile, records:Weight[], pantry:Pantry, blocked:s
   for (let d=0;d<7;d++) {
     if(change&&old&&d!==change.day) {days.push(old.days[d]);continue;}
     const previous=old?.days[d];
+    const fixed=usesNamedBreakfast(p,d)?namedIds:[];
+    const perMeal=perDay[d], dayRules=rules[d];
+    const requestRule=change?.meal===undefined?undefined:dayRules[change.meal];
+    const priorStats=previous&&requestRule&&change?.meal!==undefined?
+      mealCooking(previous.meals[change.meal].dishes.map(s=>s.recipe),requestRule,cold):undefined;
     const reasons=new Map<string,number>();
     const requireNow=must&&!requiredElsewhere&&!days.some(hasMust)&&(change||d===0);
     let winner:Day|undefined, best=Infinity,qualified=0;
     for(let attempt=0;attempt<2400&&qualified<12;attempt++) {
-      const active:{name:MealName;rows:Selected[]}[]=[];
+      const active:{name:MealName;rows:Selected[];cooking:CookingStats}[]=[];
       const usedToday=new Set<string>();
       const mustSlot= requireNow ? names.map((name,i)=>({i,name})).filter(({i,name})=>
-        (!change||change.meal===undefined||change.meal===i)&&(!mealPreference(p,name).fixed||!fixedSource)&&
+        (!change||change.meal===undefined||change.meal===i)&&(!fixedOn(name,d)||!change)&&
         perMeal[i][labels(must).slot].some(c=>c.r.id===must.id)) : [];
       const forcedMeal=mustSlot.length?mustSlot[Math.floor(random()*mustSlot.length)].i:-1;
       for(const [i,name] of names.entries()) {
-        const prefs=mealPreference(p,name);
+        const rule=dayRules[i];
+        const fixedHere=fixedOn(name,d);
         const former=previous?.meals[i];
         const targetChange=Boolean(change&&(change.meal===undefined||change.meal===i));
-        const fixedMeal=prefs.fixed?(fixedSource??days[0])?.meals[i]:undefined;
+        const fixedMeal=fixedHere?(change?old?.days.find((_,k)=>k!==d&&fixedOn(name,k)):
+          days.find((_,k)=>fixedOn(name,k)))?.meals[i]:undefined;
         const locksHere=locks.filter(l=>l.day===d&&l.meal===i);
-        const slotsByTemplate=templates(name,i,fixedMeal);
-        let shapes=slotsByTemplate.filter(slots=>slots.every(role=>perMeal[i][role].length));
-        if (name==='早餐'&&fixedMenu) shapes=shapes.filter(slots=>slots.includes('加餐')===(fixed.length===3));
+        let shapes=fixedMeal?[fixedMeal.dishes.map(dish=>labels(dish.recipe).slot)]:templateOptions[d][i];
+        if(name==='早餐'&&fixed.length) shapes=shapes.filter(slots=>slots[0]==='主食');
+        if(targetChange&&change?.meal===i&&priorStats) {
+          if(change.intent==='减少一道菜') shapes=shapes.filter(slots=>slots.length===priorStats.count-1);
+          if(change.intent==='改成一锅料理') shapes=shapes.filter(slots=>slots[0]==='一锅套餐'&&slots.every(s=>s!=='清汤'));
+        }
+        if (name==='早餐'&&fixed.length&&fixedMenu) shapes=shapes.filter(slots=>slots.includes('加餐')===(fixed.length===3));
         if(former&&change&&(!targetChange||change.dish!==undefined)||former&&locksHere.length) {
           shapes=[former!.dishes.map(s=>labels(s.recipe).slot)];
         }
         if(locksHere.length&&!former) shapes=shapes.filter(slots=>locksHere.every(l=>slots[l.dish]===labels(l.serving.recipe).slot));
         if (i===forcedMeal) shapes=shapes.filter(slots=>slots.includes(labels(must!).slot));
-        const shape=shapes[Math.floor(random()*shapes.length)];
+        const integrated=shapes.filter(x=>x[0]==='一锅套餐');
+        const preferredShapes=(rule.onePot&&integrated.length&&random()<.70)?integrated:shapes;
+        const shape=preferredShapes[Math.floor(random()*preferredShapes.length)];
         if(!shape) break;
         let curated:string[]|undefined;
-        if(name==='早餐'&&(!change||change.dish===undefined)&&!fixedMeal&&!locksHere.length) {
+        if(name==='早餐'&&shape[0]==='主食'&&(!change||change.dish===undefined)&&!fixedMeal&&!locksHere.length) {
           const eligible=breakfastMenus.filter(menu=>menu.recipes.every((id,j)=>perMeal[i][shape[j]]?.some(c=>c.r.id===id))
             && shape.includes('加餐')===(menu.recipes.length===3) && fixed.every((id,j)=>menu.recipes[j]===id)
-            && menu.recipes.every(id=>!seen.has(name+':'+id)||!repeatIsLimited(p,name,byId.get(id)!)||fixed.includes(id)||prefs.fixed)
+            && menu.recipes.every(id=>!seen.has(name+':'+id)||!repeatIsLimited(p,name,byId.get(id)!)||fixed.includes(id)||fixedHere)
             && (i!==forcedMeal||!must||labels(must).slot==='水果'||menu.recipes.includes(must.id)));
           if (eligible.length&&random()<.65) curated=eligible[Math.floor(random()*eligible.length)].recipes;
         }
@@ -287,19 +320,24 @@ export function regenerate(p:Profile, records:Weight[], pantry:Pantry, blocked:s
           const valid=perMeal[i][slot].filter(c=>(!force||force===c.r.id)
             && (!targetChange||change?.dish!==j||c.r.id!==prior?.recipe.id)
             && (!change||change.dish!==undefined||prior?.recipe.id!==c.r.id||random()<.75)
-            && (!repeatIsLimited(p,name,c.r)||c.r.id===force&&(prefs.fixed||fixed.includes(force))||!seen.has(name+':'+c.r.id))
+            && (!repeatIsLimited(p,name,c.r)||c.r.id===force&&(fixedHere||fixed.includes(force))||!seen.has(name+':'+c.r.id))
             && !usedToday.has(c.r.id)
-            && (rows.reduce((a,b)=>a+b.candidate.r.prep,0)+c.r.prep<=+prefs.minutes));
+            && (change?.intent!=='更换同类食材'||!targetChange||change.dish!==j||!!prior&&sameFood(c.r,prior.recipe)));
           const c=retained?perMeal[i][slot].find(c=>c.r.id===retained.recipe.id):pick(valid);
           if(!c) break;
           rows.push(select(c,retained));
           usedToday.add(c.r.id);
         }
-        if(rows.length!==shape.length || !pairingOk(rows.map(r=>r.candidate.r))) break;
-        if(mealMinutes({name,dishes:rows.map(r=>r.value)})>+prefs.minutes) {
-          reasons.set(name+'用时',(reasons.get(name+'用时')??0)+1);break;
-        }
-        active.push({name,rows});
+        if(rows.length!==shape.length) break;
+        const recipes=rows.map(r=>r.candidate.r);
+        const duplicate=mealConflict(recipes);
+        if(duplicate) {reasons.set(name+duplicate,(reasons.get(name+duplicate)??0)+1);break;}
+        if(!pairingOk(recipes))break;
+        const cooking=mealCooking(recipes,rule,cold);
+        const issue=cookingConflict(cooking,rule);
+        if(issue) {reasons.set(name+issue,(reasons.get(name+issue)??0)+1);break;}
+        if(change?.meal===i&&priorStats&&!meetsIntent(change.intent,cooking,priorStats))break;
+        active.push({name,rows,cooking});
       }
       if(active.length!==names.length || requireNow&&!usedToday.has(must.id)) continue;
       const all=active.flatMap(m=>m.rows);
@@ -323,7 +361,7 @@ export function regenerate(p:Profile, records:Weight[], pantry:Pantry, blocked:s
         for(const [i,meal] of active.entries()) {
           const desired=target*shares[i];
           const adjust=meal.rows.filter(row=>!row.retained&&labels(row.candidate.r).slot!=='水果'&&
-            (labels(row.candidate.r).slot==='主食'||meal.name==='加餐'||round>0&&['蛋白质','加餐'].includes(labels(row.candidate.r).slot)));
+            (['主食','一锅套餐'].includes(labels(row.candidate.r).slot)||meal.name==='加餐'||round>0&&['蛋白质','加餐'].includes(labels(row.candidate.r).slot)));
           const energy=adjust.reduce((n,row)=>n+row.value.nutrients.kcal,0);
           const delta=desired-totalCalories(meal.rows);
           if(energy&&Math.abs(delta)>4) for(const row of adjust) resize(row,factor(row)*(1+delta/energy));
@@ -343,21 +381,21 @@ export function regenerate(p:Profile, records:Weight[], pantry:Pantry, blocked:s
       let spread=0, convenience=0, clashes=0;
       for(const [i,meal] of active.entries()) {
         spread+=Math.abs(totalCalories(meal.rows)/n.kcal-shares[i]);
-        convenience+=mealMinutes(day.meals[i])/(i===0?55:210);
+        convenience+=cookingFit(meal.cooking,dayRules[i]);
         const cuisines=new Set(meal.rows.filter(r=>labels(r.candidate.r).slot==='蛋白质'||labels(r.candidate.r).slot==='蔬菜').map(r=>r.candidate.r.cuisine));
         const strong=meal.rows.filter(r=>!['清淡',''].includes(r.candidate.r.flavor)).length;
         clashes+=(cuisines.size>1?.025:0)+(strong>1?.04:0);
-        const mains=meal.rows.flatMap(r=>r.candidate.r.ingredients.filter(i=>food(i.id).category==='蔬菜').map(i=>i.id));
-        clashes+=(mains.length-new Set(mains).size)*.018;
+        clashes+=overlapPenalty(meal.rows.map(r=>r.candidate.r));
       }
       const dayFoods=new Set(all.flatMap(s=>s.value.ingredients.map(i=>i.id)));
       const proteinIds=active.flatMap(m=>m.rows.filter(r=>labels(r.candidate.r).slot==='蛋白质').map(r=>r.value.ingredients[0].id));
       const duplicateMain=proteinIds.length-new Set(proteinIds).size;
       const freshChoices=[...dayFoods].filter(id=>!produceSeen.has(id)&&['水果','蔬菜'].includes(food(id).category)).length;
       const repeat=all.reduce((a,s)=>a+Math.min(use.get(s.candidate.r.id)??0,3)*.008,0);
+      const reuse=p.waste?all.reduce((n,s)=>n+recipeMeaning(s.candidate.r).core.filter(id=>(ingredientsUsed.get(id)??0)>0&&(ingredientsUsed.get(id)??0)<4).length,0)*.007:0;
       const score=Math.abs(n.kcal-t.kcal)/t.kcal+Math.abs(n.fat-t.fat)/t.fat*.08+nutrientPenalty(n)+
-        spread*.55+convenience*.15+clashes+repeat+duplicateMain*.034+(p.budget?cost/(+p.budget)*.35:0)-
-        all.reduce((a,s)=>a+s.candidate.weight,0)*.008-Math.min(dayFoods.size,20)*.002-freshChoices*(produceSeen.size<10?.018:.004);
+        spread*.55+convenience*.42+clashes+repeat+duplicateMain*.034+(p.budget?cost/(+p.budget)*.35:0)-
+        all.reduce((a,s)=>a+s.candidate.weight,0)*.008-Math.min(dayFoods.size,20)*.002-freshChoices*(produceSeen.size<10?.018:.004)-reuse;
       qualified++;
       if(score<best) {best=score;winner=day;}
     }
@@ -367,14 +405,14 @@ export function regenerate(p:Profile, records:Weight[], pantry:Pantry, blocked:s
       const detail=conflicts.length?'主要冲突：'+conflicts.join('、')+'。':'当前餐次没有可用搭配。';
       const suggestion=time?'可单独调高'+time.slice(0,-2)+'制作时间，或选更快的固定搭配。':
         change?'可试试换整餐，或解除相应菜品锁定。':'可检查各餐的固定搭配、用时和重复选项。';
-      throw Error('第 '+(d+1)+' 天未找到符合条件的组合。'+detail+suggestion);
+      throw Error('第 '+(d+1)+' 天未找到符合条件的组合。'+(change?.intent?'「'+change.intent+'」无法应用，原方案已保留。':'')+detail+suggestion);
     }
     days.push(winner);mark(winner);
   }
   const start=old&&change?old.start:monday();
   return {id:old&&change?old.id:crypto.randomUUID(),name:old&&change?old.name:'本周食谱',created:new Date().toISOString(),start,seed,
     targets:t,days,profile:structuredClone(p),weight:[...records].sort((a,b)=>b.date.localeCompare(a.date))[0]?.kg??Number(p.weight),
-    purchases:checkStructure(days,p,t,blocked,pantry),prep:prepPlan(days,p,start),algorithmVersion,catalogVersion,favorite:old?.favorite??false};
+    purchases:checkStructure(days,p,t,blocked,pantry,choice),prep:prepPlan(days,p,start,choice),algorithmVersion,catalogVersion,favorite:old?.favorite??false,...(choice?{cookingOverride:choice}:{})};
 }
 
 export function revise(plan:Plan, p:Profile, records:Weight[], pantry:Pantry, blocked:string[], day:number, meal:number,dish:number, grams:number[]) {
@@ -390,11 +428,11 @@ export function revise(plan:Plan, p:Profile, records:Weight[], pantry:Pantry, bl
     return {...i,grams:quantity};
   });
   days[day].meals[meal].dishes[dish]=serving(current,1,quantities);
-  return {...plan,days,targets:t,weight:[...records].sort((a,b)=>b.date.localeCompare(a.date))[0]?.kg??Number(p.weight),profile:structuredClone(p),purchases:checkStructure(days,p,t,blocked,pantry),prep:prepPlan(days,p,plan.start)};
+  return {...plan,days,targets:t,weight:[...records].sort((a,b)=>b.date.localeCompare(a.date))[0]?.kg??Number(p.weight),profile:structuredClone(p),purchases:checkStructure(days,p,t,blocked,pantry,plan.cookingOverride),prep:prepPlan(days,p,plan.start,plan.cookingOverride)};
 }
 
 export function verifyAgainst(plan:Plan,p:Profile,records:Weight[],pantry:Pantry,blocked:string[]) {
   verifyInput(p);
   if (plan.catalogVersion!==catalogVersion || plan.algorithmVersion!==algorithmVersion) throw Error('历史方案采用其他版本，请重新生成。');
-  checkStructure(plan.days,p,nutrition(p,records),blocked,pantry);
+  checkStructure(plan.days,p,nutrition(p,records),blocked,pantry,plan.cookingOverride);
 }

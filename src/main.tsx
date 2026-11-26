@@ -1,3 +1,4 @@
+import type {CookingProfile,CookingSelection} from './cooking-profile';
 import {StrictMode,useEffect,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Dashboard} from './Dashboard';
@@ -7,7 +8,7 @@ import {Library} from './Library';
 import {ShoppingPage,purchaseText} from './ShoppingPage';
 import {dateKey,type Profile,type Weight} from './profile';
 import {nutrition} from './nutrition';
-import {algorithmVersion,monday,regenerate,revise,verifyAgainst,type Lock,type Plan} from './planner';
+import {algorithmVersion,monday,regenerate,revise,verifyAgainst,type Change,type Lock,type Plan} from './planner';
 import {prepPlan,shopping} from './shopping';
 import {downloadFile,fresh,loadData,parseBackup,writeData,type Data} from './store';
 import {Empty,planText,SectionTitle,shareText,todayIndex} from './ui';
@@ -26,6 +27,7 @@ function App() {
   const [busy,setBusy]=useState(false),[offline,setOffline]=useState(!navigator.onLine),[cached,setCached]=useState(false);
   const [update,setUpdate]=useState<ServiceWorker|null>(null),[canInstall,setInstall]=useState<InstallEvent|null>(null);
   const [confirmDelete,setConfirmDelete]=useState(false);
+  const [temporary,setTemporary]=useState<CookingSelection|undefined>();
   const saving=useRef(false),working=useRef(false);
   useEffect(()=>{
     let active=true;
@@ -105,16 +107,16 @@ function App() {
     } catch(e) {notify(errorText(e),true);return false;}
     finally {saving.current=false;}
   }
-  async function generate(change?:{day:number;meal?:number;dish?:number}) {
+  async function generate(change?:Change) {
     if (!profile) {go('编辑档案');return;}
     if (working.current) return;
     working.current=true;setBusy(true);setStatus(null);
     try {
       await new Promise(r=>setTimeout(r,25));
       const key=seed.trim()&&!change?seed.trim():crypto.randomUUID().slice(0,12);
-      const next=regenerate(profile,weights,pantry,data!.blocked,key,change?plan??undefined:undefined,stale?[]:data!.locks,change);
+      const next=regenerate(profile,weights,pantry,data!.blocked,key,change?plan??undefined:undefined,stale?[]:data!.locks,change,temporary);
       if (!await mutate({plan:next,pantry,locks:stale?[]:data!.locks})) return;
-      if (!change) {go('食谱');setDay(todayIndex);}
+      if (!change) {go('食谱');setDay(todayIndex);setTemporary(undefined);}
       notify(change?'调整完成，已同步采购和备餐。':'七天食谱已生成。');
     } catch(e) {notify(errorText(e),true);}
     finally {working.current=false;setBusy(false);}
@@ -159,7 +161,7 @@ function App() {
     if (!confirm('此方案通过当前限制校验，重新使用会覆盖当前食谱并沿用原来的份量。继续？')) return;
     const renewed={...structuredClone(row),id:crypto.randomUUID(),start:monday(),profile:structuredClone(profile),targets:targets!,weight:latestWeight};
     renewed.purchases=shopping(renewed.days,profile,pantry);
-    renewed.prep=prepPlan(renewed.days,profile,renewed.start);
+    renewed.prep=prepPlan(renewed.days,profile,renewed.start,renewed.cookingOverride);
     if(await mutate({plan:renewed,locks:[],pantry}))go('食谱');
   }
   function editHistory(p:Plan) {
@@ -179,8 +181,9 @@ function App() {
   }
   const planProps={
     profile,busy,stale,day,setDay,locks:data.locks,favorites:data.favorites,generate:()=>void generate(),
-    editProfile:()=>go('编辑档案'),openHistory:()=>go('历史方案'),change:(p:{day:number;meal?:number;dish?:number})=>void generate(p),lock,
-    favorite:(id:string)=>toggle('favorites',id),block:(id:string)=>toggle('blocked',id),revise:adjust,save:savePlan,seed,setSeed,rules:rule,saveMealSettings:(mealPreferences:Profile['mealPreferences'])=>profile?mutate({profile:{...profile,mealPreferences}},'分餐偏好已保存。重新生成后生效。'):Promise.resolve(false),
+    editProfile:()=>go('编辑档案'),openHistory:()=>go('历史方案'),change:(p:Change)=>void generate(p),lock,
+    favorite:(id:string)=>toggle('favorites',id),block:(id:string)=>toggle('blocked',id),revise:adjust,save:savePlan,seed,setSeed,rules:rule,temporary,setTemporary,
+    saveCooking:(cooking:CookingProfile)=>profile?mutate({profile:{...profile,cooking}},'烹饪设置已保存。重新生成后生效。'):Promise.resolve(false),saveMealSettings:(mealPreferences:Profile['mealPreferences'])=>profile?mutate({profile:{...profile,mealPreferences}},'分餐偏好已保存。重新生成后生效。'):Promise.resolve(false),
     share:(p:Plan,share:boolean)=>void send(planText(p),share),exportText:(p:Plan)=>downloadFile('天天减-七天食谱.txt',planText(p),'text/plain;charset=utf-8'),
   };
 

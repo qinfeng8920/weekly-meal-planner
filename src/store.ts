@@ -13,9 +13,18 @@ const num = z.number().min(0).max(1e8);
 const date = z.iso.date();
 const meal = z.strictObject({minutes:z.enum(['5','10','15','20','30','40','60','120']),cuisines:names,likes:string,dislikes:string,
   repeats:z.boolean(),fixed:z.boolean(),prep:z.boolean()});
+const mode=z.enum(['极简','简单','家常','精致']);
+const cookingMode=z.enum(['极简','简单','家常','精致','混合']);
+const cookOverride=z.strictObject({mode:mode.optional(),total:z.int().min(1).max(180).optional(),
+  active:z.int().min(1).max(180).optional(),maxDishes:z.int().min(1).max(6).optional(),
+  prep:z.boolean().optional(),onePot:z.boolean().optional(),fixedBreakfast:z.boolean().optional()});
+const mealCooking=z.strictObject({早餐:cookOverride.optional(),午餐:cookOverride.optional(),晚餐:cookOverride.optional()});
+const cooking=z.strictObject({mode:cookingMode,weekday:mode,weekend:mode,meals:mealCooking.optional(),
+  days:z.record(z.string().regex(/^[0-6]$/),mealCooking).optional()});
 const profile = z.strictObject({
   ...Object.fromEntries(Object.entries(initialProfile).map(([key,value])=>
     [key,typeof value==='boolean'?z.boolean():Array.isArray(value)?names:string])),
+  cooking:cooking.optional(),
   mealPreferences:z.strictObject({早餐:meal.optional(),午餐:meal.optional(),晚餐:meal.optional()}).optional(),
 });
 const ingredient = z.strictObject({id:z.string().regex(/^[a-z][a-z0-9-]{0,49}$/),grams:num.positive().max(2000)});
@@ -30,7 +39,7 @@ const plan = z.strictObject({id:string,name:string,created:z.iso.datetime(),star
   days:z.array(z.strictObject({meals:z.array(z.strictObject({name:string,dishes:z.array(serving).min(1).max(6)})).min(2).max(4)})).length(7),
   targets:z.strictObject({...macros,bmi:num,bmr:num,tdee:num,water:num.nullable(),message:string}),
   purchases:z.array(purchase).max(180),prep:z.strictObject({mode:string,notice:names,days:z.array(z.strictObject({date,task:string,minutes:num,meals:names})).length(7)}),
-  algorithmVersion:string,catalogVersion:string,favorite:z.boolean()});
+  algorithmVersion:string,catalogVersion:string,favorite:z.boolean(),cookingOverride:cookingMode.optional()});
 const metrics = z.record(z.string().regex(/^[a-z][a-z0-9-]{0,49}$/),
   z.strictObject({stock:num.optional(),bought:num.optional(),price:num.optional(),pack:num.positive().optional(),yieldPercent:num.min(1).max(100).optional()}));
 const schema = z.strictObject({version:z.literal(1),profile:profile.nullable(),

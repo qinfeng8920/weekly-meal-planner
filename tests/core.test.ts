@@ -60,7 +60,7 @@ test('固定早餐和指定菜，不能满足时明确失败',()=>{
   const p=make({fixedBreakfast:'grain-oats',requiredDish:'steam-chicken'});
   ok(p.days.every(d=>d.meals[0].dishes[0].recipe.id==='quick-oats'));
   ok(all(p).some(s=>s.recipe.id==='steam-chicken'));
-  throws(()=>make({tools:[],minutes:'10'}),/不足|未找到/);
+  throws(()=>make({tools:[],minutes:'10',allergens:['奶','小麦','鱼','蛋','大豆','树坚果']}),/不足|未找到/);
   throws(()=>make({avoid:'不存在的过敏食材'}),/无法核对/);
   throws(()=>make({budget:'1'}),/预算/);
 });
