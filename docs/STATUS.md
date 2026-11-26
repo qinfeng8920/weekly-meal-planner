@@ -34,6 +34,6 @@
 | 配餐 | 先筛食材再配餐。沿用现有约束、增加四道一锅餐、新增采购食材确认 | `src/planner.ts`、`src/cooking-recipes.ts` |
 | 备餐与库存 | 按份标签、任务进度、实际领用、跨批跨周费用、并行耗时 | `src/logistics.ts`、`src/execution.ts` |
 | 手机界面与性能 | 紧凑首页、独立设置、行内改价、分类和过滤，生成可取消 | `src/PoolPage.tsx`、`src/ShoppingPage.tsx`、`src/planner.worker.ts` |
-| 验收和部署 | 基线 V1.3 通过 30 项模块与 7 项浏览器测试。V2 数据见独立记录 | [测试](TESTING.md) · [发布](DEPLOYMENT.md) |
+| 验收和部署 | V2 通过 35 项模块与 9 项浏览器测试，Pages 已发布并完成正式站点离线验证 | [测试](TESTING.md) · [发布](DEPLOYMENT.md) |
 
 食材分类数为可调上限。偏好目标受厨具和营养约束影响。排程按一个操作者、每类加热设备一台估算。包装剩余为预算预测，实际库存按录入、已购和已取用记录计算。
