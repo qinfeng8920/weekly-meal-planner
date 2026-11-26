@@ -10,6 +10,7 @@ import {mealPreference,type MealName,type Profile} from './profile';
 import {breakfastMenus,fixedBreakfasts,labels,menuName} from './meal-catalog';
 import {nutritionReview} from './diet-check';
 import {MealSettings} from './MealSettings';
+import {PoolOverview} from './PoolPage';
 import {dayNames,decimal,Empty,NutritionRow,RecipeInfo,SectionTitle} from './ui';
 
 type Props = {plan:Plan|null;profile:Profile|null;busy:boolean;stale:boolean;day:number;setDay:(n:number)=>void;
@@ -18,7 +19,7 @@ type Props = {plan:Plan|null;profile:Profile|null;busy:boolean;stale:boolean;day
   revise:(day:number,meal:number,dish:number,grams:number[])=>Promise<boolean>;
   save:()=>void; share:(plan:Plan,share:boolean)=>void; exportText:(plan:Plan)=>void;
   temporary?:CookingSelection;setTemporary:(value?:CookingSelection)=>void;saveCooking:(value:CookingProfile)=>Promise<boolean>;
-  rules:(fixed:string,required:string)=>void; saveMealSettings:(p:Profile['mealPreferences'])=>Promise<boolean>; seed:string; setSeed:(s:string)=>void; readonly?:boolean};
+  openPool?:()=>void;keepPool?:()=>void;rules:(fixed:string,required:string)=>void; saveMealSettings:(p:Profile['mealPreferences'])=>Promise<boolean>; seed:string; setSeed:(s:string)=>void; readonly?:boolean};
 export function PlanPage(props:Props) {
   const {plan,profile,day,setDay,busy,stale,locks,favorites,generate,editProfile,openHistory,change,lock,favorite,block,revise,save,share,exportText,rules,temporary,setTemporary,saveCooking,saveMealSettings,seed,setSeed,readonly}=props;
   const [open,setOpen]=useState('');
@@ -32,7 +33,7 @@ export function PlanPage(props:Props) {
   return <>
     <div className="page-title"><div><h1>{readonly?plan?.name:'每周食谱'}</h1>
       <p>{plan?`${plan.start} 起 · 七天 · 单人营养估算`:'按天查看搭配、食材用量和做法。'}</p></div>
-      {!readonly&&<div className="actions"><button onClick={openHistory}>历史方案</button><button className="primary" disabled={busy}
+      {!readonly&&<div className="actions"><button onClick={openHistory}>历史方案</button>{profile&&props.openPool&&<button onClick={props.openPool}>食材池与生成</button>}<button className="primary" disabled={busy}
         onClick={profile?generate:editProfile}>{busy?'正在校验…':profile?(plan?'重生成整周':'生成本周食谱'):'填写档案'}</button></div>}</div>
     {profile&&!readonly&&<details className="card settings" open={undefined}><summary>生成设置</summary><div className="fields">
       <label className="field">本次生成模式<select value={temporary??''} onChange={e=>setTemporary(e.target.value as CookingSelection||undefined)}>
@@ -51,11 +52,15 @@ export function PlanPage(props:Props) {
     {plan&&current&&n&&<>
       {legacy&&<p className="hint">这是用旧版算法生成的食谱。原方案可继续查看，重新生成后将采用新餐次规则。</p>}
       {stale&&!legacy&&<p className="hint" role="status">个人档案、体重或屏蔽设置已更新。当前展示保存时的计划。若要调整，请先生成新方案。</p>}
+      {plan.pool&&<PoolOverview pool={plan.pool}/> }
+      {plan.pool&&!readonly&&props.keepPool&&<button disabled={busy} onClick={props.keepPool}>保留食材重新生成</button>}
       <div className="day-tabs" aria-label="选择星期">{dayNames.map((name,i)=><button aria-pressed={day===i} key={name}
         onClick={()=>{setDay(i);setOpen('');setGrams(null);}}>{name}</button>)}</div>
       <section className="card"><SectionTitle title={dayNames[day]+'营养'}>{!readonlyOrStale&&<button className="small" disabled={busy} onClick={()=>change({day})}>换一天</button>}</SectionTitle>
         <NutritionRow value={n}/>
-        <NutrientReview days={[current]}/>
+        {nutritionReview([current]).some(r=>['低于','高于','数据不全'].some(v=>r.status.includes(v)))&&
+          <p className="hint">部分微量营养指标需关注，展开查看。</p>}
+        <details><summary>每日微量营养与覆盖</summary><NutrientReview days={[current]}/></details>
         <details><summary>全周日均营养检查</summary><NutrientReview days={plan.days}/></details>
       </section>
       {current.meals.map((meal,mi)=>{
@@ -79,7 +84,7 @@ export function PlanPage(props:Props) {
           const cannotSwap=busy||locked||fixedMeal&&labels(s.recipe).slot!=='水果'||meal.name==='早餐'&&usesNamedBreakfast(plan.profile,day)&&di<(selectedBreakfast?.recipes.length??1);
           return <div className="dish-wrap" key={key}><div className="dish">
             <div><button className="dish-title" aria-expanded={open===key} onClick={()=>{setOpen(open===key?'':key);setGrams(null);}}>{s.recipe.name}</button>
-              <div className="meta">{legacy?s.recipe.group:labels(s.recipe).slot} · {s.recipe.prep+s.recipe.cook} 分钟{locked&&!readonly?' · 已锁定':''}</div></div>
+              <div className="meta">{legacy?s.recipe.group:labels(s.recipe).slot} · {decimal(s.ingredients.reduce((total,i)=>total+i.grams,0))} 克 · {Math.round(s.nutrients.kcal)} 千卡 · {s.recipe.prep+s.recipe.cook} 分钟{locked&&!readonly?' · 已锁定':''}</div></div>
             {!readonlyOrStale&&<button className="small" disabled={cannotSwap} onClick={()=>change({day,meal:mi,dish:di})}>换{labels(s.recipe).slot}</button>}</div>
             {open===key&&<><RecipeInfo recipe={s.recipe} value={s}/><DishCooking recipe={s.recipe}/>
               {!readonly&&<div className="actions">

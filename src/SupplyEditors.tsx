@@ -2,6 +2,8 @@ import {useState} from 'react';
 import {foods,foodState} from './catalog';
 import {addDays,patternOptions,prepPeriods,purchasePeriods,splitWeek,type SupplySettings} from './batches';
 import {priceDefaults,priceFor,priceUnits,type PriceBook,type PriceInput,type PriceUnit} from './prices';
+import {consumedBySource,homeKey,type Execution,type StockInfo} from './execution';
+import {requiresCooling} from './food-storage';
 import type {Pantry} from './shopping';
 import {decimal,SectionTitle} from './ui';
 
@@ -37,7 +39,7 @@ export function PriceManager({book,pantry,save,resetAll,exportPrices,importPrice
     {limit<found.length&&<button onClick={()=>setLimit(limit+24)}>显示更多食材</button>}
   </section>;
 }
-function PriceEditor({id,current,save}:{id:string;current:ReturnType<typeof priceFor>;save:(id:string,value?:PriceInput)=>Promise<boolean>}) {
+export function PriceEditor({id,current,save}:{id:string;current:ReturnType<typeof priceFor>;save:(id:string,value?:PriceInput)=>Promise<boolean>}) {
   const reference=priceDefaults[id];
   const [amount,setAmount]=useState(String(current?.amount??'')),[unit,setUnit]=useState<PriceUnit>(current?.unit??'公斤');
   const [basis,setBasis]=useState<PriceInput['basis']>(current?.basis??'净重');
@@ -81,23 +83,37 @@ function PriceEditor({id,current,save}:{id:string;current:ReturnType<typeof pric
   </section>;
 }
 
-export function InventoryManager({pantry,inventory,save}:{pantry:Pantry;inventory:Record<string,{confirmed:number;projected:number}>;save:(id:string,n:number)=>Promise<boolean>}) {
+export function InventoryManager({pantry,inventory,execution,save}:{pantry:Pantry;inventory:Record<string,{confirmed:number;projected:number;usable?:number;taken?:number}>;execution?:Execution;save:(id:string,n:number,info:StockInfo)=>Promise<boolean>}) {
   const [category,setCategory]=useState('全部'),[query,setQuery]=useState(''),[limit,setLimit]=useState(24);
   const found=foods.filter(matches(category,query)).sort((a,b)=>Number(Boolean(pantry[b.id]?.stock||inventory[b.id]))-Number(Boolean(pantry[a.id]?.stock||inventory[a.id])));
+  const used=consumedBySource(execution);
   return <section className="card"><SectionTitle title="家中库存"/>
-    <p className="hint">实有库存按净重录入。已确认购入与计划结转单列，自动预算不会把预计购买写进实际库存。</p>
+    <p className="hint">按可食净重登记。请核对实际保存方式和可用日期。预计结余独立显示。</p>
     <FoodSearch category={category} query={query} onCategory={c=>{setCategory(c);setLimit(24);}} onQuery={q=>{setQuery(q);setLimit(24);}}/>
-    {found.slice(0,limit).map(f=><details key={f.id}><summary>{f.name} · {decimal(pantry[f.id]?.stock??0)} 克</summary>
-      <p className="meta">{foodState[f.state]} · 本周已确认购入净重 {decimal(inventory[f.id]?.confirmed??0)} 克 · 预计周末结余 {decimal(inventory[f.id]?.projected??0)} 克</p>
-      <StockInput key={pantry[f.id]?.stock??0} value={pantry[f.id]?.stock??0} save={amount=>save(f.id,amount)}/></details>)}
+    {found.slice(0,limit).map(f=>{
+      const row=inventory[f.id], info=execution?.stock?.[f.id];
+      const net=Math.max(0,(pantry[f.id]?.stock??0)-(used.get(homeKey(f.id))??0));
+      return <details key={f.id}><summary>{f.name} · {decimal(net)} 克</summary>
+        <p className="meta">{foodState[f.state]} · 已购净重 {decimal(row?.confirmed??0)} 克 · 已取用 {decimal(row?.taken??0)} 克 · 预计周末结余 {decimal(row?.projected??0)} 克</p>
+        {net>0&&!info&&<p className="hint">旧库存缺少保存日期。确认后可用于抵扣。</p>}
+        <StockInput key={JSON.stringify([net,info])} value={net} info={info} cold={requiresCooling(f.id)} save={(amount,value)=>save(f.id,amount,value)}/></details>;
+    })}
     {limit<found.length&&<button onClick={()=>setLimit(limit+24)}>显示更多食材</button>}
   </section>;
 }
-function StockInput({value,save}:{value:number;save:(n:number)=>Promise<boolean>}) {
+export function StorageFields({storage,expires,onStorage,onExpires}:{storage:string;expires:string;onStorage:(v:StockInfo['storage'])=>void;onExpires:(v:string)=>void}) {
+  return <><label className="field">保存方式<select value={storage} onChange={e=>onStorage(e.target.value as StockInfo['storage'])}>
+    <option>干燥常温</option><option>冷藏</option><option>冷冻</option></select></label>
+    <label className="field">可用至<input type="date" value={expires} onChange={e=>onExpires(e.target.value)}/></label></>;
+}
+function StockInput({value,info,cold,save}:{value:number;info?:StockInfo;cold:boolean;save:(n:number,info:StockInfo)=>Promise<boolean>}) {
   const [amount,setAmount]=useState(String(value)),[error,setError]=useState('');
+  const [storage,setStorage]=useState<StockInfo['storage']>(info?.storage??(cold?'冷藏':'干燥常温'));
+  const [expires,setExpires]=useState(info?.expires??'');
   return <div className="fields"><label className="field">实有库存净重（克）<input type="number" min="0" step="any" value={amount} onChange={e=>setAmount(e.target.value)}/></label>
-    <button onClick={()=>{if(!amount.trim()||!Number.isFinite(+amount)||+amount<0||+amount>1e7)setError('请填写有效库存。');
-      else void save(+amount).then(success=>{if(success)setError('');});}}>保存库存</button>{error&&<p role="alert" className="error">{error}</p>}</div>;
+    <StorageFields storage={storage} expires={expires} onStorage={setStorage} onExpires={setExpires}/>
+    <button onClick={()=>{if(!amount.trim()||!Number.isFinite(+amount)||+amount<0||+amount>1e7||+amount>0&&(!expires||cold&&storage==='干燥常温'))setError('请填写有效库存、可用日期和适合食材的保存方式。');
+      else void save(+amount,{storage,expires:expires||'0001-01-01'}).then(success=>{if(success)setError('');});}}>保存库存</button>{error&&<p role="alert" className="error">{error}</p>}</div>;
 }
 export function SupplyEditor({settings,start,people,budget,save}:{settings:SupplySettings;start?:string;people:string;budget:string;
   save:(settings:SupplySettings,people:string,budget:string)=>Promise<boolean>}) {

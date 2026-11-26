@@ -242,3 +242,66 @@ test('分批备餐、改价持久化、费用联动和历史价格快照',async(
   await page.getByRole('button',{name:'返回历史价格快照',exact:true}).click();
   await expect(total()).toHaveText(old);
 });
+
+test('新生成设置、补充确认、分装进度和三种手机宽度的浅深色布局',async({page})=>{
+  await setup(page);
+  await page.getByRole('button',{name:'设置并生成'}).click();
+  await page.getByLabel('采购模式').selectOption('极简采购');
+  await page.getByLabel('选择方式').selectOption('手动指定');
+  page.once('dialog',dialog=>{
+    expect(dialog.message()).toContain('确认后才保存方案');
+    void dialog.dismiss();
+  });
+  await page.getByRole('button',{name:'按食材池生成'}).click();
+  await expect(page.getByText('已保留原方案，可继续调整食材池。')).toBeVisible();
+  await page.getByLabel('选择方式').selectOption('自动选择');
+  await page.getByRole('button',{name:'按食材池生成'}).click();
+  await expect(page.getByRole('heading',{name:'本周核心食材'})).toBeVisible();
+  await nav(page,'首页').click();
+  await page.getByRole('button',{name:'继续备餐'}).click();
+  const selected=page.locator('details.card[open]').filter({has:page.getByText(/备餐第 [123] 批/)}).first();
+  const task=selected.locator('.prep-task').first();
+  await task.locator('summary').click();
+  const label=task.getByRole('checkbox',{name:'已分装'});
+  await label.click();
+  await expect(label).toBeChecked();
+  await page.reload();
+  await page.getByRole('button',{name:'继续备餐'}).click();
+  const saved=page.locator('details.card[open] summary').filter({hasText:'已分装'}).first();
+  await saved.click();
+  await expect(page.getByRole('checkbox',{name:'已分装',checked:true})).toBeVisible();
+  for(const theme of ['浅色','深色']) {
+    await nav(page,'我的').click();
+    await page.getByLabel('外观').selectOption(theme);
+    for(const width of [360,390,430]) {
+      await page.setViewportSize({width,height:850});
+      for(const name of ['首页','食谱','采购','菜谱库','我的']) {
+        await nav(page,name).click();
+        await assertFit(page);
+      }
+      await nav(page,'首页').click();
+      await page.getByRole('button',{name:'设置并生成'}).click();
+      await assertFit(page);
+      await nav(page,'首页').click();
+      await page.getByRole('button',{name:'继续备餐'}).click();
+      await assertFit(page);
+    }
+  }
+});
+test('生成由 Worker 执行，可以取消并留在当前页面',async({page})=>{
+  await page.addInitScript(()=>{
+    const Native=window.Worker;
+    window.Worker=class extends Native {
+      override postMessage(value:unknown):void {
+        setTimeout(()=>super.postMessage(value),2000);
+      }
+    };
+  });
+  await setup(page);
+  await page.getByRole('button',{name:'生成本周食谱',exact:true}).click();
+  await expect(page.getByRole('button',{name:'取消生成'})).toBeVisible();
+  await page.getByRole('button',{name:'取消生成'}).click();
+  await expect(page.getByText('已取消，现有食谱保持原样。')).toBeVisible();
+  await expect(page.getByRole('heading',{name:'你好，测试用户'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'生成本周食谱',exact:true})).toBeEnabled();
+});

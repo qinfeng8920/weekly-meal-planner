@@ -60,15 +60,8 @@ small { font-size:.82rem }
 .bottom-nav button { background:transparent; border:0; padding:5px 2px; font-size:.875rem; color:var(--muted) }
 .bottom-nav button span { display:block; margin:auto auto 2px; line-height:1.25; font-size:1.2rem }
 .bottom-nav button[aria-current] { background:var(--tint); color:var(--accent); font-weight:750 }
-.hero { display:flex; align-items:center; min-height:300px; border-radius:22px; overflow:hidden; background:#204333 url('../public/weekly-plate.webp') right 44% / 61% auto no-repeat; color:#fff }
-.hero-copy { background:#204333; width:53%; min-height:100%; padding:34px clamp(24px,5vw,54px) }
-.hero h1 { font-size:clamp(2.1rem,5.2vw,3.25rem) }
-.hero p { max-width:30ch; color:#e0eee4 }
-.hero-copy p:first-child { font-size:.88rem; font-weight:650; letter-spacing:.02em }
-.hero-action { margin-top:.55rem; background:#f1f6e9; color:#1b4c33; border-color:#f1f6e9; padding-inline:17px; font-weight:750 }
-.hero-action:hover { background:#dbead8 }
 .dashboard-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; margin-top:16px }
-.card { padding:clamp(15px,3.4vw,23px); border:1px solid var(--line); border-radius:17px; background:var(--surface); min-width:0; margin-bottom:14px }
+.card { padding:clamp(12px,3vw,20px); border:1px solid var(--line); border-radius:10px; background:var(--surface); min-width:0; margin-bottom:12px }
 .card:last-child { margin-bottom:0 }
 .dashboard-grid > article,.dashboard-grid > section { min-width:0 }
 .dashboard-grid > .card { margin-bottom:0 }
@@ -138,7 +131,7 @@ input[type=checkbox] { width:18px; height:18px; flex:none; accent-color:#2f6b47 
 .need-more { display:block; color:var(--danger) }
 details { border-top:1px solid var(--line); padding:8px 0 }
 summary { min-height:44px; cursor:pointer; padding:10px 0; font-weight:650 }
-.settings summary { padding:5px 0; min-height:32px }
+.settings summary { padding:9px 0; min-height:44px }
 .library-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr)); gap:10px; align-items:start }
 .library-grid .recipe-card { margin:0 }
 .recipe-card summary small { display:block; color:var(--muted); margin-top:4px; font-weight:450 }
@@ -155,16 +148,25 @@ summary { min-height:44px; cursor:pointer; padding:10px 0; font-weight:650 }
   .shell { width:calc(100% - 28px) }
   .topbar-inner { min-height:61px }
   .container { padding-top:14px }
-  .hero { align-items:end; min-height:310px; background-size:100% auto; background-position:50% 25% }
-  .hero-copy { width:100%; padding:16px 18px 18px; margin-top:132px; background:#204333 }
-  .hero-copy p { margin-bottom:.35rem }
-  .hero h1 { margin-bottom:.4rem }
   .dashboard-grid { grid-template-columns:minmax(0,1fr); gap:12px; margin-top:12px }
   .bottom-nav .shell { width:calc(100% - 16px); gap:2px }
   .nutrition-row span { font-size:.78rem }
 }
 
-.supply-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr)); gap:12px; margin:12px 0; }
+.supply-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,136px),1fr)); gap:8px 12px; margin:12px 0; }
 .supply-summary div { min-width:0; }
 .supply-summary dt { color:var(--muted); font-size:.875rem; }
 .supply-summary dd { margin:.2rem 0 0; font-weight:700; overflow-wrap:anywhere; }
+
+.home-heading {align-items:flex-start}
+.home-heading h1 {margin-bottom:0}
+.home-heading .actions {margin-top:8px}
+.home-today .today-row {padding-block:8px}
+.task-check {min-height:44px; padding-inline:6px}
+.generation-progress {display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px}
+.pool-items {padding:0; list-style:none}
+.pool-items li {padding:8px 0; border-bottom:1px solid var(--line)}
+.nutrition-row strong {white-space:nowrap}
+.task-check input {margin-inline:0}
+.purchase-row label strong {overflow-wrap:anywhere}
+.stat-strip b,.purchase-row b {white-space:nowrap}

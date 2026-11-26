@@ -1,4 +1,5 @@
-import {cookOnServingDay,leafyFoods,riceFoods} from './food-storage';
+import {actualLots,consumedBySource,taskKey,type Execution} from './execution';
+import {cookOnServingDay,requiresCooling,riceFoods,storageDays} from './food-storage';
 import {food,foodState,type Serving} from './catalog';
 import {addDays,splitWeek,supplyDefaults,type Range,type SupplySettings} from './batches';
 import {amountFor,edibleRate,gramsPerPriceUnit,priceDefaults,priceFor,type Price,type PriceBook} from './prices';
@@ -7,19 +8,19 @@ import {mealCooking,recipeCooking} from './cooking';
 import type {MealName,Profile} from './profile';
 import type {Day,Pantry} from './shopping';
 
-export type Receipt={gross:number;net:number;paid?:number;paidGross?:number};
-export type SupplyState={settings?:SupplySettings;prices?:PriceBook;receipts?:Record<string,Receipt>};
+export type Receipt={gross:number;net:number;paid?:number;paidGross?:number;date?:string;storage?:import('./execution').StockInfo};
+export type SupplyState={settings?:SupplySettings;prices?:PriceBook;receipts?:Record<string,Receipt>;execution?:Execution};
 export type Cost={known:number;missing:number;items:number};
-export type Use={day:number;meal:string;dish:string; grams:number;prepAt:number;method:string};
+export type Use={day:number;meal:string;dish:string; grams:number;prepAt:number;method:string;jobKey?:string;sourcing?:{home:number;carry:number;forecast:number;taken:number}};
 export type BuyLine={id:string;uses:Use[];need:number;stock:number;carry:number;buy:number;remaining:number;confirmed:number;netConfirmed:number;
-  leftover:number;price?:Price;consume:number|null;estimate:number|null;paid:number|null;paidActual?:number;paidGross?:number;paidEstimated:boolean;cost:Cost;bill:Cost;receiptKey:string};
+  leftover:number;receiptDate?:string;receiptStorage?:import('./execution').StockInfo;price?:Price;consume:number|null;estimate:number|null;paid:number|null;paidActual?:number;paidGross?:number;paidEstimated:boolean;cost:Cost;bill:Cost;receiptKey:string};
 export type BuyBatch={day:number;date:string;lines:BuyLine[];purchase:Cost;consumed:Cost;paid:Cost;remaining:Cost};
-export type PrepJob={day:number;at:number;name:string;meal:string;method:string;active:number;waiting:number;tools:string[];steps:string[];ingredients:{id:string;grams:number}[]};
+export type PrepJob={key?:string;day:number;at:number;name:string;meal:string;method:string;active:number;waiting:number;reheat?:number;tools:string[];steps:string[];ingredients:{id:string;grams:number}[]};
 export type PrepBatch={range:Range;start:string;end:string;prepDate:string;purchaseDate:string;
-  rows:{id:string;uses:Use[];grams:number}[];jobs:PrepJob[];active:number;waiting:number;boxes:number;tools:string[]};
+  rows:{id:string;uses:Use[];grams:number}[];jobs:PrepJob[];active:number;waiting:number;boxes:number;tools:string[];sessions?:{date:string;active:number;waiting:number;total:number}[]};
 export type Logistics={settings:SupplySettings;start:string;people:number;batches:BuyBatch[];prep:PrepBatch[];notice:string[];
   consumed:Cost;purchase:Cost;paid:Cost;remaining:Cost;categories:Record<string,Cost>;lines:BuyLine[];budget:number|null;
-  checked:number;toBuy:number;inventory:{id:string;home:number;confirmed:number;projected:number}[]};
+  checked:number;toBuy:number;inventory:{id:string;home:number;confirmed:number;projected:number;usable?:number;taken?:number}[]};
 
 const round=(n:number)=>Math.round(n*100+1e-8)/100;
 const blank=():Cost=>({known:0,missing:0,items:0});
@@ -31,23 +32,6 @@ function mergeCost(total:Cost,other:Cost) {
 }
 export const receiptKey=(start:string,day:number,id:string)=>start+'|'+day+'|'+id;
 
-function perishable(id:string) {
-  const f=food(id);
-  return ['蔬菜','水果','乳制品','蛋','肉类','鱼虾','豆制品'].includes(f.category) && f.state!=='dry' && id!=='cannedsalmon' ||
-    f.state==='cooked';
-}
-function shelfDays(id:string,p:Profile) {
-  const f=food(id), refrigerator=p.tools.includes('冰箱'), freezer=refrigerator&&p.tools.includes('冷冻室')&&p.frozen;
-  if(!perishable(id))return 7;
-  if(!refrigerator)return 0;
-  if(riceFoods.has(id)||leafyFoods.has(id))return f.state==='cooked'?0:1;
-  if(f.state==='frozen')return freezer?7:0;
-  if(f.state==='cooked')return 1;
-  if(f.category==='肉类'||f.category==='鱼虾')return freezer?7:1;
-  if(f.category==='豆制品'||f.category==='蔬菜')return 1;
-  if(f.category==='乳制品'||f.category==='蛋'||f.category==='水果')return 2;
-  return 1;
-}
 const isRawAnimal=(id:string)=>food(id).state==='raw'&&['肉类','鱼虾'].includes(food(id).category);
 
 export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={},state:SupplyState={},cookingOverride?:CookingSelection, defaults:Readonly<PriceBook>=priceDefaults):Logistics {
@@ -91,8 +75,8 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
     if(method.includes('冷冻'))steps.push('已冷冻时，食用前一晚移至冰箱冷藏室解冻，生料和熟食分开。');
     if(method.includes('冷冻生料'))steps.unshift('生料单独密封，按该餐净重分装。腌制只在冷藏室进行，食谱无腌制步骤则直接烹调。');
     const factor=Math.max(1,1+(people-1)*.25);
-    return {job:{day,at:prepAt,name:row.recipe.name,meal,method,active:Math.ceil(cooking.active*factor),
-      waiting:cooking.wait,tools:row.recipe.tools,steps,ingredients},needsAt:prepAt};
+    return {job:{key:taskKey(start,day,meal,row.recipe.id),day,at:prepAt,name:row.recipe.name,meal,method,active:Math.ceil(cooking.active*factor),
+      waiting:cooking.wait,...(prepAt<day?{reheat:cooking.reheat??5}:{}),tools:row.recipe.tools,steps,ingredients},needsAt:prepAt};
   }
 
   days.forEach((day,index)=>{
@@ -108,7 +92,7 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
         batchJobs(index).push(job);
         for(const i of job.ingredients) {
           const uses=all.get(i.id)??[];
-          uses.push({day:index,meal:meal.name,dish:dish.recipe.name,grams:i.grams,prepAt:needsAt,method:job.method});
+          uses.push({day:index,meal:meal.name,dish:dish.recipe.name,grams:i.grams,prepAt:needsAt,method:job.method,jobKey:job.key});
           all.set(i.id,uses);
         }
       });
@@ -116,6 +100,15 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
   });
 
   const receipts=state.receipts??{};
+  const execution=state.execution;
+  const spent=consumedBySource(execution);
+  const available=execution?actualLots(start,p,pantry,receipts,execution):[];
+  const priorUses=new Map<string,Map<string,number>>();
+  for(const [key,entry] of Object.entries(execution?.tasks??{})) if(entry.taken) {
+    const tally=new Map<string,number>();
+    for(const item of entry.taken.allocation)tally.set(item.id,round((tally.get(item.id)??0)+item.grams));
+    priorUses.set(key,tally);
+  }
   for(const key of Object.keys(receipts)) {
     const [week,,id]=key.split('|');
     if(week===start&&!all.has(id))all.set(id,[]);
@@ -128,11 +121,11 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
   let checked=0,toBuy=0;
   const purchaseDay=(id:string,use:Use)=>{
     const batch=ranges[batchFor(use.day)];
-    const once=settings.purchase==='一次采购'||settings.purchase==='干货一次、生鲜分批'&&!perishable(id);
+    const once=settings.purchase==='一次采购'||settings.purchase==='干货一次、生鲜分批'&&!requiresCooling(id);
     const preferred=Math.min(use.prepAt,once?(ranges[0]?.purchaseAt??0):batch.purchaseAt);
     const needsAt=use.prepAt;
     // 缺少冷链或超过保守保存窗口时，将该食材安排到实际需要当天购入。
-    return needsAt-preferred>shelfDays(id,p)?needsAt:preferred;
+    return needsAt-preferred>storageDays(id,p)?needsAt:preferred;
   };
 
   for(const [id,uses] of all) {
@@ -151,8 +144,13 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
       const [week,day,item]=key.split('|');
       if(week===start&&item===id&&!groups.has(Number(day)))groups.set(Number(day),[]);
     }
-    type Lot={left:number;expiry:number;kind:'home'|'receipt'|'forecast'};
-    const lots:Lot[]=[{left:home,expiry:shelfDays(id,p),kind:'home'}];
+    type Lot={left:number;expiry:string;from?:string;kind:'home'|'receipt'|'forecast'};
+    const house=available.find(l=>l.id===id&&l.source.startsWith('家中|'));
+    const usable=execution?house?.net??0:home;
+    const lots:Lot[]=[{left:usable,expiry:execution?house?.expires??'0001-01-01':addDays(start,storageDays(id,p)),kind:'home'}];
+    if(execution) for(const lot of available) if(lot.id===id&&!lot.source.startsWith('家中|')&&!lot.source.startsWith(start+'|')) {
+      lots.push({left:lot.net,expiry:lot.expires,from:lot.from,kind:'receipt'});
+    }
     const lines:BuyLine[]=[];
     const legacyGross=pantry[id]?.bought??0;
     const hasReceipt=Object.keys(receipts).some(key=>key.startsWith(start+'|')&&key.endsWith('|'+id));
@@ -160,25 +158,32 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
       const key=receiptKey(start,day,id);
       const old:Receipt|undefined=receipts[key]??(!hasReceipt&&lines.length===0&&legacyGross>0
         ?{gross:legacyGross,net:round(legacyGross*rate)}:undefined);
-      if(old)lots.push({left:old.net,expiry:day+shelfDays(id,p),kind:'receipt'});
+      const actual=available.find(l=>l.source===key);
+      if(old)lots.push({left:Math.max(0,round(old.net-(spent.get(key)??0))),expiry:execution?actual?.expires??'0001-01-01':addDays(start,day+storageDays(id,p)),from:actual?.from,kind:'receipt'});
       let stock=0,carry=0,unmet=0;
       for(const use of [...byDate].sort((a,b)=>a.prepAt-b.prepAt)) {
-        let need=use.grams;
+        let homeUse=0,carryUse=0,projectedUse=0;
+        const previous=use.jobKey?priorUses.get(use.jobKey):undefined;
+        const done=Math.min(use.grams,previous?.get(id)??0);
+        if(previous?.has(id))previous.set(id,round(previous.get(id)!-done));
+        let need=round(use.grams-done);
         for(const lot of lots) {
-          if(lot.expiry<use.prepAt||lot.left<=0)continue;
+          const needDate=addDays(start,use.prepAt);
+          if(lot.expiry<needDate||lot.from&&lot.from>needDate||lot.left<=0)continue;
           const allocated=Math.min(need,lot.left);
-          if(lot.kind==='home')stock+=allocated;
-          else carry+=allocated;
+          if(lot.kind==='home') {stock+=allocated;homeUse+=allocated;}
+          else {carry+=allocated;if(lot.kind==='receipt')carryUse+=allocated;else projectedUse+=allocated;}
           lot.left=round(lot.left-allocated);need=round(need-allocated);
           if(!need)break;
         }
+        use.sourcing={home:round(homeUse),carry:round(carryUse),forecast:round(need+projectedUse),taken:done};
         unmet+=need;
       }
       // 可食率未知的毛重商品仅给出净料下限，费用保持未知。
       const gross=unmet/(rate||1);
       const buy=gross<=0?0:round(pack?Math.ceil((gross-1e-8)/pack)*pack:Math.ceil(gross));
       const leftover=Math.max(0,round(buy*rate-unmet));
-      if(leftover)lots.push({left:leftover,expiry:day+shelfDays(id,p),kind:'forecast'});
+      if(leftover)lots.push({left:leftover,expiry:addDays(start,day+storageDays(id,p)),kind:'forecast'});
       const need=round(byDate.reduce((n,use)=>n+use.grams,0));
       const consumption=rate?amountFor(need/rate,price):need?null:0;
       const estimate=!rate&&buy?null:amountFor(buy,price);
@@ -193,7 +198,7 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
       mergeCost(cost,bill);
       const row:BuyLine={id,uses:byDate,need,stock:round(stock),carry:round(carry),buy:round(buy+(old?.gross??0)),remaining:buy,
         confirmed:old?.gross??0,netConfirmed:old?.net??0,leftover, ...(price?{price}:{}),consume:consumption,estimate,paid:paidValue,
-        paidEstimated:withoutPaid>0,...(old?.paid!==undefined?{paidActual:old.paid,paidGross:pricedPaid}:{}),cost,bill,receiptKey:key};
+        paidEstimated:withoutPaid>0,...(old?.date?{receiptDate:old.date}:{}),...(old?.storage?{receiptStorage:old.storage}:{}),...(old?.paid!==undefined?{paidActual:old.paid,paidGross:pricedPaid}:{}),cost,bill,receiptKey:key};
       const event=events.get(day)??[];event.push(row);events.set(day,event);
       lines.push(row);
       if(row.buy>0) {toBuy++;if(!buy)checked++;}
@@ -205,9 +210,9 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
     if(lines.length) {
       const tot=(key:'need'|'stock'|'carry'|'buy'|'remaining'|'confirmed'|'netConfirmed')=>round(lines.reduce((n,r)=>n+r[key],0));
       const sum=(key:'consume'|'estimate'|'paid')=>lines.some(l=>l[key]===null)?null:round(lines.reduce((n,l)=>n+(l[key]??0),0));
-      const projected=round(lots.filter(l=>l.expiry>=days.length-1).reduce((n,l)=>n+l.left,0));
+      const projected=round(lots.filter(l=>l.expiry>=addDays(start,days.length-1)).reduce((n,l)=>n+l.left,0));
       const cost=blank(),bill=blank();lines.forEach(l=>{mergeCost(cost,l.cost);mergeCost(bill,l.bill);});
-      inventory.push({id,home,confirmed:tot('netConfirmed'),projected});
+      inventory.push({id,home,confirmed:tot('netConfirmed'),projected,...(execution?{usable,taken:round((spent.get('家中|'+id)??0)+lines.reduce((n,l)=>n+(spent.get(l.receiptKey)??0),0))}:{})});
       aggregate.push({...lines[0],uses,need:tot('need'),stock:tot('stock'),carry:tot('carry'),buy:tot('buy'),remaining:tot('remaining'),
         confirmed:tot('confirmed'),netConfirmed:tot('netConfirmed'),leftover:projected,paidEstimated:lines.some(l=>l.paidEstimated),
         consume:sum('consume'),estimate:sum('estimate'),paid:sum('paid'),cost,bill,receiptKey:''});
@@ -231,9 +236,10 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
       const scoped=uses.filter(u=>u.day>=range.from&&u.day<range.to);
       return {id,uses:scoped,grams:round(scoped.reduce((n,u)=>n+u.grams,0))};
     }).filter(r=>r.grams>0);
+    const sessions=parallelSessions(selected,start);
     return {range,start:addDays(start,range.from),end:addDays(start,range.to-1),prepDate:addDays(start,range.prepAt),
       purchaseDate:addDays(start,range.purchaseAt),rows,jobs:selected.sort((a,b)=>a.at-b.at||b.waiting-a.waiting),
-      active:selected.reduce((a,b)=>a+b.active,0),waiting:selected.reduce((a,b)=>a+b.waiting,0),
+      active:sessions.reduce((a,b)=>a+b.active,0),waiting:sessions.reduce((a,b)=>a+b.waiting,0),sessions,
       boxes:selected.filter(j=>j.at<j.day||j.method.includes('冷冻生料')).length,
       tools:[...new Set(selected.flatMap(j=>j.tools))]};
   });
@@ -241,3 +247,29 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
     lines:aggregate.sort(sort),budget:p.budget?Number(p.budget):null,checked,toBuy,inventory};
 }
 export const ingredientLabel=(id:string)=>food(id).name+' · '+foodState[food(id).state];
+
+export function parallelSessions(jobs:PrepJob[],start:string) {
+  const days=new Map<number,PrepJob[]>();
+  for(const job of jobs) {
+    const group=days.get(job.at)??[];group.push(job);days.set(job.at,group);
+    if(job.reheat&&job.day>job.at) {
+      const reheats=days.get(job.day)??[];
+      reheats.push({...job,active:Math.min(job.reheat,2),waiting:Math.max(0,job.reheat-2)});
+      days.set(job.day,reheats);
+    }
+  }
+  return [...days].sort((a,b)=>a[0]-b[0]).map(([at,group])=>{
+    const devices=new Map<string,number>();
+    let hands=0,end=0;
+    for(const job of [...group].sort((a,b)=>b.waiting-a.waiting)) {
+      const heating=job.tools.filter(t=>!['冰箱','冷冻室','电子厨房秤'].includes(t));
+      const begins=Math.max(hands,...heating.map(t=>devices.get(t)??0));
+      hands=begins+job.active;
+      const finish=hands+job.waiting;
+      for(const t of heating)devices.set(t,finish);
+      end=Math.max(end,finish);
+    }
+    const active=group.reduce((n,j)=>n+j.active,0);
+    return {date:addDays(start,at),active,waiting:Math.max(0,end-active),total:end};
+  });
+}

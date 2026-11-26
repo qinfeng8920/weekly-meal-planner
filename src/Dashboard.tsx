@@ -2,11 +2,14 @@ import {useState} from 'react';
 import {dateKey,type Profile,type Weight} from './profile';
 import {between,type Targets} from './nutrition';
 import {type Plan} from './planner';
-import {decimal,Empty,integer,SectionTitle,todayIndex} from './ui';
+import {decimal,Empty,integer,SectionTitle} from './ui';
+import {addDays} from './batches';
+import type {Logistics} from './logistics';
+import {costText} from './ShoppingPage';
 
 type DashboardProps={profile:Profile|null;t:Targets|null;reason:string;weights:Weight[];plan:Plan|null;stale:boolean;
-  shoppingPercent:number;generate:()=>void;busy:boolean;go:(page:string)=>void;edit:()=>void;write:(weights:Weight[])=>Promise<boolean>};
-export function Dashboard({profile,t,reason,weights,plan,stale,shoppingPercent,generate,busy,go,edit,write}:DashboardProps) {
+  quote?:Logistics;poolCount:number;shoppingPercent:number;generate:()=>void;busy:boolean;go:(page:string)=>void;edit:()=>void;write:(weights:Weight[])=>Promise<boolean>};
+export function Dashboard({profile,t,reason,weights,plan,stale,quote,poolCount,shoppingPercent,generate,busy,go,edit,write}:DashboardProps) {
   const [showWeight,setShow]=useState(false);
   const ordered=[...weights].sort((a,b)=>a.date.localeCompare(b.date));
   const latest=ordered.at(-1);
@@ -14,16 +17,31 @@ export function Dashboard({profile,t,reason,weights,plan,stale,shoppingPercent,g
   const initial=profile?+profile.weight:null;
   const target=profile&&profile.goal==='减脂'?+profile.target:null;
   const progress=initial&&current&&target&&initial>target?Math.max(0,Math.min(100,(initial-current)*100/(initial-target))):null;
-  const day=plan?.days[todayIndex];
+  const today=dateKey();
+  const index=plan?.days.findIndex((_,i)=>addDays(plan.start,i)===today)??-1;
+  const day=plan?.days[index];
+  const next=quote?.prep.find(b=>b.end>=today);
   return <>
-    <section className="hero">
-      <div className="hero-copy">
-        <p>{new Intl.DateTimeFormat('zh-CN',{month:'long',day:'numeric',weekday:'long'}).format(new Date())}</p>
-        <h1>{profile?.name?`你好，${profile.name}`:'吃好每一天'}</h1>
-        <p>{profile?'按你的目标、偏好和厨具，安排下一周的三餐。':'从一份适合自己的七天食谱开始。'}</p>
-        <button className="hero-action" disabled={busy} onClick={profile?generate:edit}>{busy?'正在搭配食谱…':profile?'生成本周食谱':'开始填写档案'}</button>
+    <section className="page-title home-heading">
+      <div><p className="meta">{new Intl.DateTimeFormat('zh-CN',{month:'long',day:'numeric',weekday:'long'}).format(new Date())}</p>
+        <h1>{profile?.name?`你好，${profile.name}`:'吃好每一天'}</h1></div>
+      <div className="actions">
+        {plan&&<button className="primary" onClick={()=>go('备餐')}>继续备餐</button>}
+        <button className={plan?'':'primary'} disabled={busy} onClick={profile?generate:edit}>{busy?'正在搭配食谱…':profile?'生成本周食谱':'开始填写档案'}</button>
+        {profile&&<button className="flat" onClick={()=>go('生成设置')}>设置并生成</button>}
       </div>
     </section>
+    {plan&&<section className="card home-today">
+      <SectionTitle title={day?'今日食谱':'本周食谱'}><button className="flat" onClick={()=>go('食谱')}>查看食谱</button></SectionTitle>
+      {stale&&<p className="hint">档案或体重已更新，当前展示原方案。</p>}
+      {(day??plan.days[0]).meals.map(m=><div className="today-row" key={m.name}><b>{m.name}</b><span>{m.dishes.map(d=>d.recipe.name).join(' · ')}</span></div>)}
+    </section>}
+    {plan&&<section className="card"><SectionTitle title="采购与备餐"><button className="flat" onClick={()=>go('采购')}>查看清单</button></SectionTitle>
+      <div className="stat-strip"><span>{poolCount} 种食材</span>{quote&&<span>预计采购 <b>{costText(quote.purchase)}</b></span>}
+        {quote&&<span>备餐周期 <b>{quote.prep.map(b=>b.range.to-b.range.from).join('＋')}</b></span>}</div>
+      <progress max={100} value={shoppingPercent} aria-label="采购进度"/>
+      {next&&<p className="meta">当前或下一批 {next.start} 至 {next.end} · {next.jobs.length} 项操作</p>}
+    </section>}
 
     <div className="dashboard-grid">
       <section className="card goal-card">
@@ -41,17 +59,7 @@ export function Dashboard({profile,t,reason,weights,plan,stale,shoppingPercent,g
           <p className="meta">{t.water===null?'饮水遵循医嘱':`建议饮水约 ${t.water} 毫升`}。{t.message}</p></>:<p className="hint">{reason||'保存个人档案后查看能量和营养估算。'}</p>}
       </section>
     </div>
-    <div className="dashboard-grid">
-      <section>
-        <SectionTitle title="今日食谱">{plan&&<button className="flat" onClick={()=>go('食谱')}>查看全天</button>}</SectionTitle>
-        {day?<div className="card today-card">{stale&&<p className="hint">档案或体重已更新，当前展示原方案。</p>}{day.meals.map(m=><div className="today-row" key={m.name}><b>{m.name}</b><span>{m.dishes.map(s=>s.recipe.name).join(' · ')}</span></div>)}</div>:
-          <Empty title="今天的菜单还空着"><p>完成档案后可以为一周搭配食谱。</p></Empty>}
-      </section>
-      <section>
-        <SectionTitle title="采购进度"><button className="flat" onClick={()=>go('采购')}>查看清单</button></SectionTitle>
-        <div className="card"><p className="large">{plan?shoppingPercent:0}<small>%</small></p><progress max={100} value={shoppingPercent} aria-label="采购进度"/><p className="meta">勾选已买食材，随时查看需要补买的数量。</p></div>
-      </section>
-    </div>
+    {!plan&&<Empty title="今天的菜单还空着"><p>完成档案后可以为一周搭配食谱。</p></Empty>}
     <section className="card">
       <SectionTitle title="体重趋势"><button className="small" onClick={()=>profile?setShow(true):edit()}>查看记录</button></SectionTitle>
       <Trend weights={ordered}/>

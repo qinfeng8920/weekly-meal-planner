@@ -116,7 +116,10 @@ test('每个批次逐份由菜谱汇总，换菜不清空已购记录',()=>{
   const used=planLogistics(newDays,p,start,{}, {settings:setting,receipts:{[first.receiptKey]:{gross:first.buy,net:first.buy,paid:9}}});
   equal(used.batches[0].lines.find(l=>l.id===first.id)?.confirmed,first.buy);
   equal(used.batches[0].lines.find(l=>l.id===first.id)?.paid,9);
-  deepEqual(used.prep.slice(0,2),q.prep.slice(0,2));
+  const portions=(quote:typeof q)=>quote.prep.slice(0,2).map(b=>({
+    jobs:b.jobs,rows:b.rows.map(r=>({...r,uses:r.uses.map(({sourcing,...use})=>use)})),
+  }));
+  deepEqual(portions(used),portions(q));
   ok(JSON.stringify(used.prep[2].rows)!==JSON.stringify(q.prep[2].rows));
 });
 test('缺冰箱或冷冻室安全拆分，熟饭和鲜鱼等不做七天冷藏',()=>{

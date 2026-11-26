@@ -77,6 +77,26 @@ add('roasted-root-vegetables','烤胡萝卜南瓜花菜','蔬菜',{carrot:90,pum
   '将南瓜、花菜、胡萝卜清洗处理，分别切成便于同熟的小块。与油、孜然和盐抓匀。','烤箱按设备预热，置烤盘摊开，约 200°C 烤至柔软，中途翻动一次。',
 ],'西式轻食');
 
+add('bowl-tofu-brown','小白菜豆腐糙米煲','正餐套餐',{cookedbrown:245,tofu:155,bok:210,canola:12,ginger:4,salt:.6},pot,3,7,boil,[
+  '采用当天煮熟或按安全要求冷却的无盐熟糙米。小白菜逐叶洗净，豆腐切薄块。',
+  '姜片随少量水煮开，下豆腐和米饭，再下小白菜煮熟。确认中心达到 74°C，调油盐后立即食用。',
+]);
+add('bowl-shrimp-brown','西兰花虾仁糙米碗','正餐套餐',{cookedbrown:260,shrimp:135,broccoli:195,canola:12,ginger:5,salt:.6},steam,4,9,boil,[
+  '用无盐熟糙米。西兰花洗净掰小朵，虾仁用专用砧板挑虾线，处理完洗手并清洁器具。',
+  '浅盘分区铺熟糙米、西兰花和虾仁，放姜丝。水开后蒸至虾仁不透明、米饭中心达到 74°C。',
+  '加入菜籽油和盐，立即食用。',
+]);
+add('bowl-beef-brown','番茄牛肉糙米锅','正餐套餐',{cookedbrown:245,beef:105,tomato:130,carrot:95,canola:10,ginger:5,salt:.65},pot,5,13,boil,[
+  '胡萝卜和番茄洗净切薄，生牛肉放在独立刀板上逆纹切薄片。',
+  '煮锅内少量油炒番茄，加胡萝卜和清水煮软。加入无盐熟糙米，煮到米饭中心达到 74°C。',
+  '牛肉滑入锅中，确认中心达到 63°C，关火静置 3 分钟，加盐后食用。',
+]);
+add('bowl-chicken-corn','鸡胸胡萝卜玉米碗','正餐套餐',{cookedcorn:290,cookedchicken:125,carrot:95,bok:125,canola:12,ginger:3,salt:.6},pot,3,8,boil,[
+  '小白菜洗净切段，胡萝卜擦粗丝，使用全程冷藏的原味熟鸡胸和无盐熟玉米。',
+  '锅内加少量水与姜，先焖熟胡萝卜和小白菜，再放入玉米和鸡胸加热至中心 74°C。',
+  '油盐拌匀，立即食用。',
+]);
+
 export const cookingRecipes=entries.map(e=>e.recipe);
 export const cookingWorkflows=new Map(entries.map(e=>[e.recipe.id,e.workflow]));
 export const cookingPlacements=new Map(entries.map(e=>[e.recipe.id,e.placement]));

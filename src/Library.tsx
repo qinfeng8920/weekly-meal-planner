@@ -2,12 +2,16 @@ import {ingredientMeaning,recipeMeaning} from './food-semantics';
 import {useState} from 'react';
 import {categoriesOf,foods,foodState,recipeList,recipeMap} from './catalog';
 import {breakfastMenus,labels,menuName} from './meal-catalog';
+import {complexityLabels,recipeCooking} from './cooking';
 import {decimal,Empty,RecipeInfo,SectionTitle} from './ui';
 
 export function Library({favorites,blocked,toggleFavorite,toggleBlocked}:{favorites:string[];blocked:string[];toggleFavorite:(id:string)=>void;toggleBlocked:(id:string)=>void}) {
   const [query,setQuery]=useState(''),[category,setCategory]=useState('全部'),[tab,setTab]=useState('菜谱'),[limit,setLimit]=useState(18);
+  const [tool,setTool]=useState(''),[complexity,setComplexity]=useState('');
+  const availableTools=[...new Set(recipeList.flatMap(r=>r.tools))];
   const key=query.trim();
   const list=recipeList.filter(r=>(category==='全部'||labels(r).tags.some(t=>t===category)) &&
+    (!tool||r.tools.includes(tool))&&(!complexity||recipeCooking(r).level===+complexity) &&
     (tab!=='收藏'||favorites.includes(r.id)) && (tab!=='已屏蔽'||blocked.includes(r.id)) &&
     (!key||r.name.includes(key)||r.cuisine.includes(key)||r.flavor.includes(key)));
   const menus=breakfastMenus.filter(m=>!key||menuName(m.recipes).includes(key)||m.style.includes(key));
@@ -19,6 +23,10 @@ export function Library({favorites,blocked,toggleFavorite,toggleBlocked}:{favori
       <label className="field">查找{tab==='食材'?'食材':'菜谱'}<input type="search" value={query} placeholder="输入名称" onChange={e=>{setQuery(e.target.value);setLimit(18);}}/></label>
       {!['食材','早餐搭配'].includes(tab)&&<label className="field">分类<select value={category} onChange={e=>{setCategory(e.target.value);setLimit(18);}}>
         {['全部','早餐','午餐','晚餐','加餐','通用主食','通用配菜'].map(c=><option key={c}>{c}</option>)}</select></label>}
+      {!['食材','早餐搭配'].includes(tab)&&<><label className="field">厨具筛选<select value={tool} onChange={e=>{setTool(e.target.value);setLimit(18);}}>
+        <option value="">全部</option>{availableTools.map(t=><option key={t}>{t}</option>)}</select></label>
+        <label className="field">复杂度筛选<select value={complexity} onChange={e=>{setComplexity(e.target.value);setLimit(18);}}>
+        <option value="">全部</option>{Object.entries(complexityLabels).map(([i,name])=><option key={i} value={i}>{name}</option>)}</select></label></>}
     </div>
     {tab==='早餐搭配'?<section className="card">
       <SectionTitle title={breakfastMenus.length+' 套早餐搭配'}/>

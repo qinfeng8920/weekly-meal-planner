@@ -12,7 +12,7 @@ export const food = (id: string) => {
   return value;
 };
 export const foodState: Record<string,string> = {raw:'生鲜可食部',dry:'干重',cooked:'熟重',ready:'成品净重',frozen:'冷冻净重'};
-export const catalogVersion = '2026.11-sr3';
+export const catalogVersion = '2026.11-sr4';
 export type Ingredient = {id:string; grams:number};
 export type Group = '蛋白质菜'|'蔬菜'|'主食'|'早餐'|'水果'|'加餐'|'汤类';
 export type Recipe = {
