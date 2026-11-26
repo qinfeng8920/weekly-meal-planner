@@ -63,10 +63,12 @@ export function PlanPage(props:Props) {
         const fixedMeal=name==='早餐'?rule.fixedBreakfast:mealPreference(plan.profile,name).fixed;
         const isLocked=locks.some(l=>l.day===day&&l.meal===mi);
         const stats=mealCooking(meal.dishes.map(d=>d.recipe),rule,plan.profile.tools.includes('冰箱'));
+        const tools=new Set(meal.dishes.flatMap(d=>d.recipe.tools));
+        if(stats.ahead.length) tools.add('冰箱');
         return <section className="card meal-card" key={meal.name}>
         <SectionTitle title={meal.name}>{!readonlyOrStale&&<button className="small" disabled={busy||fixedMeal} onClick={()=>change({day,meal:mi})}>换一餐</button>}</SectionTitle>
         <p className="meta">约 {stats.total} 分钟 · 主动 {stats.active} 分钟 · 等待 {stats.waiting} 分钟 · {complexityLabels[stats.level]}难度 · {stats.count} 项</p>
-        <p className="meta">{rule.mode}模式 · {stats.tools.join('、')||'无需加热厨具'}{stats.onePot?' · 一锅完成':''} · 占全天热量 {Math.round(sum(meal.dishes.map(d=>d.nutrients)).kcal/n.kcal*100)}%{fixedMeal?' · 已固定搭配':''}</p>
+        <p className="meta">{rule.mode}模式 · {tools.size?'需 '+[...tools].join('、'):'无需厨具'}{stats.onePot?' · 一锅完成':''} · 占全天热量 {Math.round(sum(meal.dishes.map(d=>d.nutrients)).kcal/n.kcal*100)}%{fixedMeal?' · 已固定搭配':''}</p>
         {stats.ahead.length>0?<p className="hint">需提前制作：{stats.ahead.map(a=>a.name+' '+a.minutes+' 分钟、用餐时复热 '+a.reheat+' 分钟').join('；')}。前一天做好并及时冷藏，复热到中心 74°C。</p>:<p className="meta">无需提前备餐</p>}
         {!readonlyOrStale&&<details><summary>调整这餐</summary><div className="actions">
           {(['简单一点','丰富一点','减少一道菜','改成一锅料理'] as const).map(intent=><button key={intent} className="small" disabled={busy||fixedMeal||isLocked} onClick={()=>change({day,meal:mi,intent})}>{intent}</button>)}
