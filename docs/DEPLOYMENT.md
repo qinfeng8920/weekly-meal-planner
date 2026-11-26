@@ -27,3 +27,7 @@
 ## V2.2.1 正式验收
 
 提交 `392dcfb` 通过 45 项模块测试、12 项 Chromium 测试与生产构建，随后发布到原 GitHub Pages。线上 PWA 缓存 `73fdcd40a9a0` 与本地构建一致。匿名模拟安卓离线勾选后，食材标记、折叠分类、采购批次和全周进度均可见，刷新后仍保留。 [发布记录](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/45855739343)
+
+## V2.3 正式验收
+
+最终生产提交为 `135b436`。GitHub Actions 通过 51 项模块、14 项 Chromium 端到端测试和生产构建，随后发布至原 GitHub Pages。线上 Service Worker 与本地生产文件字节相同，缓存标识 `b6e8c753eb9d`。初始匿名模拟安卓成功离线生成、确认实购金额 18.37 元、查看实付与待购估算，折叠进度和付款在刷新后保留。V2.2.1 的旧资料、历史和取用流水通过同源升级复核。安卓实体机尚未测试。 [最终发布](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/45861101424)
