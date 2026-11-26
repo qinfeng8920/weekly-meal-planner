@@ -39,10 +39,12 @@ export function PurchaseForm({id,previous,suggested,price,save}:{id:string;previ
       <label className="field">购买单位<select value={unit} onChange={e=>{setUnit(e.target.value as PriceUnit);setNet('');setEach('');}}>
         {priceUnits.map(u=><option key={u}>{u}</option>)}</select></label>
       <label className="field">实际支付（元，可选）<input type="number" min="0" step=".01" value={paid} onChange={e=>setPaid(e.target.value)}/></label>
+    </div>
+    <details open={unknownGross?true:undefined}><summary>净重、换算与购入日期</summary><div className="fields">
       <label className="field">实际购买日期<input type="date" value={date} max={dateKey()} onChange={e=>setDate(e.target.value)}/></label>
       {unknownGross&&<label className="field">每{unit}重量（克）<input type="number" min=".01" step="any" value={each} onChange={e=>setEach(e.target.value)}/></label>}
       <label className="field">实测可食净重（克，可选）<input type="number" min=".01" step="any" value={net} onChange={e=>setNet(e.target.value)}/></label>
-    </div>
+    </div></details>
     {!!rawNet&&<p className="meta">本笔入库 <span className="unit">{decimal(rawNet)} 克净重</span>{previous?'，原入库 '+decimal(previous.net)+' 克':''}</p>}
     {error&&<p className="error" role="alert">{error}</p>}
     <button className="primary" disabled={busy} onClick={submit}>保存实际购买</button>

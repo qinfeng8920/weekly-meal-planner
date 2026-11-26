@@ -94,7 +94,7 @@ test('2 次采购与 2＋2＋3 分批独立，额外实际付款单列',()=>{
   deepEqual(q.actualBatches?.map(b=>b.lines[0].receiptKey),[sameDay,old]);
   ok(q.batches.every(b=>!b.lines.some(line=>line.id==='cookedchicken')));
   equal(q.paid.known,21);
-  equal(q.batches.reduce((n,b)=>n+b.purchase.known,0),q.purchase.known);
+  equal(q.batches.reduce((n,b)=>n+b.purchase.known,0)+21,q.purchase.known);
   const noCold=planLogistics(days,{...profile,tools:['煮锅','蒸锅']},start,{}, {settings:single});
   equal(noCold.batches.length,1);
   ok(noCold.storageWarnings?.some(w=>w.includes('鸡胸肉')));

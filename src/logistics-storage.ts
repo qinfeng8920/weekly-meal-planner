@@ -26,10 +26,11 @@ const settings=z.strictObject({prep:z.enum(prepPeriods),purchase:z.enum(purchase
   } catch {ctx.addIssue({code:'custom',message:'非法的备餐覆盖范围'});}
 });
 const storage=z.strictObject({expires:date,storage:z.enum(['干燥常温','冷藏','冷冻'])});
-const taskKey=z.string().regex(/^\d{4}-\d\d-\d\d\|[0-6]\|[^|]{1,8}\|[a-z0-9-]{1,80}$/);
+const taskKey=z.string().regex(/^\d{4}-\d\d-\d\d\|[0-6]\|[^|]{1,8}\|[a-z0-9-]{1,80}(?:\|[a-z0-9-]{1,80}\|[0-5]\|[a-z0-9]{1,12})?$/);
 const disposal=z.strictObject({id,source:z.string().max(300).refine(s=>foodMap.has(s.split('|').at(-1)??'')),grams:number.positive(),recipeGrams:number.positive().optional()});
-const execution=z.strictObject({stock:z.record(id,storage).optional(),tasks:z.record(taskKey,z.strictObject({
+const execution=z.strictObject({shared:z.record(z.string().max(12000),z.literal(true)).optional(),stock:z.record(id,storage).optional(),tasks:z.record(taskKey,z.strictObject({
   packed:z.literal(true).optional(),made:z.literal(true).optional(),eaten:z.literal(true).optional(),
+  ingredients:z.array(z.strictObject({id,grams:number})).optional(),
   taken:z.strictObject({date,allocation:z.array(disposal),confirmed:z.literal(true).optional()}).optional(),
 })).optional()});
 const convertible=z.string().refine(id=>convertibleFoods.includes(id));
@@ -67,7 +68,7 @@ const prepBatch=z.strictObject({range,start:date,end:date,prepDate:date,purchase
 export const logisticsSchema=z.strictObject({
   settings,start:date,people:z.int().min(1).max(12),
   batches:z.array(buyBatch),actualBatches:z.array(buyBatch).optional(),conflicts:z.array(text).optional(),storageWarnings:z.array(text).optional(),
-  prep:z.array(prepBatch),notice:z.array(text),consumed:cost,purchase:cost,paid:cost,remaining:cost,categories:z.record(text,cost),
+  prep:z.array(prepBatch),notice:z.array(text),consumed:cost,purchase:cost,paid:cost,actualPaid:cost.optional(),unpricedPaid:cost.optional(),remaining:cost,categories:z.record(text,cost),
   lines:z.array(buyLine),budget:number.nullable(),checked:number,toBuy:number,
   inventory:z.array(z.strictObject({id,home:number,confirmed:number,projected:number,usable:number.optional(),taken:number.optional(),demand:number.optional(),shortage:number.optional()})),
 });

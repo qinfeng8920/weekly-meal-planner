@@ -17,14 +17,14 @@ import {PlanPage} from './PlanPage';
 import {Library} from './Library';
 import {ShoppingPage,type SupplyActions} from './ShoppingPage';
 import {dateKey,initialProfile,type Profile,type Weight} from './profile';
-import {shoppingOffsets,shoppingSchedule,supplyDefaults} from './batches';
+import {addDays,shoppingOffsets,shoppingSchedule,supplyDefaults} from './batches';
 import {planLogistics,type Logistics} from './logistics';
 import {parsePriceBackup} from './logistics-storage';
 import {type PriceBook} from './prices';
 import {nutrition} from './nutrition';
-import {algorithmVersion,newPlanStart,regenerate,revise,verifyAgainst,type Change,type Lock,type Plan,type StartChoice} from './planner';
+import {algorithmVersion,executionLocked,newPlanStart,regenerate,revise,verifyAgainst,type Change,type Lock,type Plan,type StartChoice} from './planner';
 import {prepPlan,purchasesFromLogistics,type Pantry} from './shopping';
-import {backupLimit,downloadFile,fresh,loadData,parseBackup,writeData,type Data} from './store';
+import {DataConflict,backupLimit,downloadFile,fresh,loadData,parseBackup,writeData,type Data} from './store';
 import {decimal,Empty,planText,SectionTitle,shareText,planDay} from './ui';
 import './style.css';
 
@@ -109,7 +109,7 @@ function App() {
     if(!data?.plan)return;
     const {plan,profile}=data;
     const active=profile?{...plan.profile,tools:profile.tools,frozen:profile.frozen,people:profile.people,prep:profile.prep,trips:profile.trips,budget:profile.budget}:plan.profile;
-    return planLogistics(plan.days,active,plan.start,data.pantry,{...data.supply,execution:data.supply?.execution??{}},plan.cookingOverride);
+    return planLogistics(plan.days,active,plan.start,data.pantry,{...data.supply,execution:data.supply?.execution??{}},plan.cookingOverride,undefined,plan.taskScope??null);
   },[data?.plan,data?.profile,data?.pantry,data?.supply]);
   const notify=(text:string,error=false)=>setStatus({text,error});
   if (fatal) return <main className="container"><Empty title="读取本机数据失败"><p>{fatal}</p><button onClick={()=>location.reload()}>重新读取</button></Empty></main>;
@@ -122,7 +122,7 @@ function App() {
     catch(e) {reason=errorText(e);}
   }
   const latestWeight=[...weights].sort((a,b)=>b.date.localeCompare(a.date))[0]?.kg??Number(profile?.weight);
-  const stale=Boolean(plan && (!['1.2.0','2.0.0','2.1.0',algorithmVersion].includes(plan.algorithmVersion) || !profile || !targets || latestWeight!==plan.weight ||
+  const stale=Boolean(plan && (!['1.2.0','2.0.0','2.1.0','2.2.0',algorithmVersion].includes(plan.algorithmVersion) || !profile || !targets || latestWeight!==plan.weight ||
     Math.abs(targets.kcal-plan.targets.kcal)>.01 || JSON.stringify(planningProfile(profile))!==JSON.stringify(planningProfile(plan.profile)) ||
     plan.days.some(d=>d.meals.some(m=>m.dishes.some(s=>data.blocked.includes(s.recipe.id))))));
   const supply={...data.supply,execution:data.supply?.execution??{}};
@@ -145,8 +145,12 @@ function App() {
       await writeData(next,data!);setData(next);
       if(message)notify(message);
       return true;
-    } catch(e) {notify(errorText(e),true);return false;}
-    finally {saving.current=false;}
+    } catch(e) {
+      if(e instanceof DataConflict) {
+        try {setData(await loadData());} catch(reloadError) {notify(errorText(reloadError),true);return false;}
+      }
+      notify(errorText(e),true);return false;
+    } finally {saving.current=false;}
   }
   function cancelGeneration() {
     generation.current++;
@@ -165,8 +169,9 @@ function App() {
       const options={settings:settings??data!.poolSettings??defaultPool,previous:plan?.pool,keep,startChoice:config?.startChoice??startChoice};
       const currentProfile=config?profileWithDraft(profile,config):profile;
       const nextSupply=config?{...supply,settings:config.settings,startChoice:config.startChoice}:supply;
+      const resume=plan&&(change||plan.start<dateKey()||plan.days.some((_,i)=>executionLocked(plan,supply.execution,i)))?plan:undefined;
       const args:Parameters<typeof regenerate>=[currentProfile,weights,pantry,data!.blocked,key,
-        change?plan??undefined:undefined,stale?[]:data!.locks,change,undefined,nextSupply,options];
+        resume??undefined,stale?[]:data!.locks,change,undefined,nextSupply,options];
       const next=await new Promise<Plan>((resolve,reject)=>{
         const worker=new Worker(new URL('./planner.worker.ts',import.meta.url),{type:'module'});
         stopWorker.current=()=>{worker.terminate();reject(Error('已取消生成。'));};
@@ -240,15 +245,18 @@ function App() {
   async function reuse(row:Plan) {
     if (!profile) {notify('请先完成当前档案和健康筛查。',true);return;}
     const start=newPlanStart(startChoice);
+    if(plan&&start<=addDays(plan.start,6)&&plan.days.some((_,i)=>executionLocked(plan,supply.execution,i))) {
+      notify('当前方案有已执行餐次。请选择本周结束后的起始日再使用历史方案。',true);return;
+    }
     try {
       shoppingOffsets(activeSettings,profile,start,dateKey());
       verifyAgainst(row,profile,weights,pantry,data!.blocked,supply,start);
     }
     catch(e) {notify('当前不可重新使用。'+errorText(e),true);return;}
     if (!confirm('此方案通过当前限制校验，重新使用会覆盖当前食谱并沿用原来的份量。继续？')) return;
-    const renewed={...structuredClone(row),logistics:undefined,id:crypto.randomUUID(),start,profile:structuredClone(profile),targets:targets!,weight:latestWeight};
+    const renewed={...structuredClone(row),logistics:undefined,id:crypto.randomUUID(),taskScope:crypto.randomUUID(),start,profile:structuredClone(profile),targets:targets!,weight:latestWeight};
     if(renewed.pool)renewed.pool.week=renewed.start;
-    const renewedQuote=planLogistics(renewed.days,profile,start,pantry,supply,renewed.cookingOverride);
+    const renewedQuote=planLogistics(renewed.days,profile,start,pantry,supply,renewed.cookingOverride,undefined,renewed.taskScope);
     renewed.purchases=purchasesFromLogistics(renewedQuote);
     renewed.prep=prepPlan(renewed.days,profile,renewed.start,renewed.cookingOverride,renewedQuote);
     if(await mutate({plan:renewed,locks:[],pantry}))go('食谱');
@@ -302,6 +310,12 @@ function App() {
   }
   const supplyActions:SupplyActions={
     task,receipt,
+    shared:(key,checked)=>{
+      const shared={...supply.execution.shared};
+      if(checked)shared[key]=true;
+      else delete shared[key];
+      return mutate({supply:{...supply,execution:{...supply.execution,shared}}},'备餐步骤进度已保存。');
+    },
     savePrice:(id,value)=>{
       const book={...supply.prices};
       if(value)book[id]={...value,date:value.date??dateKey()};
@@ -347,7 +361,7 @@ function App() {
     editProfile:()=>go('编辑档案'),openHistory:()=>go('历史方案'),change:(p:Change)=>void generate(p),lock,
     favorite:(id:string)=>toggle('favorites',id),block:(id:string)=>toggle('blocked',id),revise:adjust,save:savePlan,
     products:supply.products,livePool,openPool:()=>go('生成设置'),keepPool:()=>void generate(undefined,plan?.pool?.settings,true),
-    execution:supply.execution,mealJobs:quote?.prep.flatMap(b=>b.jobs)??[],completeMeal:(jobs:PrepJob[])=>task(jobs,'用餐',true),
+    execution:supply.execution,mealJobs:quote?.prep.flatMap(b=>b.jobs)??[],completeMeal:(jobs:PrepJob[])=>task(jobs,'用餐',true),undoMeal:(jobs:PrepJob[])=>task(jobs,'用餐',false),
     share:(p:Plan,share:boolean)=>void send(planText(p),share),exportText:(p:Plan)=>downloadFile('天天减-七天食谱.txt',planText(p),'text/plain;charset=utf-8'),
   };
 

@@ -127,8 +127,21 @@ export function ingredientPools(settings:PoolSettings,recipes:Recipe[],pantry:Pa
     const keep=normalizeIds([...base,...previous.selected],supply?.products).filter(id=>available.has(id)&&!excluded.has(id));
     if(poolGroups.every(group=>counts(keep)[group]<=capOf(settings,group)))result.push({selected:new Set(keep),chosen:settings.method==='手动指定'?manual:keep});
   }
-  for(let i=0;i<6;i++) {
-    const selected=new Set([...base,...all.filter(id=>poolGroup(id)==='基础食材')]);
+  const compact=['少量种类','极简采购'].includes(settings.mode);
+  const seasonings=all.filter(id=>purchaseCategory(id)!=='主要食材');
+  const basics=all.filter(id=>poolGroup(id)==='基础食材'&&purchaseCategory(id)==='主要食材');
+  const basicPalettes=[
+    ['egg','tofu','soymilk','yogurt','milk','walnut'],
+    ['egg','tofu','soymilk','greek','almond','milk','chickpea'],
+    ['egg','softtofu','soymilk','milk','yogurt','peanut','edamame'],
+  ];
+  for(let i=0;i<(compact?9:6);i++) {
+    const preferred=basicPalettes[i%3];
+    const basicCount=i<3?6:i<6?9:basics.length;
+    // 为蛋奶和豆类保留来源，先尝试精简组合，失败后放宽候选。
+    const chosenBasics=compact?basics.map(id=>({id,rank:score(id,preferred,i)}))
+      .sort((a,b)=>b.rank-a.rank).slice(0,basicCount).map(row=>row.id):basics;
+    const selected=new Set([...base,...seasonings,...chosenBasics]);
     for(const group of poolGroups) {
       const ranked=all.filter(id=>poolGroup(id)===group&& !selected.has(id)).map(id=>({id,rank:score(id,palettes[group][i%3],i)}))
         .sort((a,b)=>b.rank-a.rank);

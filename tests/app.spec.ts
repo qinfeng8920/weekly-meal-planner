@@ -40,7 +40,8 @@ test('手机问卷、七天食谱、采购、称重、历史与独立存储',asy
   await page.getByRole('button',{name:'保存到历史'}).click();
   await expect(page.getByText('已保存到历史方案。')).toBeVisible();
   await nav(page,'采购').click();
-    await page.getByRole('checkbox').first().click();
+  await page.getByRole('checkbox').first().click();
+  await page.getByRole('button',{name:'保存实际购买',exact:true}).click();
   await expect(page.getByRole('checkbox').first()).toBeChecked();
   await expect(page.getByText('采购记录已更新。')).toBeVisible();
   await page.getByRole('button',{name:'备餐清单',exact:true}).click();
@@ -364,7 +365,7 @@ test('整批取用和食谱完成餐次联动，同一餐只扣一次',async({pa
   await nav(page,'首页').click();
   await page.getByRole('button',{name:'继续备餐'}).click();
   const batch=page.locator('.prep-batch[open]').first();
-  await expect(batch.locator('summary').filter({hasText:/^食材取用与分装/})).toBeVisible();
+  await expect(batch.locator('summary').filter({hasText:/^食材取用/})).toBeVisible();
   await batch.locator('summary').filter({hasText:/^调味料用量/}).click();
   const seasonings=batch.locator('details.group-fold[open]').filter({has:page.locator('summary').filter({hasText:/^调味料用量/})});
   await expect(seasonings).toContainText('克');
@@ -383,6 +384,12 @@ test('整批取用和食谱完成餐次联动，同一餐只扣一次',async({pa
   await nav(page,'食谱').click();
   await page.getByRole('button',{name:'完成本餐',exact:true}).first().click();
   await expect(page.getByText('本餐已完成')).toBeVisible();
+  const finished=page.locator('.meal-card').filter({has:page.getByText('本餐已完成',{exact:true})});
+  await expect(finished.getByRole('button',{name:'换一餐'})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'换一天'})).toBeDisabled();
+  await expect(finished.locator('.dish').first().getByRole('button',{name:/^换/})).toBeDisabled();
+  await finished.locator('.dish-title').first().click();
+  await expect(finished.getByRole('button',{name:'调整克数'})).toBeDisabled();
   expect(await ledger()).toEqual(before);
 });
 
@@ -404,12 +411,15 @@ test('采购勾选实时显示单项、折叠批次、分类和全周进度',asy
   const check=row.getByRole('checkbox');
   await expect(batchSummary).toContainText(/已购 0\/\d+ 项/);
   await expect(mainSummary).toContainText(/已购 0\/\d+ 项/);
-  await row.getByRole('button',{name:'详情',exact:true}).click();
+  await check.click();
+  const suggested=await row.getByLabel('实际购买数量').inputValue();
   await row.getByLabel('实际购买数量').fill('1');
   await row.getByRole('button',{name:'保存实际购买',exact:true}).click();
   await expect(row.locator('.purchase-item-status')).toHaveText('已买部分');
   await expect(mainSummary).toContainText(/已购 0\/\d+ 项/);
-  await check.click();
+  await row.getByRole('button',{name:'详情',exact:true}).click();
+  await row.getByLabel('实际购买数量').fill(suggested);
+  await row.getByRole('button',{name:'保存实际购买',exact:true}).click();
   await expect(check).toBeChecked();
   await expect(row.locator('.purchase-item-status')).toHaveText('已购');
   const mainCount=await mainSummary.locator('.purchase-progress').innerText();
@@ -435,4 +445,76 @@ test('采购勾选实时显示单项、折叠批次、分类和全周进度',asy
   await expect(batchSummary).toContainText(/已购 0\/\d+ 项/);
   await expect(weeklySummary).toContainText(/已购 0\/\d+ 项/);
   await assertFit(page);
+});
+
+test('两标签页写入冲突及生成期间新库存不会被旧方案覆盖',async({page,context})=>{
+  await setup(page);
+  const second=await context.newPage();
+  await second.goto(page.url());
+  await expect(second.getByRole('heading',{name:'你好，测试用户'})).toBeVisible();
+  const addOats=async(target:Page,grams:string)=>{
+    await nav(target,'我的').click();
+    await target.getByRole('button',{name:'家中库存',exact:true}).click();
+    await target.getByRole('button',{name:'添加或登记购买'}).click();
+    await target.getByLabel('选择食材').selectOption('oats');
+    await target.getByRole('spinbutton',{name:'实际购买数量',exact:true}).fill(grams);
+  };
+  const findOats=(target:Page,grams:string)=>target.locator('summary').filter({hasText:new RegExp('^无糖燕麦片.*'+grams+' 克$')});
+  await addOats(page,'50');
+  await addOats(second,'30');
+  await page.getByRole('button',{name:'保存实际购买'}).click();
+  await expect(findOats(page,'50')).toBeVisible();
+  await second.getByRole('button',{name:'保存实际购买',exact:true}).click();
+  await expect(second.getByRole('alert')).toContainText('本机数据已更新');
+  await expect(findOats(second,'50')).toBeVisible();
+  await second.getByRole('button',{name:'保存实际购买',exact:true}).click();
+  await expect(findOats(second,'80')).toBeVisible();
+
+  await page.reload();
+  await page.evaluate(()=>{
+    const post=Worker.prototype.postMessage;
+    Worker.prototype.postMessage=function(message:unknown){setTimeout(()=>post.call(this,message),2500);};
+  });
+  await page.getByRole('button',{name:'生成七天食谱',exact:true}).click();
+  await addOats(second,'20');
+  await second.getByRole('button',{name:'保存实际购买',exact:true}).click();
+  await expect(findOats(second,'100')).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('本机数据已更新');
+  await nav(page,'我的').click();
+  await page.getByRole('button',{name:'家中库存',exact:true}).click();
+  await expect(findOats(page,'100')).toBeVisible();
+});
+
+test('逐页检查手机的三个宽度、两种主题和常用操作',async({page})=>{
+  await setup(page);
+  await generate(page);
+  page.once('dialog',dialog=>dialog.accept('布局验收历史'));
+  await page.getByRole('button',{name:'保存到历史'}).click();
+  await expect(page.getByText('已保存到历史方案。')).toBeVisible();
+  const routes=[
+    ['编辑档案','编辑个人档案'],
+    ['菜谱库与收藏','菜谱库'],
+    ['家中库存','库存'],
+    ['食材价格','食材价格'],
+    [/^历史方案 ·/,'历史方案'],
+  ] as const;
+  for(const theme of ['浅色','深色']) {
+    await nav(page,'我的').click();
+    await page.getByLabel('外观').selectOption(theme);
+    for(const width of [360,390,430]) {
+      await page.setViewportSize({width,height:850});
+      await page.evaluate(()=>{document.documentElement.style.fontSize='20px';});
+      for(const [button,heading] of routes) {
+        await nav(page,'我的').click();
+        await page.getByRole('button',{name:button,exact:true}).click();
+        await expect(page.getByRole('heading',{name:heading,exact:true})).toBeVisible();
+        await assertFit(page);
+        if(heading==='食材价格') {
+          await page.getByRole('searchbox',{name:'搜索食材'}).fill('燕麦');
+          await expect(page.locator('summary').filter({hasText:/^无糖燕麦片 ·/})).toBeVisible();
+        }
+        if(heading==='历史方案')await expect(page.getByRole('heading',{name:'布局验收历史'})).toBeVisible();
+      }
+    }
+  }
 });

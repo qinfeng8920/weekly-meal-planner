@@ -8,11 +8,39 @@ export {consumedBySource,homeKey} from './inventory';
 /** 旧备份的原始元数据，只用于兼容读取。 */
 export type StockInfo={expires:string;storage:'干燥常温'|'冷藏'|'冷冻'};
 export type Allocation={id:string;source:string;grams:number;recipeGrams?:number};
-export type TaskRecord={packed?:true;made?:true;eaten?:true;taken?:{date:string;allocation:Allocation[];confirmed?:true}};
-export type Execution={stock?:Record<string,StockInfo>;tasks?:Record<string,TaskRecord>};
+export type TaskRecord={packed?:true;made?:true;eaten?:true;ingredients?:PrepJob['ingredients'];taken?:{date:string;allocation:Allocation[];confirmed?:true}};
+export type Execution={shared?:Record<string,true>;stock?:Record<string,StockInfo>;tasks?:Record<string,TaskRecord>};
 export type TaskAction='分装'|'制作'|'取用'|'用餐';
 export function taskKey(start:string,day:number,meal:string,recipe:string) {
   return [start,String(day),meal,recipe].join('|');
+}
+export const taskExecuted=(record?:TaskRecord)=>Boolean(record?.taken||record?.made||record?.eaten);
+
+const taskIndexes=new WeakMap<NonNullable<Execution['tasks']>,Map<string,string>>();
+export function executedTask(execution:Execution|undefined,key:string,scope?:string|null,slot?:number) {
+  const tasks=execution?.tasks;
+  if(!tasks)return;
+  if(!scope)return taskExecuted(tasks[key])?key:undefined;
+  let index=taskIndexes.get(tasks);
+  if(!index) {
+    index=new Map();
+    for(const [candidate,record] of Object.entries(tasks)) {
+      if(taskExecuted(record)&&candidate.split('|').length===7)index.set(candidate.slice(0,candidate.lastIndexOf('|')),candidate);
+    }
+    taskIndexes.set(tasks,index);
+  }
+  return index.get(key+'|'+scope+'|'+slot);
+}
+
+export function scopedTaskKey(base:string,scope:string|null|undefined,slot:number,ingredients:PrepJob['ingredients'],products?:PurchaseOptions) {
+  if(!scope)return base;
+  let hash=2166136261;
+  const signature=JSON.stringify(ingredients.map(({id,grams})=>{
+    const product=purchaseFood(id,products);
+    return [id,grams,product.purchaseIngredientId,product.rate];
+  }));
+  for(let i=0;i<signature.length;i++)hash=Math.imul(hash^signature.charCodeAt(i),16777619);
+  return `${base}|${scope}|${slot}|${(hash>>>0).toString(36)}`;
 }
 
 export function stockForPlanning(ledger:Ledger):Pantry {
@@ -57,7 +85,7 @@ export function executeJobs(ledger:Ledger,current:Execution,jobs:Pick<PrepJob,'k
         outstanding.set(event.source,roundGrams((outstanding.get(event.source)??0)-event.delta));
       }
       entries.push(...usageEntries([...outstanding].filter(([,grams])=>grams>0).map(([source,grams])=>({source,grams,id:source.split('|').at(-1)!})),key,date,true));
-      entry.taken=undefined;entry.eaten=undefined;entry.made=undefined;
+      entry.taken=undefined;entry.eaten=undefined;entry.made=undefined;entry.ingredients=undefined;
     }
     if((action==='取用'||action==='制作'||action==='用餐')&&checked&&!entry.taken) {
       const allocations:Allocation[]=[];
@@ -72,6 +100,7 @@ export function executeJobs(ledger:Ledger,current:Execution,jobs:Pick<PrepJob,'k
         summary.set(id,roundGrams((summary.get(id)??0)+part.grams));
       }
       entry.taken={date,allocation:allocations,confirmed:true};
+      entry.ingredients=job.ingredients;
     }
     if(action==='用餐')entry.eaten=checked?true:undefined;
     if(entry.packed||entry.made||entry.eaten||entry.taken)tasks[key]=entry;

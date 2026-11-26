@@ -1,4 +1,4 @@
-import {allocateIngredient,taskKey,type Execution} from './execution';
+import {allocateIngredient,executedTask,scopedTaskKey,taskKey,type Execution} from './execution';
 import {currentLedger,ledgerLots,balances,receiptIdentity,type Ledger} from './inventory';
 import {purchaseCategory} from './purchase-category';
 import {purchaseFood,rawNetGrams,roundGrams,type PurchaseOptions} from './purchase-food';
@@ -22,7 +22,7 @@ export type PrepJob={key?:string;day:number;at:number;name:string;meal:string;me
 export type PrepBatch={range:Range;start:string;end:string;prepDate:string;purchaseDate:string;
   rows:{id:string;uses:Use[];grams:number}[];jobs:PrepJob[];active:number;waiting:number;boxes:number;tools:string[];sessions?:{date:string;active:number;waiting:number;total:number}[]};
 export type Logistics={settings:SupplySettings;start:string;people:number;batches:BuyBatch[];prep:PrepBatch[];notice:string[];
-  conflicts?:string[];storageWarnings?:string[];actualBatches?:BuyBatch[];consumed:Cost;purchase:Cost;paid:Cost;remaining:Cost;categories:Record<string,Cost>;lines:BuyLine[];budget:number|null;
+  conflicts?:string[];storageWarnings?:string[];actualBatches?:BuyBatch[];consumed:Cost;purchase:Cost;paid:Cost;actualPaid?:Cost;unpricedPaid?:Cost;remaining:Cost;categories:Record<string,Cost>;lines:BuyLine[];budget:number|null;
   checked:number;toBuy:number;inventory:{id:string;home:number;confirmed:number;projected:number;usable?:number;taken?:number;demand?:number;shortage?:number}[]};
 
 const round=roundGrams;
@@ -53,7 +53,7 @@ export function purchaseEligibility(p:Profile,start:string,pantry:Pantry,state:S
   };
 }
 
-export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={},state:SupplyState={},cookingOverride?:CookingSelection, defaults:Readonly<PriceBook>=priceDefaults):Logistics {
+export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={},state:SupplyState={},cookingOverride?:CookingSelection, defaults:Readonly<PriceBook>=priceDefaults, scope?:string|null):Logistics {
   const settings=state.settings??supplyDefaults(p), ranges=splitWeek(settings,days.length);
   const dates=shoppingOffsets(settings,p,start), products=state.products;
   const eligible=purchaseEligibility(p,start,pantry,state);
@@ -72,8 +72,16 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
   notice.push('常温采购只用于整颗完好蔬果和未开封的常温商品。豆浆选标注可常温保存的未开封小包装，鲑鱼和熟鹰嘴豆选无盐罐装；开封即用，无冰箱时勿留存剩余。');
   if(fridge&&!freezer)notice.unshift('没有可用冷冻条件。易腐食材须在冷藏期限内食用，购物日期保持所选安排。');
 
-  function schedule(row:Serving,day:number,at:number,meal:string,allow:boolean) {
-    const ingredients=row.ingredients.map(i=>({id:i.id,grams:round(i.grams*people)}));
+  function schedule(row:Serving,day:number,at:number,meal:string,allow:boolean,slot:number) {
+    const planned=row.ingredients.map(i=>({id:i.id,grams:round(i.grams*people)}));
+    const base=taskKey(start,day,meal,row.recipe.id);
+    const key=executedTask(state.execution,base,scope,slot)??scopedTaskKey(base,scope,slot,planned,products);
+    const record=state.execution?.tasks?.[key];
+    const amounts=new Map<string,number>();
+    if(scope===null&&record?.taken&&!record.ingredients)for(const part of record.taken.allocation) {
+      amounts.set(part.id,round((amounts.get(part.id)??0)+(part.recipeGrams??part.grams)));
+    }
+    const ingredients=record?.ingredients??(amounts.size?[...amounts].map(([id,grams])=>({id,grams})):planned);
     const nutritionIds=ingredients.map(i=>i.id);
     const withRice=nutritionIds.some(id=>riceFoods.has(id));
     const mustCookFresh=nutritionIds.some(cookOnServingDay);
@@ -101,7 +109,7 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
     if(method.includes('冷冻'))steps.push('已冷冻时，食用前一晚移至冰箱冷藏室解冻，生料和熟食分开。');
     if(method.includes('冷冻生料'))steps.unshift('生料单独密封，按该餐净重分装。腌制只在冷藏室进行，食谱无腌制步骤则直接烹调。');
     const factor=Math.max(1,1+(people-1)*.25);
-    return {job:{key:taskKey(start,day,meal,row.recipe.id),day,at:prepAt,name:row.recipe.name,meal,method,active:Math.ceil(cooking.active*factor),
+    return {job:{key,day,at:prepAt,name:row.recipe.name,meal,method,active:Math.ceil(cooking.active*factor),
       waiting:cooking.wait+conversions.reduce((minutes,r)=>minutes+r.minutes,0),...(prepAt<day?{reheat:cooking.reheat??5}:{}),tools,steps,ingredients},needsAt:prepAt};
   }
 
@@ -111,9 +119,20 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
       const name=meal.name as MealName;
       const perMeal=p.cooking?.days?.[index]?.[name as '午餐']?.prep??p.cooking?.meals?.[name as '午餐']?.prep
         ??p.mealPreferences?.[name as '午餐']?.prep??settings.prep!=='每天';
-      meal.dishes.forEach(dish=>{
-        const {job,needsAt}=schedule(dish,index,range.prepAt,meal.name,perMeal);
+      meal.dishes.forEach((dish,slot)=>{
+        const {job,needsAt}=schedule(dish,index,range.prepAt,meal.name,perMeal,slot);
         batchJobs(index).push(job);
+        const taken=state.execution?.tasks?.[job.key]?.taken;
+        if(taken&&scope!==undefined) {
+          for(const part of taken.allocation) {
+            const id=part.source.split('|').at(-1)!;
+            const uses=all.get(id)??[];
+            uses.push({day:index,meal:meal.name,dish:dish.recipe.name,grams:part.grams,recipeId:part.id,recipeGrams:part.recipeGrams??part.grams,
+              prepAt:needsAt,method:job.method,jobKey:job.key,sourcing:{home:0,carry:0,forecast:0,taken:part.grams}});
+            all.set(id,uses);
+          }
+          return;
+        }
         for(const i of job.ingredients) {
           const product=purchaseFood(i.id,products);
           const uses=all.get(product.purchaseIngredientId)??[];
@@ -126,10 +145,10 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
     });
   });
 
-  const scopeEnd=addDays(start,days.length-1), scopeBegin=addDays(start,-1);
+  const scopeEnd=addDays(start,days.length-1);
   const receipts=Object.entries(state.receipts??{}).filter(([source,r])=>{
     const date=r.date??receiptIdentity(source).date;
-    return source.startsWith(start+'|')||Boolean(date&&date>=scopeBegin&&date<=scopeEnd);
+    return source.startsWith(start+'|')||Boolean(date&&date>=start&&date<=scopeEnd);
   });
   const execution=state.execution??{};
   const ledger=currentLedger(pantry,state);
@@ -146,7 +165,7 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
   const extra=new Map<number,BuyLine[]>();
   const categoryCosts:Record<string,Cost>={};
   const inventory:Logistics['inventory']=[];
-  const purchase=blank(),consumed=blank(),paid=blank(),remaining=blank();
+  const purchase=blank(),consumed=blank(),paid=blank(),actualPaid=blank(),unpricedPaid=blank(),remaining=blank();
   const conflicts:string[]=[], storageWarnings:string[]=[];
   let checked=0,toBuy=0;
   const emptyRow=(id:string):BuyLine=>({id,uses:[],need:0,stock:0,carry:0,buy:0,remaining:0,confirmed:0,netConfirmed:0,leftover:0,
@@ -173,16 +192,18 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
       const withoutPaid=Math.max(0,round(old.gross-pricedPaid));
       const partialEstimate=withoutPaid&&old.netOnly?null:amountFor(withoutPaid,price);
       const bill=blank();
-      if(old.paid!==undefined)addCost(bill,old.paid);
-      if(withoutPaid)addCost(bill,partialEstimate);
+      const actualDate=old.date??receiptIdentity(key).date;
+      if(actualDate&&actualDate>=start&&actualDate<=scopeEnd) {
+        if(old.paid!==undefined){addCost(bill,old.paid);addCost(actualPaid,old.paid);}
+        if(withoutPaid){addCost(bill,partialEstimate);addCost(unpricedPaid,partialEstimate);}
+      }
       const receipt={confirmed:old.gross,netConfirmed:old.net,receiptDate:old.date??receiptIdentity(key).date,receiptQuantity:old.quantity,receiptUnit:old.unit,receiptNetOnly:old.netOnly,
         paid:partialEstimate===null?null:round((old.paid??0)+partialEstimate),paidEstimated:withoutPaid>0,
         ...(old.paid!==undefined?{paidActual:old.paid,paidGross:pricedPaid}:{}),bill};
       mergeCost(paid,bill);
       if(uses.length&&scheduled!==undefined&&scheduled===+day&&!actualDay.has(scheduled)) {
         Object.assign(rowFor(scheduled).row,receipt);actualDay.add(scheduled);
-      } else {
-        const actualDate=receipt.receiptDate??start;
+      } else if(actualDate&&actualDate>=start&&actualDate<=scopeEnd) {
         const dayIndex=Math.round((Date.parse(actualDate)-Date.parse(start))/86400000);
         const entries=extra.get(dayIndex)??[];
         const preservedCost={...bill};
@@ -192,6 +213,10 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
     }
     // 生熟库存分别消耗，按最早制备日期分配。凭证与取用记录不改写。
     for(const use of [...uses].sort((a,b)=>a.prepAt-b.prepAt||a.day-b.day)) {
+      if(use.sourcing) {
+        rowFor(dates.findLast(d=>d<=use.prepAt)??dates[0]).row.uses.push(use);
+        continue;
+      }
       const recipeId=use.recipeId??id, grams=use.recipeGrams??use.grams;
       const product=purchaseFood(recipeId,products);
       const old=use.jobKey?priorUses.get(use.jobKey):undefined;
@@ -276,6 +301,10 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
     return {day,date:addDays(start,day),lines:lines.sort(sort),purchase,consumed,paid,remaining};
   });
   const batches=buildBatches(events), actualBatches=buildBatches(extra);
+  for(const batch of actualBatches)for(const row of batch.lines) {
+    mergeCost(purchase,row.cost);
+    mergeCost(categoryCosts[purchaseCategory(row.id)]??=blank(),row.cost);
+  }
   const prep=ranges.map(range=>{
     const selected=jobsByDate[range.index];
     const rows=[...all].map(([id,uses])=>{
@@ -289,7 +318,7 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
       boxes:selected.filter(j=>(j.at<j.day||j.method.includes('冷冻生料'))&&j.ingredients.some(i=>purchaseCategory(i.id)==='主要食材')).length,
       tools:[...new Set(selected.flatMap(j=>j.tools))]};
   });
-  return {settings,start,people,batches,prep,notice,actualBatches,conflicts:[...new Set(conflicts)],storageWarnings:[...new Set(storageWarnings)],consumed,purchase,paid,remaining,categories:categoryCosts,
+  return {settings,start,people,batches,prep,notice,actualBatches,conflicts:[...new Set(conflicts)],storageWarnings:[...new Set(storageWarnings)],consumed,purchase,paid,actualPaid,unpricedPaid,remaining,categories:categoryCosts,
     lines:aggregate.sort(sort),budget:p.budget?Number(p.budget):null,checked,toBuy,inventory};
 }
 export const ingredientLabel=(id:string)=>food(id).name+' · '+foodState[food(id).state];

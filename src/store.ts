@@ -44,7 +44,7 @@ const plan = z.strictObject({id:string,name:string,created:z.iso.datetime(),star
   days:z.array(z.strictObject({meals:z.array(z.strictObject({name:string,dishes:z.array(serving).min(1).max(6)})).min(2).max(4)})).length(7),
   targets:z.strictObject({...macros,bmi:num,bmr:num,tdee:num,water:num.nullable(),message:string}),
   purchases:z.array(purchase).max(180),prep:z.strictObject({mode:string,notice:names,days:z.array(z.strictObject({date,task:string,minutes:num,meals:names})).length(7)}),
-  algorithmVersion:string,catalogVersion:string,favorite:z.boolean(),cookingOverride:cookingMode.optional(),logistics:logisticsSchema.optional(),pool:ingredientPoolSchema.optional()});
+  algorithmVersion:string,catalogVersion:string,favorite:z.boolean(),taskScope:z.uuid().optional(),cookingOverride:cookingMode.optional(),logistics:logisticsSchema.optional(),pool:ingredientPoolSchema.optional()});
 const metrics = z.record(z.string().regex(/^[a-z][a-z0-9-]{0,49}$/),
   z.strictObject({stock:num.optional(),bought:num.optional(),price:num.optional(),pack:num.positive().optional(),yieldPercent:num.min(1).max(100).optional()}));
 const schema = z.strictObject({version:z.literal(1),profile:profile.nullable(),
@@ -102,6 +102,10 @@ export async function loadData() {
     });
   } finally {database.close();}
 }
+export class DataConflict extends Error {
+  constructor() {super('本机数据已更新，本次操作未覆盖。请核对后重试。');}
+}
+
 export async function writeData(data:Data,previous:Data) {
   const checked=parseBackup(JSON.stringify(data));
   const database=await db();
@@ -114,7 +118,7 @@ export async function writeData(data:Data,previous:Data) {
         try {
           const current=read.result===undefined?fresh():parseBackup(JSON.stringify(read.result));
           if (JSON.stringify(current)!==JSON.stringify(parseBackup(JSON.stringify(previous)))) {
-            reject(Error('另一个页面已更新本机数据。请刷新后重试。'));tx.abort();return;
+            reject(new DataConflict());tx.abort();return;
           }
           store.put(checked,'data');
         } catch(e) {reject(e);tx.abort();}
