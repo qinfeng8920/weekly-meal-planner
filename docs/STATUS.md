@@ -11,7 +11,7 @@
 | 6 历史与数据 | IndexedDB、体重日志、历史独立快照和重新使用校验 | `src/store.ts`、`src/main.tsx` |
 | 7 离线与备份 | 安装清单、离线缓存、版本更新与 JSON 恢复 | `public/manifest.webmanifest`、`scripts/sw.mjs` |
 | 8 验收 | 单元与 Chromium 端到端验收，结果单列 | `tests/`、`docs/TESTING.md` |
-| 9 发布 | GitHub Actions 测试及构建包上传通过。仓库仍是私有，设置变更请求返回 403，需仓库所有者启用 Pages | `.github/workflows/pages.yml`、`docs/DEPLOYMENT.md` |
+| 9 发布 | GitHub Pages 已上线。匿名访问、正式子路径资源、模拟手机离线生成均已验证 | `.github/workflows/pages.yml`、`docs/DEPLOYMENT.md` |
 
 ## 已知限制与下一步
 
@@ -19,4 +19,4 @@
 - 菜谱目前偏向中式和少量西式。系统记录更多菜系偏好，尚需扩充川湘、日韩、更多主食和便当品种。不同地区、极紧预算及多重限制下可能找不到满足条件的组合。
 - 备餐提供逐日菜单和分批建议。多人并行操作、设备容量、冷冻保质期按各食材实际情况核查。
 - 个人数据由本机保存。备份恢复采用经二次确认的覆盖模式；未提供跨设备同步和自动合并。
-- 下一阶段完成 GitHub Pages 上线、安卓与 iPhone 真机安装、手动全按钮检查和大陆线路验证。
+- 后续验收包括安卓与 iPhone 真机安装、手动全按钮检查和中国大陆线路验证。 [正式站点](https://qinfeng8920.github.io/weekly-meal-planner/)
