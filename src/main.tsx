@@ -7,7 +7,7 @@ import {Library} from './Library';
 import {ShoppingPage,purchaseText} from './ShoppingPage';
 import {dateKey,type Profile,type Weight} from './profile';
 import {nutrition} from './nutrition';
-import {monday,regenerate,revise,verifyAgainst,type Lock,type Plan} from './planner';
+import {algorithmVersion,monday,regenerate,revise,verifyAgainst,type Lock,type Plan} from './planner';
 import {prepPlan,shopping} from './shopping';
 import {downloadFile,fresh,loadData,parseBackup,writeData,type Data} from './store';
 import {Empty,planText,SectionTitle,shareText,todayIndex} from './ui';
@@ -38,16 +38,33 @@ function App() {
     window.addEventListener('online',signal);window.addEventListener('offline',signal);
     window.addEventListener('beforeinstallprompt',install);
     if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-      const controlled=Boolean(navigator.serviceWorker.controller);
-      const refresh=()=>{if(controlled)location.reload();};
+      let controlled=Boolean(navigator.serviceWorker.controller), active=true;
+      let registration:ServiceWorkerRegistration|undefined;
+      const refresh=()=>{
+        if(controlled) location.reload();
+        controlled=Boolean(navigator.serviceWorker.controller);
+      };
+      const checkUpdate=()=>{if(navigator.onLine) void registration?.update().catch(()=>{});};
+      const mark=()=>{
+        if(active&&registration?.waiting&&navigator.serviceWorker.controller) setUpdate(registration.waiting);
+      };
+      const watchInstall=()=>registration?.installing?.addEventListener('statechange',mark);
       navigator.serviceWorker.addEventListener('controllerchange',refresh);
-      void navigator.serviceWorker.register(import.meta.env.BASE_URL+'sw.js').then(reg=>{
-        const mark=()=>{if(reg.waiting&&navigator.serviceWorker.controller)setUpdate(reg.waiting);};
+      window.addEventListener('focus',checkUpdate);
+      window.addEventListener('online',checkUpdate);
+      void navigator.serviceWorker.register(import.meta.env.BASE_URL+'sw.js',{updateViaCache:'none'}).then(reg=>{
+        if(!active)return;
+        registration=reg;
         mark();
-        reg.addEventListener('updatefound',()=>reg.installing?.addEventListener('statechange',mark));
-        void navigator.serviceWorker.ready.then(()=>setCached(true));
-      }).catch(()=>setStatus({text:'离线资源缓存失败。联网重新打开后可重试。',error:true}));
+        watchInstall();
+        reg.addEventListener('updatefound',watchInstall);
+        void navigator.serviceWorker.ready.then(()=>{if(active)setCached(true);});
+      }).catch(()=>{if(active)setStatus({text:'离线资源缓存失败。联网重新打开后可重试。',error:true});});
       return ()=>{
+        active=false;
+        registration?.removeEventListener('updatefound',watchInstall);
+        window.removeEventListener('focus',checkUpdate);
+        window.removeEventListener('online',checkUpdate);
         window.removeEventListener('online',signal);window.removeEventListener('offline',signal);
         window.removeEventListener('beforeinstallprompt',install);navigator.serviceWorker.removeEventListener('controllerchange',refresh);
       };
@@ -72,7 +89,7 @@ function App() {
     catch(e) {reason=errorText(e);}
   }
   const latestWeight=[...weights].sort((a,b)=>b.date.localeCompare(a.date))[0]?.kg??Number(profile?.weight);
-  const stale=Boolean(plan && (!profile || !targets || latestWeight!==plan.weight ||
+  const stale=Boolean(plan && (plan.algorithmVersion!==algorithmVersion || !profile || !targets || latestWeight!==plan.weight ||
     Math.abs(targets.kcal-plan.targets.kcal)>.01 || JSON.stringify(profile)!==JSON.stringify(plan.profile) ||
     plan.days.some(d=>d.meals.some(m=>m.dishes.some(s=>data.blocked.includes(s.recipe.id))))));
   const purchases=plan?shopping(plan.days,plan.profile,data.pantry):[];
@@ -163,7 +180,7 @@ function App() {
   const planProps={
     profile,busy,stale,day,setDay,locks:data.locks,favorites:data.favorites,generate:()=>void generate(),
     editProfile:()=>go('编辑档案'),openHistory:()=>go('历史方案'),change:(p:{day:number;meal?:number;dish?:number})=>void generate(p),lock,
-    favorite:(id:string)=>toggle('favorites',id),block:(id:string)=>toggle('blocked',id),revise:adjust,save:savePlan,seed,setSeed,rules:rule,
+    favorite:(id:string)=>toggle('favorites',id),block:(id:string)=>toggle('blocked',id),revise:adjust,save:savePlan,seed,setSeed,rules:rule,saveMealSettings:(mealPreferences:Profile['mealPreferences'])=>profile?mutate({profile:{...profile,mealPreferences}},'分餐偏好已保存。重新生成后生效。'):Promise.resolve(false),
     share:(p:Plan,share:boolean)=>void send(planText(p),share),exportText:(p:Plan)=>downloadFile('天天减-七天食谱.txt',planText(p),'text/plain;charset=utf-8'),
   };
 

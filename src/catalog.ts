@@ -1,3 +1,4 @@
+import {quickRecipes} from './quick-recipes';
 import data from './foods.json';
 import {macroKeys, scale, sum, type Nutrients} from './nutrition';
 
@@ -10,7 +11,7 @@ export const food = (id: string) => {
   return value;
 };
 export const foodState: Record<string,string> = {raw:'生鲜可食部',dry:'干重',cooked:'熟重',ready:'成品净重',frozen:'冷冻净重'};
-export const catalogVersion = '2026.11-sr1';
+export const catalogVersion = '2026.11-sr2';
 export type Ingredient = {id:string; grams:number};
 export type Group = '蛋白质菜'|'蔬菜'|'主食'|'早餐'|'水果'|'加餐'|'汤类';
 export type Recipe = {
@@ -138,6 +139,7 @@ for (const [id,name,fruit] of [['banana','香蕉杏仁','banana'],['blueberry','
 add('snack-almond','原味杏仁','加餐',items(['almond',20]),[],1,0,['检查过敏提示，称好单人份。'],{max:1.2,batch:false});
 add('snack-milk','纯牛奶','加餐',items(['milk',225]),[],1,0,['选巴氏杀菌或灭菌纯牛奶，开封后按包装储存。'],{max:1.33,batch:false});
 
+recipes.push(...quickRecipes);
 export const recipeList = recipes;
 export const recipeMap = new Map(recipes.map(r=>[r.id,r]));
 export function serving(recipe:Recipe, factor = 1, grams?: Ingredient[]): Serving {

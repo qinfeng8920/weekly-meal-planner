@@ -18,11 +18,26 @@ export const initialProfile = {
   fixedBreakfast: '', requiredDish: '', fluidLimit: false,
 };
 
-export type Profile = typeof initialProfile;
+export type Profile = typeof initialProfile & {mealPreferences?:Partial<Record<MainMeal,MealPreference>>};
 export type Weight = { date: string; kg: number; waist?: number };
 export const split = (value: string) => value.split(/[、,，;；\n]/).map(x => x.trim()).filter(Boolean);
 
 export function dateKey(date = new Date()) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 10);
+}
+
+export const mainMeals = ['早餐','午餐','晚餐'] as const;
+export type MainMeal = typeof mainMeals[number];
+export type MealName = MainMeal|'早午餐'|'加餐';
+export type MealPreference = {minutes:string; cuisines:string[]; likes:string; dislikes:string;
+  repeats:boolean; fixed:boolean; prep:boolean};
+export const defaultMealPreference = (p:Profile,meal:MainMeal):MealPreference => ({
+  minutes:meal==='早餐' ? String(Math.min(10,Number(p.minutes))) : p.minutes, cuisines:[],
+  likes:'',dislikes:'',repeats:p.repeats,fixed:false,prep:false,
+});
+export function mealPreference(p:Profile,name:MealName) {
+  const meal=name==='早午餐'||name==='加餐'?'午餐':name;
+  const result=p.mealPreferences?.[meal]??defaultMealPreference(p,meal);
+  return name==='加餐'?{...result,minutes:'10',cuisines:[],likes:'',dislikes:'',repeats:true,fixed:false,prep:false}:result;
 }

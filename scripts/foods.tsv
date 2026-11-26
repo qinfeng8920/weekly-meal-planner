@@ -119,3 +119,10 @@ lemon	柠檬果肉	调味品	167746	raw		柠檬
 cinnamon	肉桂粉	调味品	171320	ready		肉桂
 cumin	孜然粒	调味品	170923	ready		孜然
 turmeric	姜黄粉	调味品	172231	ready		姜黄
+soymilk	无糖强化钙豆浆	豆制品	175215	ready	大豆	豆浆,豆乳
+boiledegg	水煮全蛋	蛋	173424	cooked	蛋	水煮蛋,鸡蛋
+cookedsweet	清煮去皮红薯	主食	168484	cooked		熟红薯,红薯
+cookedcorn	无盐熟玉米粒	主食	169999	cooked		熟玉米,玉米
+cookedbrown	无盐熟糙米	主食	169704	cooked		熟糙米,糙米
+cookedchicken	无盐熟鸡胸肉	肉类	171140	cooked		熟鸡胸,鸡胸肉,鸡肉
+cannedsalmon	无盐带软骨罐装大马哈鱼	鱼虾	174224	ready	鱼	罐装三文鱼,三文鱼,鱼肉

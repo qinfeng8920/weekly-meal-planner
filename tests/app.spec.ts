@@ -130,3 +130,35 @@ test('新 Service Worker 版本生效后仍能读取历史',async({page})=>{
   await page.getByRole('button',{name:/历史方案/}).click();
   await expect(page.getByRole('heading',{name:'更新前保存'})).toBeVisible();
 });
+
+test('分餐偏好、固定早餐、营养检查及历史存档',async({page})=>{
+  await setup(page);
+  await nav(page,'食谱').click();
+  await page.getByText('早餐、午餐和晚餐偏好',{exact:true}).click();
+  await page.getByText('早餐 · 10 分钟',{exact:true}).click();
+  await page.getByLabel('不喜欢的食材',{exact:true}).filter({visible:true}).fill('酸奶');
+  await page.getByRole('button',{name:'保存分餐偏好'}).click();
+  await expect(page.getByText(/分餐偏好已保存/)).toBeVisible();
+  await page.getByText('生成设置',{exact:true}).click();
+  await page.getByLabel('固定早餐').selectOption('breakfast-set-0-0');
+  await expect(page.getByText('生成设置已保存。')).toBeVisible();
+  await page.getByLabel('随机种子（选填）').fill('浏览器验收');
+  await generate(page);
+  const breakfast=page.locator('section.meal-card').first();
+  await expect(breakfast.getByRole('heading',{name:'早餐',exact:true})).toBeVisible();
+  await expect(breakfast.getByRole('button',{name:'无糖豆浆煮燕麦',exact:true})).toBeVisible();
+  await expect(breakfast.getByRole('button',{name:'水煮蛋（即食）',exact:true})).toBeVisible();
+  await expect(breakfast.getByText(/约 (?:[1-9]|10) 分钟/).first()).toBeVisible();
+  await page.getByText('全周日均营养检查',{exact:true}).click();
+  await expect(page.locator('details[open]').filter({has:page.getByText('全周日均营养检查',{exact:true})}).getByText('参考值 800 毫克',{exact:true})).toBeVisible();
+  page.once('dialog',d=>d.accept('分餐历史'));
+  await page.getByRole('button',{name:'保存到历史'}).click();
+  await expect(page.getByText('已保存到历史方案。')).toBeVisible();
+  await page.reload();
+  await nav(page,'食谱').click();
+  await expect(page.getByRole('button',{name:'无糖豆浆煮燕麦',exact:true}).first()).toBeVisible();
+  await nav(page,'菜谱库').click();
+  await page.getByRole('button',{name:'早餐搭配',exact:true}).click();
+  await expect(page.getByRole('heading',{name:/43 套早餐搭配/})).toBeVisible();
+  await assertFit(page);
+});

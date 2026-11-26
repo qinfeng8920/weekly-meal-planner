@@ -11,8 +11,13 @@ const string = z.string().max(800);
 const names = z.array(string).max(180);
 const num = z.number().min(0).max(1e8);
 const date = z.iso.date();
-const profile = z.strictObject(Object.fromEntries(Object.entries(initialProfile).map(([key,value])=>
-  [key,typeof value==='boolean'?z.boolean():Array.isArray(value)?names:string])));
+const meal = z.strictObject({minutes:z.enum(['5','10','15','20','30','40','60','120']),cuisines:names,likes:string,dislikes:string,
+  repeats:z.boolean(),fixed:z.boolean(),prep:z.boolean()});
+const profile = z.strictObject({
+  ...Object.fromEntries(Object.entries(initialProfile).map(([key,value])=>
+    [key,typeof value==='boolean'?z.boolean():Array.isArray(value)?names:string])),
+  mealPreferences:z.strictObject({早餐:meal.optional(),午餐:meal.optional(),晚餐:meal.optional()}).optional(),
+});
 const ingredient = z.strictObject({id:z.string().regex(/^[a-z][a-z0-9-]{0,49}$/),grams:num.positive().max(2000)});
 const recipe = z.strictObject({id:string,name:string,group:z.enum(['蛋白质菜','蔬菜','主食','早餐','水果','加餐','汤类']),
   ingredients:z.array(ingredient).min(1).max(25),tools:names,prep:num,cook:num,steps:names,cuisine:string,flavor:string,skill:string,batch:z.boolean(),min:num,max:num});

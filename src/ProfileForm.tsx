@@ -3,9 +3,9 @@ import {allergens, conditions, cuisines, equipment, initialProfile, screening, t
 import {foods} from './catalog';
 import {between} from './nutrition';
 
-type TextKey = {[K in keyof Profile]:Profile[K] extends string?K:never}[keyof Profile];
-type ArrayKey = {[K in keyof Profile]:Profile[K] extends string[]?K:never}[keyof Profile];
-type BoolKey = {[K in keyof Profile]:Profile[K] extends boolean?K:never}[keyof Profile];
+type TextKey = {[K in keyof Profile]-?:Profile[K] extends string?K:never}[keyof Profile];
+type ArrayKey = {[K in keyof Profile]-?:Profile[K] extends string[]?K:never}[keyof Profile];
+type BoolKey = {[K in keyof Profile]-?:Profile[K] extends boolean?K:never}[keyof Profile];
 const titles=['身体信息','生活与运动','健康筛查','饮食偏好','厨房条件','采购与用餐'];
 const preferences: [ArrayKey,string,string[]][] = [
   ['protein','蛋白质',['鸡胸肉','鸡腿肉','牛肉','猪肉','鱼肉','虾','鸡蛋','豆腐','牛奶','无糖酸奶']],

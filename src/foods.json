@@ -2783,5 +2783,181 @@
       "potassium": 2080.0,
       "vitaminC": 0.7
     }
+  },
+  {
+    "id": "soymilk",
+    "name": "无糖强化钙豆浆",
+    "category": "豆制品",
+    "fdc": 175215,
+    "description": "Soymilk (all flavors), unsweetened, with added calcium, vitamins A and D",
+    "state": "ready",
+    "allergens": [
+      "大豆"
+    ],
+    "aliases": [
+      "豆浆",
+      "豆乳"
+    ],
+    "nutrients": {
+      "kcal": 33.0,
+      "protein": 2.86,
+      "carbs": 1.74,
+      "fat": 1.61,
+      "fiber": 0.5,
+      "sodium": 37.0,
+      "calcium": 124.0,
+      "potassium": 120.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "boiledegg",
+    "name": "水煮全蛋",
+    "category": "蛋",
+    "fdc": 173424,
+    "description": "Egg, whole, cooked, hard-boiled",
+    "state": "cooked",
+    "allergens": [
+      "蛋"
+    ],
+    "aliases": [
+      "水煮蛋",
+      "鸡蛋"
+    ],
+    "nutrients": {
+      "kcal": 155.0,
+      "protein": 12.58,
+      "carbs": 1.12,
+      "fat": 10.61,
+      "fiber": 0.0,
+      "sodium": 124.0,
+      "calcium": 50.0,
+      "potassium": 126.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "cookedsweet",
+    "name": "清煮去皮红薯",
+    "category": "主食",
+    "fdc": 168484,
+    "description": "Sweet potato, cooked, boiled, without skin",
+    "state": "cooked",
+    "allergens": [],
+    "aliases": [
+      "熟红薯",
+      "红薯"
+    ],
+    "nutrients": {
+      "kcal": 76.0,
+      "protein": 1.37,
+      "carbs": 17.72,
+      "fat": 0.14,
+      "fiber": 2.5,
+      "sodium": 27.0,
+      "calcium": 27.0,
+      "potassium": 230.0,
+      "vitaminC": 12.8
+    }
+  },
+  {
+    "id": "cookedcorn",
+    "name": "无盐熟玉米粒",
+    "category": "主食",
+    "fdc": 169999,
+    "description": "Corn, sweet, yellow, cooked, boiled, drained, without salt",
+    "state": "cooked",
+    "allergens": [],
+    "aliases": [
+      "熟玉米",
+      "玉米"
+    ],
+    "nutrients": {
+      "kcal": 96.0,
+      "protein": 3.41,
+      "carbs": 20.98,
+      "fat": 1.5,
+      "fiber": 2.4,
+      "sodium": 1.0,
+      "calcium": 3.0,
+      "potassium": 218.0,
+      "vitaminC": 5.5
+    }
+  },
+  {
+    "id": "cookedbrown",
+    "name": "无盐熟糙米",
+    "category": "主食",
+    "fdc": 169704,
+    "description": "Rice, brown, long-grain, cooked (Includes foods for USDA's Food Distribution Program)",
+    "state": "cooked",
+    "allergens": [],
+    "aliases": [
+      "熟糙米",
+      "糙米"
+    ],
+    "nutrients": {
+      "kcal": 123.0,
+      "protein": 2.74,
+      "carbs": 25.58,
+      "fat": 0.97,
+      "fiber": 1.6,
+      "sodium": 4.0,
+      "calcium": 3.0,
+      "potassium": 86.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "cookedchicken",
+    "name": "无盐熟鸡胸肉",
+    "category": "肉类",
+    "fdc": 171140,
+    "description": "Chicken, broiler or fryers, breast, skinless, boneless, meat only, cooked, braised",
+    "state": "cooked",
+    "allergens": [],
+    "aliases": [
+      "熟鸡胸",
+      "鸡胸肉",
+      "鸡肉"
+    ],
+    "nutrients": {
+      "kcal": 157.0,
+      "protein": 32.06,
+      "carbs": 0.0,
+      "fat": 3.24,
+      "fiber": 0.0,
+      "sodium": 47.0,
+      "calcium": 6.0,
+      "potassium": 343.0,
+      "vitaminC": 0.0
+    }
+  },
+  {
+    "id": "cannedsalmon",
+    "name": "无盐带软骨罐装大马哈鱼",
+    "category": "鱼虾",
+    "fdc": 174224,
+    "description": "Fish, salmon, chum, canned, without salt, drained solids with bone",
+    "state": "ready",
+    "allergens": [
+      "鱼"
+    ],
+    "aliases": [
+      "罐装三文鱼",
+      "三文鱼",
+      "鱼肉"
+    ],
+    "nutrients": {
+      "kcal": 141.0,
+      "protein": 21.43,
+      "carbs": 0.0,
+      "fat": 5.5,
+      "fiber": 0.0,
+      "sodium": 75.0,
+      "calcium": 249.0,
+      "potassium": 300.0,
+      "vitaminC": 0.0
+    }
   }
 ]

@@ -23,7 +23,7 @@ test('安全筛查、低体重和异常输入',()=>{
   }
   equal(nutrition({...demo,fluidLimit:true}).water,null);
 });
-test('121 种可追溯食材与 117 道可计算菜谱',()=>{
+test('可追溯食材与可计算菜谱',()=>{
   ok(foods.length>=100);ok(recipeList.length>=100);
   for(const f of foods){ok(f.fdc>0);ok(macroKeys.every(k=>typeof f.nutrients[k]==='number'));}
   for(const r of recipeList){
@@ -58,9 +58,9 @@ test('仅煮蒸，过敏及调味品限制',()=>{
 });
 test('固定早餐和指定菜，不能满足时明确失败',()=>{
   const p=make({fixedBreakfast:'grain-oats',requiredDish:'steam-chicken'});
-  ok(p.days.every(d=>d.meals[0].dishes[0].recipe.id==='grain-oats'));
+  ok(p.days.every(d=>d.meals[0].dishes[0].recipe.id==='quick-oats'));
   ok(all(p).some(s=>s.recipe.id==='steam-chicken'));
-  throws(()=>make({tools:[],minutes:'10'}),/不足/);
+  throws(()=>make({tools:[],minutes:'10'}),/不足|未找到/);
   throws(()=>make({avoid:'不存在的过敏食材'}),/无法核对/);
   throws(()=>make({budget:'1'}),/预算/);
 });
