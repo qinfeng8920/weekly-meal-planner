@@ -23,3 +23,7 @@
 ## V2.2 正式验收
 
 程序提交 `0cec01d` 通过 45 项模块测试、11 项 Chromium 测试和生产构建，随后由 GitHub Pages 发布。新版正式 Service Worker 和本地生产构建字节一致，缓存标识 `29b13650a195`。匿名 Chromium 模拟安卓访问、安装资源、离线生成七天、两次采购与三批备餐、分装、离线购买入库及刷新后余额均通过。浅色与深色在 360、390、430 像素大字体检查了库存、档案、菜谱库和历史方案。真实手机安装及大陆网络线路待实测。 [发布记录](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/45837565537)
+
+## V2.2.1 正式验收
+
+提交 `392dcfb` 通过 45 项模块测试、12 项 Chromium 测试与生产构建，随后发布到原 GitHub Pages。线上 PWA 缓存 `73fdcd40a9a0` 与本地构建一致。匿名模拟安卓离线勾选后，食材标记、折叠分类、采购批次和全周进度均可见，刷新后仍保留。 [发布记录](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/45855739343)
