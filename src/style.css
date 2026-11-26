@@ -163,3 +163,8 @@ summary { min-height:44px; cursor:pointer; padding:10px 0; font-weight:650 }
   .bottom-nav .shell { width:calc(100% - 16px); gap:2px }
   .nutrition-row span { font-size:.78rem }
 }
+
+.supply-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr)); gap:12px; margin:12px 0; }
+.supply-summary div { min-width:0; }
+.supply-summary dt { color:var(--muted); font-size:.875rem; }
+.supply-summary dd { margin:.2rem 0 0; font-weight:700; overflow-wrap:anywhere; }

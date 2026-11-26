@@ -1,10 +1,12 @@
+import {logisticsSchema,supplySchema} from './logistics-storage';
+import type {SupplyState} from './logistics';
 import {z} from 'zod';
 import {initialProfile, type Profile, type Weight} from './profile';
 import type {Lock, Plan} from './planner';
 import type {Pantry} from './shopping';
 
 export type Data = {version:1; profile:Profile|null; weights:Weight[]; plan:Plan|null; history:Plan[];
-  pantry:Pantry; blocked:string[]; favorites:string[]; locks:Lock[]; theme:'系统'|'浅色'|'深色'};
+  pantry:Pantry; blocked:string[]; favorites:string[]; locks:Lock[]; theme:'系统'|'浅色'|'深色';supply?:SupplyState};
 export const fresh = ():Data => ({version:1,profile:null,weights:[],plan:null,history:[],pantry:{},blocked:[],favorites:[],locks:[],theme:'系统'});
 
 const string = z.string().max(800);
@@ -39,14 +41,14 @@ const plan = z.strictObject({id:string,name:string,created:z.iso.datetime(),star
   days:z.array(z.strictObject({meals:z.array(z.strictObject({name:string,dishes:z.array(serving).min(1).max(6)})).min(2).max(4)})).length(7),
   targets:z.strictObject({...macros,bmi:num,bmr:num,tdee:num,water:num.nullable(),message:string}),
   purchases:z.array(purchase).max(180),prep:z.strictObject({mode:string,notice:names,days:z.array(z.strictObject({date,task:string,minutes:num,meals:names})).length(7)}),
-  algorithmVersion:string,catalogVersion:string,favorite:z.boolean(),cookingOverride:cookingMode.optional()});
+  algorithmVersion:string,catalogVersion:string,favorite:z.boolean(),cookingOverride:cookingMode.optional(),logistics:logisticsSchema.optional()});
 const metrics = z.record(z.string().regex(/^[a-z][a-z0-9-]{0,49}$/),
   z.strictObject({stock:num.optional(),bought:num.optional(),price:num.optional(),pack:num.positive().optional(),yieldPercent:num.min(1).max(100).optional()}));
 const schema = z.strictObject({version:z.literal(1),profile:profile.nullable(),
   weights:z.array(z.strictObject({date,kg:z.number().min(35).max(260),waist:z.number().min(35).max(250).optional()})).max(20000),
   plan:plan.nullable(),history:z.array(plan).max(500),pantry:metrics,blocked:names,favorites:names,
   locks:z.array(z.strictObject({day:z.int().min(0).max(6),meal:z.int().min(0).max(3),dish:z.int().min(0).max(5),serving})).max(168),
-  theme:z.enum(['系统','浅色','深色'])});
+  theme:z.enum(['系统','浅色','深色']),supply:supplySchema.optional()});
 
 export function parseBackup(contents:string):Data {
   if (contents.length>12_000_000) throw Error('备份文件过大。');

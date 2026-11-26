@@ -1,3 +1,4 @@
+import {cookOnServingDay} from './food-storage';
 import type {Recipe} from './catalog';
 import {cookingWorkflows,type Method} from './cooking-recipes';
 import {cookingDuration,type CookingRule} from './cooking-profile';
@@ -21,7 +22,7 @@ function describe(r:Recipe) {
   const effort=active*.36+cutting*1.35+seasoning*1.05+tools.length*.55+clean*.40+
     Math.max(0,r.steps.length-2)*.4;
   const level=effort<=4?1:effort<=8?2:effort<=13?3:4;
-  const reheat=declared?.reheat;
+  const reheat=r.ingredients.some(i=>cookOnServingDay(i.id))?undefined:declared?.reheat;
   const total=r.prep+r.cook;
   return {method,active,wait:total-active,total,cutting,seasoning,steps:r.steps.length,tools,toolCount:tools.length,
     clean,level,onePot:tools.length===1,canPrep:r.batch,prepAhead:r.batch?total:0,reheat};
