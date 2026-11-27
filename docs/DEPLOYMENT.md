@@ -35,3 +35,7 @@
 ## V2.3.1 正式验收
 
 最终生产提交 `1bf5f3c` 通过 56 项模块测试、16 项 Chromium 端到端测试和生产构建。GitHub Pages 已发布，线上 Service Worker 与本地一致，缓存标识 `47db68f3ff82`。匿名 Chromium 模拟安卓复核离线生成、确认实付 18.37 元、折叠进度、刷新保留、清空和撤销。清空后的实付仍为 18.37 元。安卓实体机未测试。 [正式工作流](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/45947514141)
+
+## V2.3.2 采购排版正式验收
+
+提交 `35bdd95` 通过 56 项模块、17 项 Chromium 测试和生产构建，已发布至原站。线上 PWA 缓存标识 `883f80a55c9b` 与本地生产文件一致。模拟手机确认长规格、部分购买状态与离线刷新。 [发布记录](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/45949122904)
