@@ -1,6 +1,6 @@
 import {foodMap,recipeMap} from './catalog';
 import {ingredientPoolSchema,poolSettingsSchema,poolTemplateSchema} from './pool-storage';
-import {defaultPool,type PoolSettings,type PoolTemplate} from './ingredient-pool';
+import {defaultPool,migratePreferences,type PoolSettings,type PoolTemplate} from './ingredient-pool';
 import {logisticsSchema,supplySchema,validLedger} from './logistics-storage';
 import {legacyLedger} from './inventory';
 import type {SupplyState} from './logistics';
@@ -72,6 +72,8 @@ export function parseBackup(contents:string):Data {
     const ledger=legacyLedger(data.pantry,data.supply);
     if(ledger.events.length||ledger.review.length)data.supply=supplySchema.parse({...data.supply,ledger}) as SupplyState;
   }
+  if(data.poolSettings)data.poolSettings=migratePreferences(data.poolSettings,data.supply?.products);
+  if(data.poolTemplates)data.poolTemplates=data.poolTemplates.map(t=>({...t,settings:migratePreferences(t.settings)}));
   return data;
 }
 
@@ -104,6 +106,8 @@ export async function loadData() {
     });
   } finally {database.close();}
 }
+export const storageChannel='tiantianjian-data';
+
 export class DataConflict extends Error {
   constructor() {super('本机数据已更新，本次操作未覆盖。请核对后重试。');}
 }
@@ -129,6 +133,13 @@ export async function writeData(data:Data,previous:Data) {
       tx.onerror=tx.onabort=()=>reject(storageError());
     });
   } finally {database.close();}
+  if(typeof BroadcastChannel!=='undefined') {
+    try {
+      const channel=new BroadcastChannel(storageChannel);
+      channel.postMessage('已更新');
+      channel.close();
+    } catch { /* 账本已提交，切换页面时仍可重新读取。 */ }
+  }
 }
 export function downloadFile(name:string,contents:string,type='application/json') {
   const url=URL.createObjectURL(new Blob([contents],{type}));

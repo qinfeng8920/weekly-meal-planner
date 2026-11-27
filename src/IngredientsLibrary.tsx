@@ -11,7 +11,7 @@ import {conditionalPair,directRules} from './substitution';
 import {recipeCooking} from './cooking';
 import {macroKeys} from './nutrition';
 import type {Pantry} from './shopping';
-import type {PoolSettings} from './ingredient-pool';
+import {foodPreference,foodStates,type FoodState,type PoolSettings} from './ingredient-pool';
 import type {Receipt} from './logistics';
 import {CatalogPaging,decimal,Empty} from './ui';
 
@@ -25,7 +25,7 @@ const extra:Record<string,Record<string,number|null>>={...micros,
 };
 type Props={products?:PurchaseOptions;stock:ReadonlyMap<string,number>;pantry:Pantry;prices:PriceBook;settings:PoolSettings;
   savePrice:(id:string,value?:PriceInput)=>Promise<boolean>;savePurchase:(source:string,receipt?:Receipt)=>Promise<boolean>;
-  change:(field:'locked'|'preferred'|'excluded',id:string)=>void;related:(query:string)=>void;back:()=>void};
+  change:(id:string,state:FoodState)=>void;related:(query:string)=>void;back:()=>void};
 const perPage=15;
 export function IngredientsLibrary(props:Props) {
   const [query,setQuery]=useState(''),[group,setGroup]=useState(''),[sub,setSub]=useState(''),[page,setPage]=useState(0),[open,setOpen]=useState('');
@@ -84,8 +84,9 @@ function IngredientDetail({id,states,products,prices,pantry,settings,savePrice,s
     {uses.length>0&&<p><button onClick={()=>related(f.name)}>查看 {uses.length} 道相关菜谱</button></p>}
     <div className="actions"><button onClick={()=>{setEditor(editor==='库存'?'':'库存');setSource(crypto.randomUUID());}}>加入库存</button>
       <button onClick={()=>setEditor(editor==='价格'?'':'价格')}>修改价格</button>
-      {(['preferred','locked','excluded'] as const).map((key,i)=><button key={key} aria-pressed={settings[key]?.includes(id)??false}
-        onClick={()=>change(key,id)}>{settings[key]?.includes(id)?['取消优先','解除本周锁定','取消排除'][i]:['优先使用','锁定为本周食材','排除食材'][i]}</button>)}</div>
+      <label className="field">食材偏好<select value={foodPreference(settings,id)} onChange={e=>change(id,e.target.value as FoodState)}>
+        {foodStates.map(state=><option key={state}>{state}</option>)}
+      </select></label></div>
     {editor==='库存'&&<PurchaseForm key={source} id={id} price={price} save={async value=>{const ok=await savePurchase('手动|'+source+'|'+id,value);if(ok)setEditor('');return ok;}}/>}
     {editor==='价格'&&<PriceEditor id={id} current={price} save={savePrice}/>}
   </>;

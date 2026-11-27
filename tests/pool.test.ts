@@ -98,13 +98,13 @@ test('手动严格、锁定排除、可补充、保留和下一周轮换',()=>{
   ok(plan.pool!.used.some(r=>r.id===strict.locked[0]));
   equal(plan.pool?.supplements.length,0);
   throws(()=>regenerate(restricted,[],{},[],'empty',undefined,[],undefined,undefined,emptyExecution,{settings:{...strict,locked:[],selected:['chicken','beef','shrimp']}}),/严格食材池/);
-  throws(()=>regenerate(restricted,[],{},[],'conflict',undefined,[],undefined,undefined,emptyExecution,{settings:{...strict,excluded:strict.locked}}),/既选中又排除/);
+  throws(()=>regenerate(restricted,[],{},[],'conflict',undefined,[],undefined,undefined,emptyExecution,{settings:{...strict,excluded:strict.locked}}),/鸡胸肉同时被禁止/);
   const supplement=regenerate(restricted,[],{},[],'supp',undefined,[],undefined,undefined,emptyExecution,{settings:{...defaultPool,method:'手动指定',selected:[]}});
   ok(supplement.pool!.supplements.length>0);
   ok(supplement.pool!.supplements.every(r=>r.grams>0&&r.reason));
   const next=regenerate(restricted,[],{},[],'next',undefined,[],undefined,undefined,emptyExecution,{settings:prior.settings,previous:prior,nextWeek:true,keep:true});
   equal(next.start,newPlanStart('下周一'));
-  deepEqual(next.pool!.selected,prior.selected);
+  deepEqual(next.pool!.selected,prior.used.map(row=>row.id).sort());
   const replaced=regenerate(restricted,[],{},[],'rotate',undefined,[],undefined,undefined,emptyExecution,{settings:{...prior.settings,rotation:'全部刷新'},previous:prior,nextWeek:true});
   ok(replaced.pool!.used.some(r=>!selected.includes(r.id)));
 });

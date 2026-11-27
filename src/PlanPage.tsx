@@ -97,7 +97,7 @@ export function PlanPage(props:Props) {
           <button className="small flat" onClick={()=>{if(confirm('撤销本餐完成标记？已取用食材继续保留在库存流水。'))void props.undoMeal?.(jobs);}}>撤销完成标记</button>}</div>:
           <WithdrawalControl key={day+meal.name} label="完成本餐" jobs={jobs} tasks={props.execution?.tasks} execute={props.completeMeal}/>)}
       </section>;})}
-      {pool&&<details className="card"><summary>本周食材池</summary><PoolOverview pool={pool}>{!readonly&&props.keepPool&&<button disabled={busy} onClick={props.keepPool}>保留食材重新生成</button>}</PoolOverview></details>}
+      {pool&&<details className="card"><summary>本周食材池</summary><PoolOverview pool={pool}>{!readonly&&props.keepPool&&<button disabled={busy} onClick={props.keepPool}>沿用食材</button>}</PoolOverview></details>}
       <section className="card"><p className="meta">随机种子 {plan.seed} · 算法 {plan.algorithmVersion} · 菜谱库 {plan.catalogVersion}</p>
       <div className="actions">
         {!readonly&&<button className="primary" onClick={save}>保存到历史</button>}

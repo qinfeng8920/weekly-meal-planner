@@ -6,7 +6,9 @@ const ids=z.array(id).max(foodMap.size);
 const grams=z.number().min(0).max(1e7);
 export const poolSettingsSchema=z.strictObject({
   mode:z.enum(poolModes),method:z.enum(poolMethods),strict:z.boolean(),selected:ids,locked:ids,excluded:ids,
+  reviews:z.array(z.strictObject({id,states:z.array(z.enum(['优先使用','锁定必用','禁止使用','严格池允许'])).min(2).max(4)})).max(foodMap.size).optional(),
   fruitPolicy:z.enum(fruitPolicies).optional(),fruitId:id.optional(),fruitOverrides:z.record(z.iso.date(),id).optional(),
+  planCaps:z.partialRecord(z.enum(poolGroups),z.int().min(0).max(foodMap.size)).optional(),
   caps:z.partialRecord(z.enum(poolGroups),z.int().min(0).max(foodMap.size)).optional(),
   goals:z.record(id,grams).optional(),rotation:z.enum(rotations),preferred:ids.optional(),
 });

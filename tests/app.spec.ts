@@ -148,7 +148,7 @@ test('唯一生成设置保留固定早餐、资料筛选和营养详情',async(
   await page.getByLabel('固定早餐').selectOption('breakfast-set-0-0');
   await expect(page.getByText('生成设置已保存。')).toBeVisible();
   await page.getByLabel('随机种子（选填）').fill('浏览器验收');
-  await page.getByRole('button',{name:'按设置生成'}).click();
+  await page.getByRole('button',{name:'重新搭配'}).click();
   await expect(page.getByText('七天食谱已生成。')).toBeVisible();
   const breakfast=page.locator('section.meal-card').first();
   await expect(breakfast.getByRole('heading',{name:'早餐',exact:true})).toBeVisible();
@@ -194,7 +194,7 @@ test('采购两次、备餐三批，改价同步但历史保持快照',async({pa
   await page.getByLabel('固定早餐').selectOption('breakfast-set-0-0');
   await expect(page.getByText('生成设置已保存。')).toBeVisible();
   await page.getByLabel('随机种子（选填）').fill('采购验收');
-  await page.getByRole('button',{name:'按设置生成'}).click();
+  await page.getByRole('button',{name:'重新搭配'}).click();
   await expect(page.getByText('七天食谱已生成。')).toBeVisible();
   page.once('dialog',d=>d.accept('原价快照'));
   await page.getByRole('button',{name:'保存到历史'}).click();
@@ -235,15 +235,9 @@ test('新生成设置、补充确认、分装进度和三种手机宽度的浅�
   await setup(page);
   await page.getByRole('button',{name:'生成设置'}).click();
   await page.getByLabel('采购模式').selectOption('少量种类');
-  await page.getByLabel('选择方式').selectOption('手动指定');
-  page.once('dialog',dialog=>{
-    expect(dialog.message()).toContain('确认后才保存方案');
-    void dialog.dismiss();
-  });
-  await page.getByRole('button',{name:'按设置生成'}).click();
-  await expect(page.getByText('已保留原方案，可继续调整食材池。')).toBeVisible();
-  await page.getByLabel('选择方式').selectOption('自动选择');
-  await page.getByRole('button',{name:'按设置生成'}).click();
+  await page.getByText('高级设置',{exact:true}).click();
+  await expect(page.getByLabel('启用严格食材池')).not.toBeChecked();
+  await page.getByRole('button',{name:'重新搭配',exact:true}).click();
   await expect(page.getByText('本周食材池',{exact:true})).toBeVisible();
   await nav(page,'首页').click();
   await page.getByRole('button',{name:'继续备餐'}).click();
@@ -399,7 +393,7 @@ test('采购勾选实时显示单项、折叠批次、分类和全周进度',asy
   await page.getByLabel('每周采购次数').selectOption('2');
   await page.getByText('固定搭配与随机种子',{exact:true}).click();
   await page.getByLabel('随机种子（选填）').fill('采购进度验收');
-  await page.getByRole('button',{name:'按设置生成'}).click();
+  await page.getByRole('button',{name:'重新搭配'}).click();
   await expect(page.getByText('七天食谱已生成。')).toBeVisible();
   await nav(page,'采购').click();
   const batch=page.locator('.batch-fold').first();
@@ -464,11 +458,10 @@ test('两标签页写入冲突及生成期间新库存不会被旧方案覆盖',
   await addOats(second,'30');
   await page.getByRole('button',{name:'保存实际购买'}).click();
   await expect(findOats(page,'50')).toBeVisible();
-  await second.getByRole('button',{name:'保存实际购买',exact:true}).click();
-  await expect(second.getByRole('alert')).toContainText('本机数据已更新');
   await expect(findOats(second,'50')).toBeVisible();
   await second.getByRole('button',{name:'保存实际购买',exact:true}).click();
   await expect(findOats(second,'80')).toBeVisible();
+  await expect(findOats(page,'80')).toBeVisible();
 
   await page.reload();
   await page.evaluate(()=>{
@@ -523,7 +516,7 @@ test('单项和全部清空只改真实库存，撤销后采购恢复，已付�
   await setup(page);
   await page.getByRole('button',{name:'生成设置',exact:true}).click();
   await page.getByLabel('食谱从哪天开始').selectOption('今天');
-  await page.getByRole('button',{name:'按设置生成',exact:true}).click();
+  await page.getByRole('button',{name:'重新搭配',exact:true}).click();
   await expect(page.getByText('七天食谱已生成。')).toBeVisible();
   await nav(page,'采购').click();
   await page.getByRole('checkbox').first().click();
@@ -575,7 +568,7 @@ test('菜谱详情手动选库存中的替代油后同步实际配方和采购',
   await page.getByRole('button',{name:'生成设置',exact:true}).click();
   await page.getByText('固定搭配与随机种子',{exact:true}).click();
   await page.getByLabel('随机种子（选填）').fill('手动食材验收');
-  await page.getByRole('button',{name:'按设置生成',exact:true}).click();
+  await page.getByRole('button',{name:'重新搭配',exact:true}).click();
   await expect(page.getByText('七天食谱已生成。')).toBeVisible();
   const data=await page.evaluate(()=>new Promise<Data>((resolve,reject)=>{
     const request=indexedDB.open('tiantianjian');
@@ -697,7 +690,10 @@ test('指定固定橙子，候选排除同水果，明确选择后同步食谱�
   await page.getByLabel('每周水果').selectOption('每周固定一种');
   await page.getByLabel('搜索固定水果').fill('chengzi');
   await page.getByRole('combobox',{name:'固定水果',exact:true}).selectOption('orange');
-  await page.getByRole('button',{name:'按设置生成'}).click();
+  await page.getByText('固定搭配与随机种子',{exact:true}).click();
+  await page.getByRole('combobox',{name:'固定早餐'}).selectOption('breakfast-set-0-0');
+  await expect(page.getByText('生成设置已保存。')).toBeVisible();
+  await page.getByRole('button',{name:'重新搭配'}).click();
   await expect(page.getByText('七天食谱已生成。')).toBeVisible({timeout:12000});
   await page.getByRole('button',{name:'换水果',exact:true}).click();
   const panel=page.getByRole('region',{name:'智能替换选择'});
@@ -718,4 +714,119 @@ test('指定固定橙子，候选排除同水果，明确选择后同步食谱�
   await expect(page.locator('.dish-ingredients').filter({hasText:/猕猴桃/})).toBeVisible();
   await nav(page,'采购').click();
   await expect(page.getByText(/猕猴桃/).first()).toBeAttached();
+});
+
+async function generationSettings(page:Page) {
+  await nav(page,'食谱').click();
+  await page.getByRole('button',{name:'生成设置',exact:true}).click();
+}
+async function choosePreference(page:Page,name:string,state:string) {
+  await page.getByRole('searchbox',{name:'搜索核心食材'}).fill(name);
+  await page.getByRole('combobox',{name:name+'偏好',exact:true}).selectOption(state);
+}
+test('快速连续多项锁定、跨分类、跨页写入、刷新及沿用和轮换',async({page,context})=>{
+  await setup(page);
+  await generationSettings(page);
+  const chicken=page.getByRole('combobox',{name:'鸡胸肉偏好',exact:true});
+  const beef=page.getByRole('combobox',{name:'瘦牛肉偏好',exact:true});
+  await page.evaluate(()=>{
+    const input=(name:string)=>document.querySelector<HTMLSelectElement>('select[aria-label="'+name+'偏好"]')!;
+    for(const item of [input('鸡胸肉'),input('瘦牛肉')]){
+      item.value='锁定必用';
+      item.dispatchEvent(new Event('change',{bubbles:true}));
+    }
+  });
+  await expect(chicken).toHaveValue('锁定必用');
+  await expect(beef).toHaveValue('锁定必用');
+  await expect(page.getByText('食材偏好已保存。',{exact:true})).toBeVisible();
+  await page.getByText('高级设置',{exact:true}).click();
+  page.once('dialog',dialog=>dialog.accept('原有两项锁定'));
+  await page.getByRole('button',{name:'收藏为模板'}).click();
+  await expect(page.getByText('已收藏食材池模板。')).toBeVisible();
+  const second=await context.newPage();
+  await second.goto(page.url());
+  await generationSettings(second);
+  await Promise.all([choosePreference(page,'西兰花','锁定必用'),choosePreference(second,'北豆腐','锁定必用')]);
+  await expect(page.getByText('食材偏好已保存。',{exact:true})).toBeVisible();
+  await expect(second.getByText('食材偏好已保存。',{exact:true})).toBeVisible();
+  await expect(second.getByRole('button',{name:'解除西兰花锁定'})).toBeVisible();
+  await second.close();
+  await page.reload();
+  await generationSettings(page);
+  for(const name of ['鸡胸肉','瘦牛肉','西兰花','北豆腐'])await expect(page.getByRole('button',{name:'解除'+name+'锁定'})).toBeVisible();
+  await page.getByText('高级设置',{exact:true}).click();
+  await page.getByRole('combobox',{name:'已收藏模板'}).selectOption({label:'原有两项锁定'});
+  await page.getByRole('button',{name:'载入模板'}).click();
+  await expect(page.getByRole('button',{name:'解除北豆腐锁定'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'解除西兰花锁定'})).toBeVisible();
+  await page.getByRole('combobox',{name:'食材一级分类'}).selectOption('蔬菜');
+  await page.getByRole('combobox',{name:'食材二级分类'}).selectOption('花球类');
+  await expect(page.getByRole('combobox',{name:'西兰花偏好'})).toHaveValue('锁定必用');
+  await page.getByRole('button',{name:'重新搭配',exact:true}).click();
+  await expect(page.getByText('七天食谱已生成。')).toBeVisible({timeout:15000});
+  await generationSettings(page);
+  await choosePreference(page,'番石榴','锁定必用');
+  page.once('dialog',dialog=>{expect(dialog.message()).toContain('番石榴');void dialog.accept();});
+  await page.getByRole('button',{name:'沿用食材',exact:true}).click();
+  await expect(page.getByText('七天食谱已生成。')).toBeVisible({timeout:15000});
+  await generationSettings(page);
+  await expect(page.getByRole('button',{name:'解除番石榴锁定'})).toBeVisible();
+  await page.getByRole('button',{name:'轮换食材',exact:true}).click();
+  await expect(page.getByText('七天食谱已生成。')).toBeVisible({timeout:15000});
+  await page.getByText('本周食材池',{exact:true}).click();
+  await page.getByRole('button',{name:'查看食材与使用次数'}).click();
+  for(const name of ['鸡胸肉','瘦牛肉','番石榴'])await expect(page.locator('details[open] .ingredients li').filter({hasText:new RegExp('^'+name)})).toBeVisible();
+});
+
+test('固定水果硬上限冲突、生成失败后保留、库存清空归零及手机布局',async({page})=>{
+  await setup(page);
+  await generate(page);
+  await generationSettings(page);
+  await page.getByLabel('每周水果').selectOption('每周固定一种');
+  await page.getByRole('combobox',{name:'固定水果',exact:true}).selectOption('orange');
+  await choosePreference(page,'番石榴','锁定必用');
+  await expect(page.getByText(/固定水果橙子与锁定的番石榴冲突/)).toBeVisible();
+  await page.getByRole('button',{name:'重新搭配',exact:true}).click();
+  await expect(page.getByRole('alert')).toContainText('番石榴');
+  await page.getByRole('button',{name:'改为多种水果轮换'}).click();
+  await expect(page.getByRole('button',{name:'解除番石榴锁定'})).toBeVisible();
+  await page.getByText('高级设置',{exact:true}).click();
+  await page.getByRole('spinbutton',{name:'水果上限（种）'}).fill('0');
+  await expect(page.getByText(/超过你设置的上限 0 种/)).toBeVisible();
+  page.once('dialog',d=>d.accept());
+  await page.getByRole('button',{name:'确认提高上限'}).click();
+  await expect(page.getByRole('spinbutton',{name:'水果上限（种）'})).toHaveValue('1');
+  for(const width of [360,390,430]){
+    await page.setViewportSize({width,height:860});
+    await assertFit(page);
+  }
+  await page.getByRole('spinbutton',{name:'全周预算（元，可选）'}).fill('1');
+  await page.getByRole('button',{name:'重新搭配',exact:true}).click();
+  await expect(page.getByRole('alert')).toContainText(/预算|搜索上限/,{timeout:18000});
+  await page.reload();
+  await nav(page,'食谱').click();
+  await expect(page.locator('.meal-card').first()).toBeVisible();
+  await generationSettings(page);
+  await expect(page.getByRole('button',{name:'解除番石榴锁定'})).toBeVisible();
+  await expect(page.getByRole('spinbutton',{name:'全周预算（元，可选）'})).toHaveValue('1');
+  await nav(page,'我的').click();
+  await page.getByRole('button',{name:'家中库存',exact:true}).click();
+  await page.getByRole('button',{name:'添加或登记购买'}).click();
+  await page.getByLabel('选择食材').selectOption('chicken');
+  await page.getByLabel('实际购买数量').fill('300');
+  await page.getByRole('button',{name:'保存实际购买',exact:true}).click();
+  await expect(page.getByText('采购记录已更新。')).toBeVisible();
+  await generationSettings(page);
+  await page.getByRole('searchbox',{name:'搜索核心食材'}).fill('鸡胸肉');
+  await expect(page.getByText('账面库存 300 克',{exact:true})).toBeVisible();
+  await nav(page,'我的').click();
+  await page.getByRole('button',{name:'家中库存',exact:true}).click();
+  await page.getByText('库存管理',{exact:true}).click();
+  page.once('dialog',d=>d.accept());
+  await page.getByRole('button',{name:'清空全部库存',exact:true}).click();
+  await expect(page.getByText(/库存已清空/)).toBeVisible();
+  await generationSettings(page);
+  await page.getByRole('searchbox',{name:'搜索核心食材'}).fill('鸡胸肉');
+  await expect(page.locator('.pool-items > li').filter({has:page.getByRole('combobox',{name:'鸡胸肉偏好',exact:true})})
+    .getByText('账面库存 0 克',{exact:true})).toBeVisible();
 });

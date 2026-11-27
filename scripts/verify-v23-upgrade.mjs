@@ -6,13 +6,14 @@ import {createRequire} from 'node:module';
 import assert from 'node:assert/strict';
 const repo=fileURLToPath(new URL('../',import.meta.url));
 const [oldDist,screenshotDirectory,mode]=process.argv.slice(2);
-const v24=mode==='--v24';
+const v241=mode==='--v241';
+const v24=mode==='--v24'||v241;
 const ingredients=mode==='--ingredients'||v24;
-const previousVersion=v24?'2.3.2':ingredients?'2.3.0':'2.2.1';
-const currentVersion=v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
-const latestAlgorithm=v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
-const prefix=v24?'v24':ingredients?'v231':'v23';
-if(!oldDist||!screenshotDirectory)throw Error('用法 node scripts/verify-v23-upgrade.mjs <旧版 dist> <截图目录> [--ingredients|--v24]');
+const previousVersion=v241?'2.4.0':v24?'2.3.2':ingredients?'2.3.0':'2.2.1';
+const currentVersion=v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
+const latestAlgorithm=v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
+const prefix=v241?'v241':v24?'v24':ingredients?'v231':'v23';
+if(!oldDist||!screenshotDirectory)throw Error('用法 node scripts/verify-v23-upgrade.mjs <旧版 dist> <截图目录> [--ingredients|--v24|--v241]');
 const output=resolve(screenshotDirectory);
 await mkdir(output,{recursive:true});
 const {chromium,devices,expect}=createRequire(repo+'/package.json')('@playwright/test');
@@ -53,7 +54,7 @@ try {
  await page.getByText('固定搭配与随机种子',{exact:true}).click();
  await page.getByLabel('随机种子（选填）').fill('采购验收');
  await page.getByRole('button',{name:'按设置生成',exact:true}).click();
- await expect(page.getByText('算法 '+(v24?'2.3.1':ingredients?'2.3.0':'2.2.0'),{exact:false})).toBeVisible();
+ await expect(page.getByText('算法 '+(v241?'2.4.0':v24?'2.3.1':ingredients?'2.3.0':'2.2.0'),{exact:false})).toBeVisible();
 
  await nav('采购').click();
  await page.getByRole('checkbox').first().click();
@@ -63,12 +64,13 @@ try {
  await nav('我的').click();
  await page.getByRole('button',{name:'食材价格',exact:true}).click();
  await page.getByRole('searchbox',{name:'搜索食材'}).fill('燕麦');
- await page.locator('summary').filter({hasText:/^无糖燕麦片 ·/}).click();
- await page.getByLabel('单价（元）').fill('18');
- await page.getByRole('button',{name:'保存此食材价格'}).click();
+ const oats=page.locator('details').filter({has:page.locator('summary').filter({hasText:/^无糖燕麦片 ·/})}).last();
+ await oats.locator('summary').click();
+ await oats.getByLabel('单价（元）').fill('18');
+ await oats.getByRole('button',{name:'保存此食材价格'}).click();
  await expect(page.getByText('食材价格已保存。')).toBeVisible();
  await nav('我的').click();
- await page.getByRole('button',{name:'菜谱库与收藏'}).click();
+ await page.getByRole('button',{name:v241?'食谱大全':'菜谱库与收藏'}).click();
  await page.locator('details.recipe-card summary').first().click();
  await page.getByRole('button',{name:'收藏菜谱',exact:true}).click();
  await nav('食谱').click();
@@ -81,7 +83,7 @@ try {
      get.onsuccess=()=>{db.close();resolve(get.result);};
    };
  }));
- await page.evaluate(()=>new Promise((resolve,reject)=>{
+ await page.evaluate(isPrefsUpgrade=>new Promise((resolve,reject)=>{
    const req=indexedDB.open('tiantianjian',1);
    req.onerror=()=>reject(req.error);
    req.onsuccess=()=>{
@@ -90,6 +92,7 @@ try {
      tx.onerror=()=>reject(tx.error);
      r.onsuccess=()=>{
        const data=r.result;
+       if(isPrefsUpgrade)data.poolSettings={...data.poolSettings,method:'手动指定',selected:['oats'],locked:['chicken','beef']};
        const day=data.plan.days[0];
        const ids=new Set(day.meals[0].dishes.flatMap(dish=>dish.ingredients.map(item=>item.id)));
        for(const item of ids)data.supply.ledger.events.push({id:'假资料|'+item,item,source:'假资料|'+item,
@@ -97,7 +100,7 @@ try {
        store.put(data,'data');
      };
    };
- }));
+ }),v241);
  await page.reload();
  await nav('食谱').click();
  page.once('dialog',dialog=>dialog.accept());
@@ -119,6 +122,14 @@ try {
  await nav('我的').click();
  await expect(page.getByText('V'+currentVersion,{exact:true})).toBeVisible();
  assert.deepEqual(await read(),before);
+ if(v241){
+   await nav('食谱').click();
+   await page.getByRole('button',{name:'生成设置',exact:true}).click();
+   await expect(page.getByRole('button',{name:'解除鸡胸肉锁定'})).toBeVisible();
+   await expect(page.getByRole('button',{name:'解除瘦牛肉锁定'})).toBeVisible();
+   await page.getByRole('searchbox',{name:'搜索核心食材'}).fill('燕麦');
+   await expect(page.getByRole('combobox',{name:'无糖燕麦片偏好'})).toHaveValue('优先使用');
+ }
  await nav('食谱').click();
  const meal=page.locator('.meal-card').filter({has:page.getByText('本餐已完成',{exact:true})});
  await expect(meal.getByRole('button',{name:'换一餐'})).toBeDisabled();

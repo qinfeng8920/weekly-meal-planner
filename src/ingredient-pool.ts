@@ -14,9 +14,14 @@ export const rotations=['保留上周','部分轮换','全部刷新'] as const;
 export const poolGroups=['肉鱼虾','蔬菜','主食','水果'] as const;
 export type PoolGroup=typeof poolGroups[number];
 export const fruitPolicies=['每周固定一种','少量轮换','丰富多样'] as const;
+export const foodStates=['自动','优先使用','锁定必用','禁止使用'] as const;
+export type FoodState=typeof foodStates[number];
+type CheckedState=Exclude<FoodState,'自动'>;
+export const generationActions=['重新搭配','沿用食材','轮换食材'] as const;
+export type GenerationAction=typeof generationActions[number];
 export type PoolSettings={
   mode:typeof poolModes[number];method:typeof poolMethods[number];strict:boolean;
-  selected:string[];locked:string[];excluded:string[];
+  selected:string[];locked:string[];excluded:string[];planCaps?:Partial<Record<PoolGroup,number>>;reviews?:{id:string;states:(CheckedState|'严格池允许')[]}[];
   fruitPolicy?:typeof fruitPolicies[number];fruitId?:string;fruitOverrides?:Record<string,string>;preferred?:string[];caps?:Partial<Record<PoolGroup,number>>;goals?:Record<string,number>;rotation:typeof rotations[number];
 };
 export type WeeklyIngredientPool={
@@ -38,9 +43,72 @@ export const poolGroup=(id:string):PoolGroup|'基础食材'=>{
   return ['肉类','鱼虾'].includes(category)?'肉鱼虾':category==='蔬菜'||category==='主食'||category==='水果'?category:'基础食材';
 };
 export const normalizeIds=(ids:string[],options?:PurchaseOptions)=>[...new Set(ids.map(id=>standardId(id,options)))];
+const preferenceFields={锁定必用:'locked',禁止使用:'excluded',优先使用:'preferred'} as const;
+export function foodPreference(settings:PoolSettings,id:string):FoodState {
+  return (Object.keys(preferenceFields) as CheckedState[]).find(state=>settings[preferenceFields[state]]?.includes(id))??'自动';
+}
+export function setFoodPreference(settings:PoolSettings,id:string,state:FoodState):PoolSettings {
+  const next={...settings,reviews:settings.reviews?.filter(row=>row.id!==id),
+    selected:state==='禁止使用'?settings.selected.filter(value=>value!==id):settings.selected};
+  for(const key of Object.keys(preferenceFields) as CheckedState[]) {
+    const field=preferenceFields[key];
+    const values=(settings[field]??[]).filter(value=>value!==id);
+    next[field]=key===state?[...values,id]:values;
+  }
+  return next;
+}
+export function migratePreferences(settings:PoolSettings,products?:PurchaseOptions):PoolSettings {
+  const normalize=(ids:string[])=>normalizeIds(ids,products);
+  const values={locked:normalize(settings.locked),excluded:normalize(settings.excluded),
+    preferred:normalize([...(settings.preferred??[]),...(!settings.strict?settings.selected:[])])};
+  const ids=new Set(Object.values(values).flat());
+  const reviews=new Map((settings.reviews??[]).map(row=>[normalize([row.id])[0],row.states]));
+  const selected=normalize(settings.selected);
+  for(const id of ids) {
+    const states=(Object.keys(preferenceFields) as CheckedState[]).filter(state=>values[preferenceFields[state]].includes(id));
+    const strictConflict=settings.strict&&selected.includes(id)&&states.includes('禁止使用');
+    if(states.length>1||strictConflict) {
+      reviews.set(id,[...new Set([...(reviews.get(id)??[]),...states,...(strictConflict?['严格池允许' as const]:[])])]);
+      // 核对前以排除优先，冲突仍阻断生成，直到用户确认一种状态。
+      for(const state of states) if(state!==(states.includes('禁止使用')?'禁止使用':states[0]))
+        values[preferenceFields[state]]=values[preferenceFields[state]].filter(item=>item!==id);
+    }
+  }
+  const next={...settings,...values,method:!settings.strict&&settings.method==='手动指定'?'自动选择' as const:settings.method,
+    selected:settings.strict?selected:[],reviews:[...reviews].map(([id,states])=>({id,states}))};
+  if(!settings.preferred&&!values.preferred.length)delete (next as PoolSettings).preferred;
+  if(!settings.reviews&&!reviews.size)delete (next as PoolSettings).reviews;
+  return next;
+}
+
+export function applyPoolTemplate(current:PoolSettings,template:PoolSettings):PoolSettings {
+  const old=new Map(current.reviews?.map(row=>[row.id,row.states]));
+  for(const row of template.reviews??[])old.set(row.id,[...new Set([...(old.get(row.id)??[]),...row.states])]);
+  let next:PoolSettings={...template};
+  for(const id of current.locked) {
+    if(foodPreference(next,id)==='禁止使用')old.set(id,[...new Set([...(old.get(id)??[]),'锁定必用','禁止使用'] as const)]);
+    next=setFoodPreference(next,id,'锁定必用');
+  }
+  return {...next,reviews:[...old].map(([id,states])=>({id,states}))};
+}
+export function preferenceConflicts(settings:PoolSettings,products?:PurchaseOptions) {
+  const issues=(settings.reviews??[]).map(row=>food(row.id).name+'有旧偏好冲突（'+row.states.join('／')+'），请确认状态。');
+  const locked=normalizeIds(settings.locked,products);
+  const count=counts(locked);
+  for(const group of poolGroups) {
+    const cap=settings.caps?.[group];
+    if(cap!==undefined&&count[group]>cap)issues.push(group+'有 '+count[group]+' 种锁定食材，超过你设置的上限 '+cap+' 种。');
+  }
+  const extras=locked.filter(id=>poolGroup(id)==='水果'&&id!==settings.fruitId);
+  if(settings.fruitPolicy==='每周固定一种'&&settings.fruitId&&extras.length)
+    issues.push('固定水果'+food(settings.fruitId).name+'与锁定的'+extras.map(id=>food(id).name).join('、')+'冲突。请保留当前固定水果并解除冲突锁定、更换固定水果，或改为多种水果轮换。');
+  return issues;
+}
 export const capOf=(setting:PoolSettings,group:PoolGroup)=>setting.caps?.[group]??
   (group==='水果'&&setting.fruitPolicy==='丰富多样'?6:group==='水果'&&setting.fruitPolicy==='少量轮换'?2:group==='水果'&&setting.fruitPolicy==='每周固定一种'?
     1+new Set(Object.values(setting.fruitOverrides??{}).filter(id=>id!==setting.fruitId)).size:capsFor[setting.mode][group]);
+export const effectiveCap=(setting:PoolSettings,group:PoolGroup,requiredCount:number)=>
+  setting.caps?.[group]??Math.max(capOf(setting,group),requiredCount,setting.planCaps?.[group]??0);
 export function counts(ids:Iterable<string>) {
   const out={肉鱼虾:0,蔬菜:0,主食:0,水果:0,基础食材:0};
   for(const id of new Set(ids))out[poolGroup(id)]++;
@@ -88,10 +156,10 @@ const palettes:Record<PoolGroup,string[][]>={
 };
 
 export type PoolCandidate={selected:Set<string>;chosen:string[]};
-export function ingredientPools(settings:PoolSettings,recipes:Recipe[],pantry:Pantry,supply:SupplyState|undefined,random:()=>number,previous?:WeeklyIngredientPool,required:string[]=[]):PoolCandidate[] {
+export function ingredientPools(settings:PoolSettings,recipes:Recipe[],pantry:Pantry,supply:SupplyState|undefined,random:()=>number,previous?:WeeklyIngredientPool,required:string[]=[],fulfilled:string[]=[]):PoolCandidate[] {
   const excluded=new Set(normalizeIds(settings.excluded,supply?.products));
-  const available=new Set(recipes.flatMap(r=>recipeFoodIds(r,supply?.products)));
-  const picked=normalizeIds([...settings.locked,...(settings.method==='手动指定'?settings.selected:[])],supply?.products);
+  const available=new Set([...recipes.flatMap(r=>recipeFoodIds(r,supply?.products)),...fulfilled]);
+  const picked=normalizeIds([...settings.locked,...(settings.strict||settings.method==='手动指定'?settings.selected:[])],supply?.products);
   const locked=normalizeIds(settings.locked,supply?.products);
   if(picked.some(id=>excluded.has(id)))throw Error('同一食材既选中又排除，请修改本周食材。');
   for(const id of locked) if(!available.has(id))throw Error(food(id).name+'与忌口、厨具或菜谱限制冲突，无法锁定。');
@@ -100,8 +168,10 @@ export function ingredientPools(settings:PoolSettings,recipes:Recipe[],pantry:Pa
   const base=normalizeIds([...picked,...required],supply?.products).filter(id=>available.has(id));
   const manual=picked.filter(id=>available.has(id));
   const count=counts(base);
-  for(const group of poolGroups) if(count[group]>capOf(settings,group))throw Error(group+'已选 '+count[group]+' 种，超过上限 '+capOf(settings,group)+' 种。');
-  if(settings.method==='手动指定'&&settings.strict) {
+  const limit=(group:PoolGroup)=>effectiveCap(settings,group,count[group]);
+  for(const group of poolGroups) if(count[group]>limit(group))
+    throw Error(group+'的锁定或固定食材有 '+count[group]+' 种，超过你设置的上限 '+limit(group)+' 种。涉及 '+base.filter(id=>poolGroup(id)===group).map(id=>food(id).name).join('、')+'。');
+  if(settings.strict) {
     if(!base.length)throw Error('严格模式需要先指定可用食材，包括配方所需调味料。');
     return [{selected:new Set(base),chosen:manual}];
   }
@@ -129,7 +199,7 @@ export function ingredientPools(settings:PoolSettings,recipes:Recipe[],pantry:Pa
   if(settings.method==='手动指定')result.push({selected:new Set(base),chosen:manual});
   if(settings.rotation==='保留上周'&&previous) {
     const keep=normalizeIds([...base,...previous.selected],supply?.products).filter(id=>available.has(id)&&!excluded.has(id));
-    if(poolGroups.every(group=>counts(keep)[group]<=capOf(settings,group)))result.push({selected:new Set(keep),chosen:settings.method==='手动指定'?manual:keep});
+    if(poolGroups.every(group=>counts(keep)[group]<=limit(group)))result.push({selected:new Set(keep),chosen:settings.method==='手动指定'?manual:keep});
   }
   const compact=['少量种类','极简采购'].includes(settings.mode);
   const seasonings=all.filter(id=>purchaseCategory(id)!=='主要食材');
@@ -149,13 +219,13 @@ export function ingredientPools(settings:PoolSettings,recipes:Recipe[],pantry:Pa
     for(const group of poolGroups) {
       const ranked=all.filter(id=>poolGroup(id)===group&& !selected.has(id)).map(id=>({id,rank:score(id,palettes[group][i%3],i)}))
         .sort((a,b)=>b.rank-a.rank);
-      if(settings.rotation==='部分轮换'&&old.size&&i%2===0&&capOf(settings,group)>1&&ranked.some(v=>!old.has(v.id))) {
+      if(settings.rotation==='部分轮换'&&old.size&&i%2===0&&limit(group)>1&&ranked.some(v=>!old.has(v.id))) {
         const next=ranked.findIndex(v=>!old.has(v.id));
-        if(next>=0&&ranked.length>capOf(settings,group)) {
-          const [choice]=ranked.splice(next,1);ranked.splice(capOf(settings,group)-1,0,choice);
+        if(next>=0&&ranked.length>limit(group)) {
+          const [choice]=ranked.splice(next,1);ranked.splice(limit(group)-1,0,choice);
         }
       }
-      for(const r of ranked.slice(0,Math.max(0,capOf(settings,group)-count[group])))selected.add(r.id);
+      for(const r of ranked.slice(0,Math.max(0,limit(group)-count[group])))selected.add(r.id);
     }
     if(!result.some(v=>v.selected.size===selected.size&&[...selected].every(id=>v.selected.has(id)))) {
       result.push({selected,chosen:settings.method==='手动指定'?manual:[...selected]});
