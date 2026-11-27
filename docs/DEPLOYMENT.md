@@ -39,3 +39,9 @@
 ## V2.3.2 采购排版正式验收
 
 提交 `35bdd95` 通过 56 项模块、17 项 Chromium 测试和生产构建，已发布至原站。线上 PWA 缓存标识 `883f80a55c9b` 与本地生产文件一致。模拟手机确认长规格、部分购买状态与离线刷新。 [发布记录](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/45949122904)
+
+## V2.4 正式验收
+
+程序提交 `a7422da` 通过 GitHub Actions 的 62 项模块测试、19 项 Chromium 测试和生产构建，已发布至原 GitHub Pages。线上与本地 Service Worker 的 SHA-256 均为 `59e4094ad7567e9a703cd966bfb91a54991c10f422ac7b4d1b18cb3a08f5b7a8`，PWA 缓存标识为 `12c0c942fd52`。
+
+正式站匿名 HTTPS 返回 200。真实 Chromium 模拟安卓，在断网刷新后完成生成、确认固定橙子、排除同核心橙子候选、指定绿色猕猴桃并联动采购。两个大全均可离线打开，360、390、430 像素布局通过。实际 V2.3.2 同源升级复核通过，旧档案、体重、价格、库存流水、历史方案及已执行餐次保留。 [正式站](https://qinfeng8920.github.io/weekly-meal-planner/) · [发布记录](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/45953770468)
