@@ -51,3 +51,7 @@
 程序提交 `2ac2788` 通过 68 项模块测试、21 项 Chromium 测试、生产构建及 GitHub Pages 部署。108 个多食材锁定种子全部通过。旧 V2.4.0 的同源 PWA 升级验证了旧偏好、历史、已购和已完成餐次的保留。
 
 正式网址匿名 HTTPS 返回 200。Chromium 模拟安卓完成离线锁定鸡胸肉和瘦牛肉、刷新恢复、沿用食材时新增番石榴，并打开两个大全。360、390、430 像素视口通过。线上与本地 Service Worker 指纹均为 `b41dda8563e37e5540511361531ae4ce0c3ba0dfa706ad88092004d55ea09f58`，缓存标识为 `41d2ba761b4a`。 [正式站](https://qinfeng8920.github.io/weekly-meal-planner/) · [发布记录](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/45983770965)
+
+## V3.0 正式验收
+
+代码提交 `89e0bea`。GitHub Actions 通过 68 项模块测试、26 项 Chromium 端到端测试及生产构建，已部署至原 GitHub Pages 地址。匿名 Chromium 访问返回 HTTPS 200，页面显示 V3.0.0。正式 Service Worker 与本地构建逐字节一致，缓存标识为 `59a6a724b5d9`。正式站断网后可保存并恢复多个锁定食材、沿用新设置生成食谱、登记采购、查看分批备餐及在关闭原材料详情后保留搜索。另使用同源旧生产构建验证更新保留 IndexedDB 数据。 [正式发布工作流](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/45989236324)
