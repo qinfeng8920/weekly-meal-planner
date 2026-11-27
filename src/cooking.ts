@@ -1,3 +1,4 @@
+import {recipeBaseId} from './substitution';
 import {cookOnServingDay} from './food-storage';
 import type {Recipe} from './catalog';
 import {cookingWorkflows,type Method} from './cooking-recipes';
@@ -10,7 +11,7 @@ const cache=new WeakMap<Recipe,RecipeCooking>();
 function describe(r:Recipe) {
   const tools=r.tools.filter(t=>!coldTools.has(t));
   const parts=r.ingredients.filter(i=>i.grams>=15).length;
-  const declared=cookingWorkflows.get(r.id);
+  const declared=cookingWorkflows.get(recipeBaseId(r));
   const method:Method=declared?.method??(r.cook===0?(parts===1?'即食':'凉拌'):
     tools.includes('微波炉')?'复热':tools.includes('炒锅')?'煎炒':tools.includes('蒸锅')?'蒸':
       r.cook>=26&&r.group==='汤类'?'炖煮':'煮');

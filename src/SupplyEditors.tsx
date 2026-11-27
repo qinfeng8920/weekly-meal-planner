@@ -96,6 +96,7 @@ type InventoryProps={pantry:Pantry;prices:PriceBook;ledger:Ledger;receipts:Recor
   inventory:Record<string,{projected:number;demand?:number;shortage?:number}>;
   save:(id:string,n:number,mode:'增加'|'扣除'|'报损'|'设为')=>Promise<boolean>;
   savePurchase:(source:string,receipt?:Receipt)=>Promise<boolean>;
+  clear:(item?:string)=>Promise<boolean>;undoClear:(reference:string)=>Promise<boolean>;
   reverse:(event:InventoryEvent)=>Promise<boolean>;review:(id:string,n:number)=>Promise<boolean>};
 
 export function InventoryManager(props:InventoryProps) {
@@ -110,11 +111,13 @@ export function InventoryManager(props:InventoryProps) {
     entries.push(event);events.set(event.item,entries);
   }
   const reversals=new Set(ledger.events.flatMap(event=>event.reverses??[]));
+  const lastClear=ledger.events.findLast(event=>event.kind==='库存清空'&&event.reference&&!reversals.has(event.id));
   return <section className="card inventory-manager">
     <p className="meta">数字是账面库存，是否适合食用由你判断。</p>
     <div className="actions">
       <button className="primary" aria-expanded={isAdding} onClick={()=>setAdding(!isAdding)}>{isAdding?'收起登记':'添加或登记购买'}</button>
       <label className="check"><input type="checkbox" checked={all} onChange={e=>setAll(e.target.checked)}/>显示零库存</label>
+      {lastClear?.reference&&<button className="small" onClick={()=>void props.undoClear(lastClear.reference!)}>撤销最近清空</button>}
     </div>
     <label className="field inventory-search">搜索食材<input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="例如鸡胸肉、食盐"/></label>
     {isAdding&&<section className="inline-editor">
@@ -140,6 +143,7 @@ export function InventoryManager(props:InventoryProps) {
             <div className="fold-body">
               <p className="meta">{foodState[f.state]} · 本周用量 {decimal(row?.demand??0)} 克 · 预计剩余 {decimal(row?.projected??net)} 克 · 待补购 {decimal(row?.shortage??0)} 克</p>
               <StockEdit key={net} initial={net} save={(value,action)=>props.save(f.id,value,action)}/>
+              {net>0&&<button className="small danger" onClick={()=>void props.clear(f.id)}>清空此项库存</button>}
               <details className="item-fold"><summary>流水与购买修正</summary>
                 <InventoryEvents events={events.get(f.id)??[]} {...{reversals,...props}}/></details>
             </div>
@@ -150,6 +154,9 @@ export function InventoryManager(props:InventoryProps) {
     {!all&&events.size>0&&<details className="group-fold"><summary>零库存历史流水</summary>
       {[...events].filter(([id])=>!(quantities.get(id)??0)&&found.some(f=>f.id===id)).map(([id,list])=>
         <details className="item-fold" key={id}><summary>{food(id).name}</summary><InventoryEvents events={list} {...{reversals,...props}}/></details>)}
+    </details>}
+    {[...quantities.values()].some(net=>net>0)&&<details className="group-fold"><summary>库存管理</summary>
+      <button className="danger" onClick={()=>void props.clear()}>清空全部库存</button>
     </details>}
   </section>;
 }
@@ -183,7 +190,7 @@ function LegacyReview({item,balance,save}:{item:Review;balance:number;save:Inven
       <button onClick={()=>void save(item.id,0)}>已核对，无需补录</button></div>
   </div>;
 }
-function InventoryEvents({events,reversals,receipts,execution,prices,pantry,savePurchase,reverse}:InventoryProps&{events:InventoryEvent[];reversals:Set<string>}) {
+function InventoryEvents({events,reversals,receipts,execution,prices,pantry,savePurchase,reverse,undoClear}:InventoryProps&{events:InventoryEvent[];reversals:Set<string>}) {
   const [limit,setLimit]=useState(12);
   const latest=new Set<string>();
   const list=[...events].reverse();
@@ -199,6 +206,7 @@ function InventoryEvents({events,reversals,receipts,execution,prices,pantry,save
         {purchase&&<><PurchaseForm key={JSON.stringify(receipts[r.source])} id={r.item} previous={receipts[r.source]} price={priceFor(r.item,prices,pantry[r.item])}
           save={value=>savePurchase(r.source,value)}/><button className="danger" onClick={()=>void savePurchase(r.source)}>撤销购买</button></>}
         {(editable||taken)&&<button className="danger" onClick={()=>void reverse(r)}>{taken?'撤销该任务取用':'撤销此调整'}</button>}
+        {r.kind==='库存清空'&&r.reference&&!reversals.has(r.id)&&<button onClick={()=>void undoClear(r.reference!)}>撤销这次清空</button>}
       </div></details>;
   })}{list.length>limit&&<button onClick={()=>setLimit(limit+24)}>查看更早记录</button>}</div>;
 }

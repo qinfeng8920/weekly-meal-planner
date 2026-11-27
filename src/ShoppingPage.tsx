@@ -1,3 +1,4 @@
+import {procurementSummary} from './procurement-score';
 import {useState} from 'react';
 import {food} from './catalog';
 import {addDays} from './batches';
@@ -46,13 +47,19 @@ function PurchaseProgress({progress:{done,total}}:{progress:ReturnType<typeof pu
     {complete&&<span aria-hidden="true">✓ </span>}{total?`已购 ${done}/${total} 项`:'无需补购'}
   </span>;
 }
-const sizeText=(r:BuyLine)=>{
-  const unit=r.price&&gramsPerPriceUnit(r.price);
-  const counted=r.price&&['个','盒','袋','瓶'].includes(r.price.unit);
-  const pack=r.price?.pack??(counted?unit:undefined);
-  const count=pack?`（${decimal(r.buy/pack)} ${counted&&unit===pack?r.price!.unit:'包'}）`:
-    r.price&&unit&&['升','毫升'].includes(r.price.unit)&&r.buy>0?`（约 ${decimal(r.buy/unit)} ${r.price.unit}）`:'';
-  return decimal(r.buy)+' 克'+count;
+const sizeText=(row:BuyLine)=>{
+  const amount=row.remaining||row.confirmed||row.buy;
+  const price=row.price;
+  const grams=price&&gramsPerPriceUnit(price);
+  const countUnit=price&&['个','盒','袋','瓶'].includes(price.unit)?price.unit:undefined;
+  const pack=price?.pack??(countUnit?grams:undefined);
+  const suffix=pack?(countUnit&&pack===grams?`（${decimal(amount/pack)} ${countUnit}）`:
+    row.id==='oats'?`（${decimal(amount/pack)} 袋）`:`（规格 ${decimal(pack)} 克）`):'';
+  if(grams&&(price?.unit==='升'||price?.unit==='毫升')&&amount>0) {
+    const ml=price.unit==='升'?amount*1000/grams:amount/grams;
+    return (ml>=1000?decimal(ml/1000)+' 升':decimal(ml)+' 毫升')+suffix;
+  }
+  return decimal(amount)+' 克'+suffix;
 };
 const useText=(start:string,u:BuyLine['uses'][number])=>
   `${dateLabel(addDays(start,u.day))} ${u.meal} · ${u.dish} · ${u.recipeId?ingredientLabel(u.recipeId)+' ':''}${decimal(u.recipeGrams??u.grams)} 克`+
@@ -62,7 +69,7 @@ export function purchaseText(purchases:Purchase[]) {
   return ['天天减 · 旧版采购清单',...purchases.map(p=>`${p.name} ${decimal(p.buy)} 克`)].join('\n');
 }
 export function batchPurchaseText(rows:BuyLine[],title:string) {
-  return ['天天减 · '+title,...rows.filter(r=>r.need||r.buy).map(r=>
+  return ['天天减 · '+title,...rows.filter(r=>purchaseStatus(r)!=='无需补购').map(r=>
     `${r.buy&&!r.remaining?'✓':'□'} ${food(r.id).name} · 采购 ${sizeText(r)} · ${pendingPrice(r)} · 小计 ${costText(r.cost)}`)].join('\n');
 }
 function prepText(batch:PrepBatch,start:string,work:ReturnType<typeof prepWork>) {
@@ -85,6 +92,9 @@ export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab=
   const today=dateKey();
   const prepIndex=quote?.prep.findIndex(b=>b.end>=today&&b.jobs.some(j=>j.key&&!state?.execution?.tasks?.[j.key]?.taken))??-1;
   const shoppingIndex=quote?.batches.findIndex(b=>b.lines.some(l=>l.remaining>0))??-1;
+  const stored=quote?.lines.filter(row=>purchaseStatus(row)==='无需补购'&&row.stock+row.carry>0)??[];
+  const changed=plan?new Map(plan.days.flatMap(day=>day.meals.flatMap(meal=>meal.dishes.flatMap(dish=>
+    dish.recipe.replacements??[]))).map(r=>[r.from+'|'+r.to,r])):new Map();
   const weeklyRows=quote?.batches.flatMap(batch=>batch.lines)??[];
   const weeklyProgress=purchaseProgress(weeklyRows);
   const editPrice=actions?.savePrice;
@@ -120,8 +130,17 @@ export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab=
         </details>;
       })}
       <details className="card"><summary><span>全周食材汇总<PurchaseProgress progress={weeklyProgress}/></span></summary>
-        <GroupedLines rows={quote.lines} progressRows={weeklyRows} start={quote.start} detail={detail} setDetail={setDetail} editPrice={editPrice}/>
+        <GroupedLines rows={quote.lines.filter(row=>purchaseStatus(row)!=='无需补购')} progressRows={weeklyRows} start={quote.start} detail={detail} setDetail={setDetail} editPrice={editPrice}/>
       </details>
+      {!!stored.length&&<details className="card"><summary>已有库存抵扣 · {stored.length} 种</summary>
+        <ul className="ledger-list">{stored.map(row=><li key={row.id}><span>{food(row.id).name}</span><span className="unit">{decimal(row.stock+row.carry)} 克</span></li>)}</ul>
+      </details>}
+      {!!changed.size&&<details className="card"><summary>本周食材替换 · {changed.size} 种</summary>
+        <ul className="ledger-list">{[...changed.values()].map(r=>{
+          const row=quote.lines.find(line=>line.id===r.to);
+          return <li key={r.from+'|'+r.to}><span>{food(r.from).name} → {food(r.to).name}</span><span>{row?.remaining?'需补购':row?.confirmed?'已登记购买':'无需补购'}</span></li>;
+        })}</ul>
+      </details>}
       {quote.actualBatches?.length? <details className="card"><summary>另有实际购买记录 · {quote.actualBatches.reduce((n,b)=>n+b.lines.length,0)} 项</summary>
         <p className="meta">本周计划外买入及未并入采购批次的实付记录。</p>
         {quote.actualBatches.map(batch=><details key={batch.date}><summary>{dateLabel(batch.date)} · {costText(batch.paid)}</summary>
@@ -218,8 +237,9 @@ export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab=
 function Overview({quote:q,progress:{done,total}}:{quote:Logistics;progress:ReturnType<typeof purchaseProgress>}) {
   const paidEstimate=[...q.batches,...q.actualBatches??[]].some(batch=>batch.lines.some(row=>row.paidEstimated));
   const avg={...q.consumed,known:q.consumed.known/7};
+  const summary=procurementSummary(q);
   return <section className="card"><SectionTitle title="本周采购"><strong className="unit">{costText(q.purchase)}</strong></SectionTitle>
-    <p className="meta">{q.lines.filter(r=>r.uses.length).length} 种食材 · 预定采购 {q.batches.length} 次 · {total?`已购 ${done}/${total} 项`:'无需补购'}</p>
+    <p className="meta">使用 {summary.used} 种 · 需买 {summary.needed} 种 · 预定采购 {q.batches.length} 次 · {total?`已购 ${done}/${total} 项`:'无需补购'}</p>
     {total>0&&<progress value={done} max={total} aria-label="采购完成进度"/>}
     <details><summary>费用明细</summary><dl className="supply-summary">
       <div><dt>{q.actualPaid?'已实际支付':paidEstimate?'历史付款与估算':'历史实付'}</dt><dd>{q.actualPaid?.items===0&&q.unpricedPaid?.items?'暂未登记':costText(q.actualPaid??q.paid)}</dd></div>

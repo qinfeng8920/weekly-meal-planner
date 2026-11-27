@@ -518,3 +518,100 @@ test('逐页检查手机的三个宽度、两种主题和常用操作',async({pa
     }
   }
 });
+
+test('单项和全部清空只改真实库存，撤销后采购恢复，已付凭证仍可查询',async({page})=>{
+  await setup(page);
+  await page.getByRole('button',{name:'生成设置',exact:true}).click();
+  await page.getByLabel('食谱从哪天开始').selectOption('今天');
+  await page.getByRole('button',{name:'按设置生成',exact:true}).click();
+  await expect(page.getByText('七天食谱已生成。')).toBeVisible();
+  await nav(page,'采购').click();
+  await page.getByRole('checkbox').first().click();
+  await page.getByLabel('实际支付（元，可选）').fill('17.36');
+  await page.getByRole('button',{name:'保存实际购买',exact:true}).click();
+  await expect(page.getByText('采购记录已更新。')).toBeVisible();
+  await page.getByText('费用明细',{exact:true}).click();
+  const value=(label:string)=>page.locator('dt').filter({hasText:new RegExp('^'+label+'$')}).locator('..').locator('dd');
+  await expect(value('已实际支付')).toHaveText('¥17.36');
+  const cost=await value('剩余预计采购费用').innerText();
+  const openStock=async()=>{
+    await nav(page,'我的').click();
+    await page.getByRole('button',{name:'家中库存',exact:true}).click();
+  };
+  await openStock();
+  const item=page.locator('.inventory-manager .group-fold > .item-fold').first();
+  await item.locator(':scope > summary').click();
+  page.once('dialog',dialog=>dialog.dismiss());
+  await item.getByRole('button',{name:'清空此项库存'}).click();
+  await expect(item).toBeVisible();
+  page.once('dialog',dialog=>dialog.accept());
+  await item.getByRole('button',{name:'清空此项库存'}).click();
+  await expect(page.getByRole('button',{name:'撤销最近清空'})).toBeVisible();
+  await nav(page,'采购').click();
+  await page.getByText('费用明细',{exact:true}).click();
+  await expect(value('已实际支付')).toHaveText('¥17.36');
+  await expect(value('剩余预计采购费用')).not.toHaveText(cost);
+  await openStock();
+  page.once('dialog',dialog=>dialog.accept());
+  await page.getByRole('button',{name:'撤销最近清空'}).click();
+  await expect(item).toBeVisible();
+  await page.getByText('库存管理',{exact:true}).click();
+  page.once('dialog',dialog=>dialog.accept());
+  await page.getByRole('button',{name:'清空全部库存'}).click();
+  await expect(page.getByRole('button',{name:'撤销最近清空'})).toBeVisible();
+  await page.reload();
+  await openStock();
+  page.once('dialog',dialog=>dialog.accept());
+  await page.getByRole('button',{name:'撤销最近清空'}).click();
+  await expect(item).toBeVisible();
+  await nav(page,'采购').click();
+  await page.getByText('费用明细',{exact:true}).click();
+  await expect(value('已实际支付')).toHaveText('¥17.36');
+  await expect(value('剩余预计采购费用')).toHaveText(cost);
+});
+
+test('菜谱详情手动选库存中的替代油后同步实际配方和采购',async({page})=>{
+  await setup(page);
+  await page.getByRole('button',{name:'生成设置',exact:true}).click();
+  await page.getByText('固定搭配与随机种子',{exact:true}).click();
+  await page.getByLabel('随机种子（选填）').fill('手动食材验收');
+  await page.getByRole('button',{name:'按设置生成',exact:true}).click();
+  await expect(page.getByText('七天食谱已生成。')).toBeVisible();
+  const data=await page.evaluate(()=>new Promise<Data>((resolve,reject)=>{
+    const request=indexedDB.open('tiantianjian');
+    request.onerror=()=>reject(request.error);
+    request.onsuccess=()=>{
+      const db=request.result;
+      const read=db.transaction('app').objectStore('app').get('data');
+      read.onsuccess=()=>{resolve(read.result);db.close();};
+      read.onerror=()=>{reject(read.error);db.close();};
+    };
+  }));
+  const dish=data.plan!.days.flatMap((day,d)=>day.meals.flatMap((meal,m)=>meal.dishes.map((row,i)=>({d,m,i,row}))))
+    .find(({row})=>row.ingredients.some(item=>item.id==='canola')&&
+      (row.recipe.id.startsWith('boil-')||row.recipe.id.startsWith('steam-')||['quick-tofu','quick-steam-tofu','bowl-tofu-grain','bowl-chicken-rice'].includes(row.recipe.id)));
+  expect(dish).toBeDefined();
+  await nav(page,'我的').click();
+  await page.getByRole('button',{name:'家中库存',exact:true}).click();
+  await page.getByRole('button',{name:'添加或登记购买'}).click();
+  await page.getByLabel('选择食材').selectOption('olive');
+  await page.getByLabel('实际购买数量').fill('230');
+  await page.getByRole('button',{name:'保存实际购买',exact:true}).click();
+  await expect(page.getByText('采购记录已更新。')).toBeVisible();
+  await nav(page,'食谱').click();
+  await page.locator('.day-tabs button').nth(dish!.d).click();
+  const row=page.locator('.meal-card').nth(dish!.m).locator('.dish-wrap').nth(dish!.i);
+  await row.locator('.dish-title').click();
+  await row.getByRole('button',{name:'更换同类食材',exact:true}).click();
+  const option=dish!.row.recipe.id+'--olive';
+  await expect(row.locator('option').filter({hasText:/橄榄油.*家中有/}).first()).toBeAttached();
+  await row.getByLabel('选择替代做法').selectOption(option);
+  await expect(page.getByText(/调整完成，已同步采购和备餐/)).toBeVisible();
+  await expect(row.locator('.dish-ingredients')).toContainText('橄榄油');
+  await expect(row.locator('.dish-ingredients')).not.toContainText('菜籽油');
+  await nav(page,'采购').click();
+  await page.getByText(/已有库存抵扣/).click();
+  await expect(page.getByText('橄榄油',{exact:true}).filter({visible:true})).toBeVisible();
+  await page.getByText(/本周食材替换/).click();
+  await expect(page.getByText('菜籽油 → 橄榄油',{exact:true})).toBeVisible();
+});

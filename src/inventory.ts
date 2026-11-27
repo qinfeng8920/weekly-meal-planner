@@ -6,7 +6,7 @@ import type {Allocation,Execution} from './execution';
 import type {Receipt,SupplyState} from './logistics';
 import type {Pantry} from './shopping';
 
-export const inventoryOperations=['采购入库','购买修正','手动补充','手动扣除','报损丢弃','实际取用','撤销','旧手工库存'] as const;
+export const inventoryOperations=['采购入库','购买修正','手动补充','手动扣除','报损丢弃','实际取用','撤销','旧手工库存','库存清空'] as const;
 export type InventoryEvent={
   id:string;item:string;source:string;kind:typeof inventoryOperations[number];date?:string;
   quantity:number;unit:PriceUnit;delta:number;reference?:string;paid?:number;reverses?:string;
@@ -157,6 +157,21 @@ export function resolveReview(ledger:Ledger,id:string,grams:number,date:string) 
   const review=ledger.review.find(r=>r.id===id);
   if(!review)return ledger;
   return adjustStock({...ledger,review:ledger.review.filter(r=>r.id!==id)},review.item,grams,'增加',date,'核对|'+id+'|'+review.item);
+}
+
+export function clearInventory(ledger:Ledger,reference:string,date:string,item?:string) {
+  if(ledger.events.some(event=>event.reference===reference&&event.kind==='库存清空'))return ledger;
+  const entries:Entry[]=[];
+  for(const lot of ledgerLots(ledger).values())if(lot.net>0&&(!item||lot.id===item)) {
+    entries.push({item:lot.id,source:lot.source,reference,date,kind:'库存清空',quantity:lot.net,unit:'克',delta:-lot.net});
+  }
+  return addEvents(ledger,entries);
+}
+
+export function undoInventoryClear(ledger:Ledger,reference:string,date:string) {
+  const reversed=new Set(ledger.events.flatMap(event=>event.reverses??[]));
+  return addEvents(ledger,ledger.events.filter(event=>event.reference===reference&&event.kind==='库存清空'&&!reversed.has(event.id))
+    .map(event=>({item:event.item,source:event.source,reference,date,kind:'撤销',quantity:event.quantity,unit:'克',delta:-event.delta,reverses:event.id})));
 }
 
 export function reverseAdjustment(ledger:Ledger,id:string,date:string) {

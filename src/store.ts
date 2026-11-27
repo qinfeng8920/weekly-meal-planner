@@ -34,7 +34,8 @@ const profile = z.strictObject({
 });
 const ingredient = z.strictObject({id:z.string().regex(/^[a-z][a-z0-9-]{0,49}$/),grams:num.positive().max(2000)});
 const recipe = z.strictObject({id:string,name:string,group:z.enum(['蛋白质菜','蔬菜','主食','早餐','水果','加餐','汤类']),
-  ingredients:z.array(ingredient).min(1).max(25),tools:names,prep:num,cook:num,steps:names,cuisine:string,flavor:string,skill:string,batch:z.boolean(),min:num,max:num});
+  ingredients:z.array(ingredient).min(1).max(25),tools:names,prep:num,cook:num,steps:names,cuisine:string,flavor:string,skill:string,batch:z.boolean(),min:num,max:num,baseId:string.optional(),
+  replacements:z.array(z.strictObject({from:string,to:string,rule:string})).max(3).optional()});
 const macros = {kcal:num,protein:num,carbs:num,fat:num,fiber:num};
 const nutrients = z.strictObject({...macros,sodium:num.nullable(),calcium:num.nullable(),potassium:num.nullable(),vitaminC:num.nullable()});
 const serving = z.strictObject({recipe,ingredients:z.array(ingredient).min(1).max(25),nutrients});

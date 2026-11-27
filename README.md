@@ -1,4 +1,4 @@
-# 天天减 V2.3
+# 天天减 V2.3.1
 
 天天减是一款简体中文 PWA。它根据成人档案、厨房条件和饮食偏好，生成七天食谱，并汇总多人采购和备餐。档案、记录与方案保存在当前浏览器，可导出备份。
 
@@ -17,6 +17,8 @@
 
 需要 Node.js 24 和 npm。执行 `npm ci`、`npm test`、`npm run build`。浏览器测试执行 `npx playwright install chromium` 与 `npm run test:e2e`。已有系统 Chromium 时可设 `TTJ_CHROMIUM` 为其可执行文件绝对路径。开发预览使用 `npm run dev`。
 
+- [V2.3 全品类采购专项](docs/PRD-V2.3-INGREDIENTS.md)
+- [食材替换覆盖](docs/SUBSTITUTIONS.md)
 - [V2.2 统一需求](docs/PRD-V2.2.md)
 - [V2.1 统一需求](docs/PRD-V2.1.md)
 - [V2.0 统一需求](docs/PRD-V2.md)

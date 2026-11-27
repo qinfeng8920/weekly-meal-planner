@@ -1,3 +1,4 @@
+import {conditionalPair,directRules} from './substitution';
 import {useState,type ReactNode} from 'react';
 import {food,foods} from './catalog';
 import {capOf,counts,defaultPool,displayPoolMode,normalizeIds,poolGroup,poolGroups,poolMethods,visiblePoolModes,rotations,standardFoods,type PoolSettings,type PoolTemplate,type WeeklyIngredientPool} from './ingredient-pool';
@@ -67,9 +68,11 @@ export function PoolPage({initial,previous,templates,pantry,busy,onSave,onGenera
     } else if(!exists)updating.excluded=updating.excluded.filter(i=>i!==id);
     set(updating);
   };
+  const substitutes=(id:string)=>foodList.filter(f=>!chosen.includes(f.id)&&!draft.excluded.includes(f.id)&&
+    (conditionalPair(id,f.id)||directRules.some(rule=>rule.from===id&&rule.to===f.id)));
   function refresh(id:string,replacementId?:string) {
     if(draft.locked.includes(id)){setMessage('请先解锁该食材。');return;}
-    const choices=foodList.filter(f=>poolGroup(f.id)===poolGroup(id)&&!chosen.includes(f.id)&&!draft.excluded.includes(f.id)&&f.id!==id);
+    const choices=substitutes(id);
     const next=replacementId?choices.find(f=>f.id===replacementId):choices[Math.floor(crypto.getRandomValues(new Uint32Array(1))[0]/4294967296*choices.length)];
     if(!next){setMessage('当前分类没有更多候选食材。');return;}
     set({selected:[...draft.selected.filter(i=>i!==id),next.id],method:'手动指定'});setReplacement('');
@@ -112,7 +115,7 @@ export function PoolPage({initial,previous,templates,pantry,busy,onSave,onGenera
           {chosen.includes(f.id)&&<><button onClick={()=>setReplacement(replacement===f.id?'':f.id)}>替换</button><button onClick={()=>refresh(f.id)}>随机刷新</button></>}
         </div>
         {replacement===f.id&&<label className="field">选择替代食材<select value="" onChange={e=>refresh(f.id,e.target.value)}>
-          <option value="">请选择</option>{foodList.filter(x=>poolGroup(x.id)===poolGroup(f.id)&&!chosen.includes(x.id)&&!draft.excluded.includes(x.id)).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label>}
+          <option value="">请选择</option>{substitutes(f.id).map(x=><option value={x.id} key={x.id}>{x.name}</option>)}</select></label>}
         {chosen.includes(f.id)&&<label className="field">偏好周用量（克，可选）<input type="number" min={0} max={100000} value={draft.goals?.[f.id]??''} onChange={e=>{
           const goals={...draft.goals};if(e.target.value)goals[f.id]=Math.min(100000,Math.max(0,+e.target.value));else delete goals[f.id];set({goals});
         }}/></label>}
@@ -120,6 +123,13 @@ export function PoolPage({initial,previous,templates,pantry,busy,onSave,onGenera
       {visible.length>limit&&<button onClick={()=>setLimit(limit+18)}>显示更多食材</button>}
       {message&&<p className="hint" role="status">{message}</p>}
     </div>
+    <details><summary>常用食材与调味料</summary>
+      <p className="meta">按库存、偏好和实际用法优先选择，可选主油、食醋及常用食材。</p>
+      <label className="field">添加常用商品<select value="" onChange={e=>{
+        if(e.target.value)set({preferred:[...draft.preferred??[],e.target.value]});
+      }}><option value="">请选择</option>{foodList.filter(f=>!draft.preferred?.includes(f.id)&&!draft.excluded.includes(f.id)).map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</select></label>
+      <div className="actions">{draft.preferred?.map(id=><button className="small" key={id} onClick={()=>set({preferred:draft.preferred?.filter(f=>f!==id)})}>{food(id).name} · 移除</button>)}</div>
+    </details>
     <details><summary>分类上限和收藏模板</summary>
       <div className="fields">{poolGroups.map(g=><label className="field" key={g}>{g}上限（种）<input type="number" min={0} max={128} placeholder={String(capOf(draft,g))} value={draft.caps?.[g]??''} onChange={e=>{
         const caps={...draft.caps};if(e.target.value)caps[g]=Math.min(128,Math.max(0,Math.trunc(+e.target.value)));else delete caps[g];set({caps});

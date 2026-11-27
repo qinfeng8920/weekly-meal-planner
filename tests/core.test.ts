@@ -25,7 +25,7 @@ test('安全筛查、低体重和异常输入',()=>{
 });
 test('可追溯食材与可计算菜谱',()=>{
   ok(foods.length>=100);ok(recipeList.length>=100);
-  for(const f of foods){ok(f.fdc>0);ok(macroKeys.every(k=>typeof f.nutrients[k]==='number'));}
+  for(const f of foods){ok((f.fdc??0)>0||f.sourceUrl?.startsWith('https://'));ok(macroKeys.every(k=>typeof f.nutrients[k]==='number'));}
   for(const r of recipeList){
     ok(r.steps.length>0);
     const row=serving(r);

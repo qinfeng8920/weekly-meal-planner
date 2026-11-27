@@ -41,7 +41,7 @@ const base:Record<string,number>={chicken:15,thigh:16,pork:20,bass:20,tofu:4,sof
   bread:16,cookedbrown:15,cookedsweet:10,cookedcorn:9,boiledegg:12,cookedchicken:28,cannedsalmon:60,
   enoki:7,whitefungi:12,shiitake:15,oystermushroom:10,strawberry:25,blueberry:45,kiwi:12,avocado:20,pomegranate:10,
   pumpkinseed:48,chia:68,flax:32,peanut:14,sesameseed:26,milk:9,cheese:48,olive:45,sesameoil:55,
-  soy:10,salt:4,pepper:85,vinegar:5,ginger:8,garlic:7,scallion:5,cilantro:10,lemon:12,cinnamon:45,cumin:36,turmeric:25};
+  soy:10,salt:4,pepper:85,vinegar:5,ricevinegar:5,ginger:8,garlic:7,scallion:5,cilantro:10,lemon:12,cinnamon:45,cumin:36,turmeric:25};
 for(const [id,price] of Object.entries(base)) assumed(id,price,'斤',id==='bass'?{basis:'毛重',yieldPercent:50}:id==='oats'?{pack:500}:{});
 assumed('soymilk',8,'升',{unitGrams:1000});
 assumed('yogurt',20,'公斤');

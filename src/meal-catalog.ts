@@ -1,3 +1,4 @@
+import {recipeBaseId} from './substitution';
 import {cookingPlacements} from './cooking-recipes';
 import {recipeList,recipeMap,type Recipe} from './catalog';
 import type {MealName} from './profile';
@@ -46,18 +47,19 @@ const breakfastProtein = new Set(breakfastMenus.map(m=>m.recipes[1]));
 const lightSoups = new Set(['soup-bok-mushroom','soup-tomato-bok']);
 const lunchOnly = new Set(['lentil-soup','soy-chicken']);
 export function labels(recipe:Recipe):{tags:MealTag[];slot:Slot} {
-  const placement=cookingPlacements.get(recipe.id);
+  const id=recipeBaseId(recipe);
+  const placement=cookingPlacements.get(id);
   if(placement==='早餐套餐') return {tags:['早餐'],slot:'一锅套餐'};
   if(placement==='正餐套餐') return {tags:['午餐','晚餐'],slot:'一锅套餐'};
-  if (breakfastProtein.has(recipe.id) || recipe.id==='boiled-egg') return {tags:['早餐'],slot:'蛋白质'};
-  if (lightSoups.has(recipe.id)) return {tags:['午餐','晚餐','通用配菜'],slot:'清汤'};
+  if (breakfastProtein.has(id) || id==='boiled-egg') return {tags:['早餐'],slot:'蛋白质'};
+  if (lightSoups.has(id)) return {tags:['午餐','晚餐','通用配菜'],slot:'清汤'};
   switch(recipe.group) {
-    case '主食': return {tags:breakfastStarch.has(recipe.id)?['早餐','通用主食']:['通用主食'],slot:'主食'};
+    case '主食': return {tags:breakfastStarch.has(id)?['早餐','通用主食']:['通用主食'],slot:'主食'};
     case '早餐': return {tags:['早餐'],slot:'主食'};
     case '蔬菜': return {tags:['通用配菜'],slot:'蔬菜'};
     case '水果': return {tags:['早餐','加餐'],slot:'水果'};
     case '加餐': return {tags:['早餐','加餐'],slot:'加餐'};
-    default:return {tags:lunchOnly.has(recipe.id)?['午餐']:['午餐','晚餐'],slot:'蛋白质'};
+    default:return {tags:lunchOnly.has(id)?['午餐']:['午餐','晚餐'],slot:'蛋白质'};
   }
 }
 export function canServe(recipe:Recipe,meal:MealName,slot:Slot) {
@@ -69,7 +71,7 @@ export function canServe(recipe:Recipe,meal:MealName,slot:Slot) {
     (tags.includes('通用主食')||tags.includes('通用配菜'));
 }
 export function pairingOk(recipes:Recipe[]) {
-  const ids=new Set(recipes.map(r=>r.id));
+  const ids=new Set(recipes.map(recipeBaseId));
   if (['breakfast-chicken-toast','breakfast-tofu-toast','breakfast-chickpea'].some(id=>ids.has(id)) && !ids.has('grain-bread')) return false;
   if(ids.has('breakfast-chicken-oats')&&!ids.has('quick-oats')) return false;
   return recipes.filter(r=>r.group==='汤类').length<=1;

@@ -16,7 +16,7 @@ export type PoolGroup=typeof poolGroups[number];
 export type PoolSettings={
   mode:typeof poolModes[number];method:typeof poolMethods[number];strict:boolean;
   selected:string[];locked:string[];excluded:string[];
-  caps?:Partial<Record<PoolGroup,number>>;goals?:Record<string,number>;rotation:typeof rotations[number];
+  preferred?:string[];caps?:Partial<Record<PoolGroup,number>>;goals?:Record<string,number>;rotation:typeof rotations[number];
 };
 export type WeeklyIngredientPool={
   version:1;week:string;settings:PoolSettings;selected:string[];
@@ -116,8 +116,9 @@ export function ingredientPools(settings:PoolSettings,recipes:Recipe[],pantry:Pa
     const rate=edibleRate(price);
     const per100=rate?amountFor(100/rate,price):null;
     const previous=old.has(id)?(settings.rotation==='保留上周'?24:settings.rotation==='部分轮换'?2:-4):0;
-    const have=settings.method==='库存优先'?Math.min(14,(stock.get(id)??0)/55):Math.min(8,(stock.get(id)??0)/95);
-    return (preferred<0?0:(list.length-preferred)*1.4) + Math.min(4,(coverage.get(id)??0)*.16)+have+
+    const have=Math.min(settings.method==='库存优先'?24:15,(stock.get(id)??0)/(settings.method==='库存优先'?38:65));
+    const preferredStock=settings.preferred?.includes(id)?6:0;
+    return (preferred<0?0:(list.length-preferred)*1.4) + Math.min(4,(coverage.get(id)??0)*.16)+have+preferredStock+
       Math.min(3,(settings.goals?.[id]??0)/150)+previous-(per100??8)*.15+random()*(variant===0?.35:3.8);
   };
   const result:PoolCandidate[]=[];

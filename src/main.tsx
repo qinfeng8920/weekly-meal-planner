@@ -1,6 +1,6 @@
 import {PoolPage,type GenerationDraft} from './PoolPage';
 import {executeJobs,type TaskAction} from './execution';
-import {adjustStock,currentLedger,recordPurchase,resolveReview,reverseAdjustment,type InventoryEvent} from './inventory';
+import {adjustStock,balances,clearInventory,currentLedger,recordPurchase,resolveReview,reverseAdjustment,undoInventoryClear,type InventoryEvent} from './inventory';
 import type {PrepJob,Receipt} from './logistics';
 import {food,recipeList} from './catalog';
 import {buildWeeklyPool,defaultPool,type PoolSettings} from './ingredient-pool';
@@ -122,7 +122,7 @@ function App() {
     catch(e) {reason=errorText(e);}
   }
   const latestWeight=[...weights].sort((a,b)=>b.date.localeCompare(a.date))[0]?.kg??Number(profile?.weight);
-  const stale=Boolean(plan && (!['1.2.0','2.0.0','2.1.0','2.2.0',algorithmVersion].includes(plan.algorithmVersion) || !profile || !targets || latestWeight!==plan.weight ||
+  const stale=Boolean(plan && (!['1.2.0','2.0.0','2.1.0','2.2.0','2.3.0',algorithmVersion].includes(plan.algorithmVersion) || !profile || !targets || latestWeight!==plan.weight ||
     Math.abs(targets.kcal-plan.targets.kcal)>.01 || JSON.stringify(planningProfile(profile))!==JSON.stringify(planningProfile(plan.profile)) ||
     plan.days.some(d=>d.meals.some(m=>m.dishes.some(s=>data.blocked.includes(s.recipe.id))))));
   const supply={...data.supply,execution:data.supply?.execution??{}};
@@ -186,7 +186,7 @@ function App() {
       if(call!==generation.current)return;
       const newQuote=next.logistics!;
       const prior=new Set(quote?.lines.filter(l=>l.need>0).map(l=>l.id)??[]);
-      const added=change||keep?newQuote.lines.filter(l=>l.need>0&&!prior.has(l.id)):[];
+      const added=change||keep?newQuote.lines.filter(l=>l.remaining>0&&!prior.has(l.id)):[];
       const alreadyAllowed=new Set(plan?.pool?.supplements.map(s=>s.id));
       const supplements=change?[]:next.pool?.supplements.filter(s=>!keep||!alreadyAllowed.has(s.id))??[];
       if(added.length||supplements.length) {
@@ -308,6 +308,19 @@ function App() {
       return await mutate({supply:{...supply,ledger:reverseAdjustment(ledger,event.id,dateKey())}},'库存已按撤销修正。');
     }catch(e){notify(errorText(e),true);return false;}
   }
+  async function clearStock(item?:string) {
+    const quantities=balances(ledger);
+    const count=[...quantities.values()].filter(grams=>grams>0).length;
+    if(item?!(quantities.get(item)??0):!count)return false;
+    const target=item?food(item).name+' '+decimal(quantities.get(item)!)+' 克':`全部 ${count} 种食材`;
+    if(!confirm('确认清空'+target+'的账面库存？购买记录、实付和历史食谱会保留，可撤销本次清空。'))return false;
+    const next=clearInventory(ledger,'清空|'+crypto.randomUUID(),dateKey(),item);
+    return mutate({supply:{...supply,ledger:next}},'库存已清空，采购和备餐已更新。');
+  }
+  async function undoClear(reference:string) {
+    if(!confirm('撤销本次清空，并把当时清空的数量加回当前库存？'))return false;
+    return mutate({supply:{...supply,ledger:undoInventoryClear(ledger,reference,dateKey())}},'已撤销清空，采购和备餐已更新。');
+  }
   const supplyActions:SupplyActions={
     task,receipt,
     shared:(key,checked)=>{
@@ -360,7 +373,7 @@ function App() {
     profile,busy,stale,day,setDay,locks:data.locks,favorites:data.favorites,generate:()=>void generate(),
     editProfile:()=>go('编辑档案'),openHistory:()=>go('历史方案'),change:(p:Change)=>void generate(p),lock,
     favorite:(id:string)=>toggle('favorites',id),block:(id:string)=>toggle('blocked',id),revise:adjust,save:savePlan,
-    products:supply.products,livePool,openPool:()=>go('生成设置'),keepPool:()=>void generate(undefined,plan?.pool?.settings,true),
+    products:supply.products,livePool,stock:balances(ledger),blocked:data.blocked,openPool:()=>go('生成设置'),keepPool:()=>void generate(undefined,plan?.pool?.settings,true),
     execution:supply.execution,mealJobs:quote?.prep.flatMap(b=>b.jobs)??[],completeMeal:(jobs:PrepJob[])=>task(jobs,'用餐',true),undoMeal:(jobs:PrepJob[])=>task(jobs,'用餐',false),
     share:(p:Plan,share:boolean)=>void send(planText(p),share),exportText:(p:Plan)=>downloadFile('天天减-七天食谱.txt',planText(p),'text/plain;charset=utf-8'),
   };
@@ -409,7 +422,7 @@ function App() {
       {page==='库存'&&<><div className="page-title"><h1>库存</h1><button onClick={()=>go('我的')}>返回我的</button></div>
         <InventoryManager pantry={pantry} prices={supply.prices??{}} ledger={ledger} receipts={supply.receipts??{}} execution={supply.execution}
           inventory={Object.fromEntries(quote?.inventory.map(row=>[row.id,row])??[])}
-          save={stock} savePurchase={receipt} reverse={removeInventory}
+          save={stock} savePurchase={receipt} reverse={removeInventory} clear={clearStock} undoClear={undoClear}
           review={async(id,grams)=>{
             try {
               return await mutate({supply:{...supply,ledger:resolveReview(ledger,id,grams,dateKey())}},'旧库存已核对。');

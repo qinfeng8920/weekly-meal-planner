@@ -1,3 +1,4 @@
+import {buildSubstitutionVariants,recipeBaseId,type Replacement} from './substitution';
 import {cookingRecipes} from './cooking-recipes';
 import {quickRecipes} from './quick-recipes';
 import data from './foods.json';
@@ -17,7 +18,7 @@ export type Ingredient = {id:string; grams:number};
 export type Group = '蛋白质菜'|'蔬菜'|'主食'|'早餐'|'水果'|'加餐'|'汤类';
 export type Recipe = {
   id:string; name:string; group:Group; ingredients:Ingredient[]; tools:string[]; prep:number; cook:number;
-  steps:string[]; cuisine:string; flavor:string; skill:string; batch:boolean; min:number; max:number;
+  steps:string[]; cuisine:string; flavor:string; skill:string; batch:boolean; min:number; max:number;baseId?:string;replacements?:Replacement[];
 };
 export type Serving = {recipe:Recipe; ingredients:Ingredient[]; nutrients:Nutrients};
 const items = (...pairs: [string,number][]): Ingredient[] => pairs.map(([id,grams])=>({id,grams}));
@@ -142,7 +143,9 @@ add('snack-milk','纯牛奶','加餐',items(['milk',225]),[],1,0,['选巴氏杀�
 
 recipes.push(...quickRecipes,...cookingRecipes);
 export const recipeList = recipes;
-export const recipeMap = new Map(recipes.map(r=>[r.id,r]));
+export const recipeVariants=new Map(recipes.map(r=>[r.id,[r,...buildSubstitutionVariants(r,food)]]));
+export const recipeMap = new Map([...recipeVariants.values()].flat().map(r=>[r.id,r]));
+export const variantsOf=(recipe:Recipe)=>recipeVariants.get(recipeBaseId(recipe))??[recipe];
 export function serving(recipe:Recipe, factor = 1, grams?: Ingredient[]): Serving {
   const ingredients = grams ?? recipe.ingredients.map(i=>({...i,grams:Math.round(i.grams*factor*100)/100}));
   const nutrients = sum(ingredients.map(i => {

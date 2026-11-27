@@ -43,7 +43,7 @@ export function Library({favorites,blocked,toggleFavorite,toggleBlocked}:{favori
         <p>能量 {f.nutrients.kcal} 千卡 · 蛋白质 {f.nutrients.protein} 克 · 碳水 {f.nutrients.carbs} 克 · 脂肪 {f.nutrients.fat} 克 · 纤维 {f.nutrients.fiber} 克</p>
         <p>钠 {f.nutrients.sodium===null?'未知':decimal(f.nutrients.sodium)+' 毫克'} · 钙 {f.nutrients.calcium===null?'未知':decimal(f.nutrients.calcium)+' 毫克'} · 钾 {f.nutrients.potassium===null?'未知':decimal(f.nutrients.potassium)+' 毫克'} · 维生素 C {f.nutrients.vitaminC===null?'未知':decimal(f.nutrients.vitaminC)+' 毫克'}</p>
         <p className="meta">{f.description} · 可食率和生熟换算未知，使用标注状态称量。</p>
-        <a href={`https://fdc.nal.usda.gov/food-details/${f.fdc}/nutrients`} target="_blank" rel="noreferrer">查看 USDA 原始条目</a>
+        <a href={f.sourceUrl??`https://fdc.nal.usda.gov/food-details/${f.fdc}/nutrients`} target="_blank" rel="noreferrer">查看原始营养条目</a>
       </details>)}
     </section>:list.length?<div className="card library-list">{list.slice(0,limit).map(r=><details className="item-fold recipe-card" key={r.id}>
       <summary><span><strong>{r.name}</strong><small>{labels(r).tags.join('、')} · {recipeMeaning(r).types.join('、')} · {r.prep+r.cook} 分钟 · {categoriesOf(r).join('、')||r.cuisine}</small></span></summary>
