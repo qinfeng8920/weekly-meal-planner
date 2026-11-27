@@ -127,8 +127,13 @@ input[type=checkbox] { width:18px; height:18px; flex:none; accent-color:#2f6b47 
 .ingredients li,.history-log li { display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px; padding:5px 0; border-bottom:1px solid var(--line) }
 .ingredients small { color:var(--muted) }
 .purchase-list > li { padding:3px 0 4px; border-bottom:1px solid var(--line); margin-top:0 }
-.purchase-row { display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; align-items:center }
-.purchase-row label { flex:1; min-width:0; font-size:.94rem }
+.purchase-row {display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) auto; gap:4px 8px; align-items:center}
+.purchase-row label,.purchase-name {min-width:0}
+.purchase-row label {font-size:.94rem}
+.purchase-row > button {padding-inline:5px; min-width:44px; white-space:nowrap}
+.purchase-quantity {min-width:0; text-align:end; line-height:1.35; overflow-wrap:anywhere; font-variant-numeric:tabular-nums}
+.purchase-quantity b,.purchase-quantity small {display:block}
+.purchase-quantity small {margin-top:2px; color:var(--muted); font-size:.75rem}
 .need-more { display:block; color:var(--danger) }
 details { border-top:1px solid var(--line); padding:3px 0 }
 summary { min-height:44px; display:flex; align-items:center; gap:8px; min-width:0; cursor:pointer; padding:8px 4px; font-size:.95rem; font-weight:550; line-height:1.4; overflow-wrap:anywhere; list-style:none }
@@ -144,7 +149,7 @@ summary small {display:block; margin-top:3px; font-size:.78rem; color:var(--mute
 .purchase-progress {display:block; white-space:nowrap; color:var(--muted); font-size:.78rem; font-weight:500; font-variant-numeric:tabular-nums}
 summary > .purchase-progress {margin-inline-start:auto; flex-shrink:0}
 summary > span > .purchase-progress {margin-top:3px}
-.purchase-item-status {margin-inline-start:6px; color:var(--muted); font-size:.75rem; white-space:nowrap}
+.purchase-item-status {display:block; color:var(--muted); font-size:.75rem}
 .purchase-progress.complete,.purchase-item-status.complete {color:var(--accent); font-weight:700}
 .item-fold {padding:0; border-top:0; border-bottom:1px solid var(--line)}
 .item-fold:last-child {border-bottom:0}
@@ -203,8 +208,7 @@ summary > span > .purchase-progress {margin-top:3px}
 .pool-items li {padding:8px 0; border-bottom:1px solid var(--line)}
 .nutrition-row strong {white-space:nowrap}
 .task-check input {margin-inline:0}
-.purchase-row label strong {overflow-wrap:anywhere}
-.stat-strip b,.purchase-row b {white-space:nowrap}
+.stat-strip b {white-space:nowrap}
 
 .unit {white-space:nowrap; font-variant-numeric:tabular-nums}
 .day-tabs button span,.day-tabs button small {display:block}
@@ -215,8 +219,8 @@ summary > span > .purchase-progress {margin-top:3px}
 .line-actions,.list-actions {margin-bottom:12px}
 .purchase-price {display:flex; flex-wrap:wrap; gap:0 8px; align-items:center; justify-content:space-between}
 .purchase-price b {margin-left:auto; font-weight:610}
-.purchase-price button {padding-inline:0}
-.purchase-price {margin-block:-5px 0}
+.purchase-price button {max-width:100%; padding-inline:0; text-align:start; overflow-wrap:anywhere}
+.purchase-price {margin-block:0}
 .home-metrics {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,5.3rem),1fr));gap:8px}
 .home-metrics span {display:block;color:var(--muted);font-size:.82rem}
 .home-plan-meta {font-size:.95rem}

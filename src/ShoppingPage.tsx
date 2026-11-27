@@ -47,19 +47,23 @@ function PurchaseProgress({progress:{done,total}}:{progress:ReturnType<typeof pu
     {complete&&<span aria-hidden="true">✓ </span>}{total?`已购 ${done}/${total} 项`:'无需补购'}
   </span>;
 }
-const sizeText=(row:BuyLine)=>{
+const purchaseSize=(row:BuyLine)=>{
   const amount=row.remaining||row.confirmed||row.buy;
   const price=row.price;
   const grams=price&&gramsPerPriceUnit(price);
   const countUnit=price&&['个','盒','袋','瓶'].includes(price.unit)?price.unit:undefined;
   const pack=price?.pack??(countUnit?grams:undefined);
-  const suffix=pack?(countUnit&&pack===grams?`（${decimal(amount/pack)} ${countUnit}）`:
-    row.id==='oats'?`（${decimal(amount/pack)} 袋）`:`（规格 ${decimal(pack)} 克）`):'';
+  const packaging=pack?(countUnit&&pack===grams?`${decimal(amount/pack)} ${countUnit}`:
+    row.id==='oats'?`${decimal(amount/pack)} 袋`:`规格 ${decimal(pack)} 克`):'';
   if(grams&&(price?.unit==='升'||price?.unit==='毫升')&&amount>0) {
     const ml=price.unit==='升'?amount*1000/grams:amount/grams;
-    return (ml>=1000?decimal(ml/1000)+' 升':decimal(ml)+' 毫升')+suffix;
+    return {quantity:ml>=1000?decimal(ml/1000)+' 升':decimal(ml)+' 毫升',packaging};
   }
-  return decimal(amount)+' 克'+suffix;
+  return {quantity:decimal(amount)+' 克',packaging};
+};
+const sizeText=(row:BuyLine)=>{
+  const {quantity,packaging}=purchaseSize(row);
+  return quantity+(packaging?`（${packaging}）`:'');
 };
 const useText=(start:string,u:BuyLine['uses'][number])=>
   `${dateLabel(addDays(start,u.day))} ${u.meal} · ${u.dish} · ${u.recipeId?ingredientLabel(u.recipeId)+' ':''}${decimal(u.recipeGrams??u.grams)} 克`+
@@ -271,13 +275,16 @@ function LineList({rows,start,detail,setDetail,receipt,editPrice,purchase,setPur
   return <ul className="purchase-list">{rows.map(row=>{
     const k=row.receiptKey||row.id, f=food(row.id);
     const status=purchaseStatus(row);
+    const {quantity,packaging}=purchaseSize(row);
     return <li key={k}><div className="purchase-row"><label className="check">
       {receipt&&row.buy>0&&<input type="checkbox" checked={row.remaining===0} onChange={e=>{
         if(e.target.checked) {
           setDetail('');
           setPurchase?.({key:k,source:row.confirmed?'手动|'+crypto.randomUUID()+'|'+row.id:k});
         } else void receipt(k);
-      }}/>}<span>{f.name}{(status==='已购'||status==='已买部分')&&<small className={'purchase-item-status'+(status==='已购'?' complete':'')}>{status}</small>}</span></label><b className="unit">{row.estimate===null&&!row.buy?'待补全':sizeText(row)}</b>
+      }}/>}<span className="purchase-name">{f.name}{(status==='已购'||status==='已买部分')&&<small className={'purchase-item-status'+(status==='已购'?' complete':'')}>{status}</small>}</span></label>
+      <span className="purchase-quantity"><b>{row.estimate===null&&!row.buy?'待补全':quantity.replace(' ','\u00a0')}</b>
+        {packaging&&<small>{packaging}</small>}</span>
       <button className="small flat" aria-expanded={detail===k} onClick={()=>{setPurchase?.(null);setDetail(detail===k?'':k);}}>{detail===k?'收起':'详情'}</button></div>
       <p className="meta purchase-price">{editPrice?<button className="small flat" onClick={()=>{setPurchase?.(null);setDetail(detail===k?'':k);}} aria-label={'编辑'+f.name+'单价'}>{pendingPrice(row)}</button>:pendingPrice(row)}
         <b className="unit">{costText(row.cost)}</b></p>

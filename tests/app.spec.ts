@@ -615,3 +615,48 @@ test('菜谱详情手动选库存中的替代油后同步实际配方和采购',
   await page.getByText(/本周食材替换/).click();
   await expect(page.getByText('菜籽油 → 橄榄油',{exact:true})).toBeVisible();
 });
+
+test('大字号采购行的食材、部分购买状态、长规格和详情互不重叠',async({page})=>{
+  await setup(page);
+  await generate(page);
+  await nav(page,'采购').click();
+  const row=page.locator('.batch-fold[open] .group-fold[open] .purchase-list > li').first();
+  await row.getByRole('button',{name:'详情',exact:true}).click();
+  await row.getByText('修改此食材单价',{exact:true}).click();
+  await row.getByLabel('购买包装重量（克，可选）').fill('1590');
+  await row.getByRole('button',{name:'保存此食材价格'}).click();
+  await expect(page.getByText('食材价格已保存。')).toBeVisible();
+  await row.getByRole('checkbox').click();
+  await row.getByLabel('实际购买数量').fill('1');
+  await row.getByRole('button',{name:'保存实际购买',exact:true}).click();
+  await expect(row.locator('.purchase-item-status')).toHaveText('已买部分');
+  await expect(row.locator('.purchase-quantity b')).toHaveText(/1,590\s克/);
+  await expect(row.locator('.purchase-quantity small')).toContainText('1,590');
+  for(const theme of ['浅色','深色']) {
+    await nav(page,'我的').click();
+    await page.getByLabel('外观').selectOption(theme);
+    await nav(page,'采购').click();
+    for(const width of [320,360,390,430]) {
+      await page.setViewportSize({width,height:850});
+      await page.evaluate(()=>{document.documentElement.style.fontSize='22px';});
+      await assertFit(page);
+      const fits=await row.locator('.purchase-row').evaluate(el=>{
+        const detail=el.querySelector('button')!.getBoundingClientRect();
+        const quantity=el.querySelector('.purchase-quantity')!.getBoundingClientRect();
+        const identity=el.querySelector('label')!.getBoundingClientRect();
+        const bounds=el.getBoundingClientRect();
+        const allText=[...el.querySelectorAll('.purchase-name,.purchase-item-status,.purchase-quantity b,.purchase-quantity small')];
+        return identity.right<=quantity.left+1&&quantity.right<=detail.left+1&&detail.right<=bounds.right+1&&allText.every(child=>{
+          const range=document.createRange();
+          range.selectNodeContents(child);
+          const column=child.closest('label,.purchase-quantity')!.getBoundingClientRect();
+          return [...range.getClientRects()].every(text=>text.left>=column.left-1&&text.right<=column.right+1);
+        });
+      });
+      expect(fits,theme+' '+width+' 像素').toBe(true);
+      await expect(row.getByRole('button',{name:'详情',exact:true})).toBeVisible();
+    }
+  }
+  await row.getByRole('button',{name:'详情',exact:true}).click();
+  await expect(row.getByText(/净需求/).filter({visible:true}).first()).toBeVisible();
+});
