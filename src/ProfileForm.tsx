@@ -1,3 +1,4 @@
+import {Action,CategoryGlyph,Icon,Progress} from './design';
 import {useState, type ReactNode} from 'react';
 import {allergens, conditions, cuisines, equipment, initialProfile, screening, type Profile} from './profile';
 import {foods} from './catalog';
@@ -51,8 +52,11 @@ export function ProfileForm({value,onSave,onCancel}:{value:Profile|null;onSave:(
     window.scrollTo(0,0);
   }
   return <section className="card form-card">
-    <div className="step-meter" aria-label={`第 ${step+1} 步，共 6 步`}>{titles.map((title,i)=><span className={i<=step?'filled':''} key={title}/>)}</div>
-    <p className="meta">第 {step+1} 步，共 6 步</p><h2>{titles[step]}</h2>
+    <div className="profile-step-heading">
+      <div><p className="meta">第 {step+1} 步，共 {titles.length} 步</p><h2>{titles[step]}</h2></div>
+      <CategoryGlyph category={['蛋类','水果','蔬菜','豆制品','汤类','主食'][step]}/>
+    </div>
+    <Progress value={step+1} max={titles.length} label="档案填写进度"/>
     {step===0&&<>{grids(text('name','昵称（选填）','text','怎么称呼你'),select('sex','公式使用的性别',['','女','男'],['请选择','女','男']),
       text('age','年龄（岁）','number'),text('height','身高（厘米）','number'),text('weight','当前体重（千克）','number'),
       select('goal','目标',['减脂','维持体重']),p.goal==='减脂'?text('target','目标体重（千克）','number'):null,select('pace','期望速度',['缓慢','适中']),
@@ -97,9 +101,9 @@ export function ProfileForm({value,onSave,onCancel}:{value:Profile|null;onSave:(
       {check('frozen','接受冷冻食材')}{check('repeats','允许主菜和蔬菜在一周内重复')}{check('packed','需要自带便当')}{check('waste','优先复用食材，减少浪费')}
     </>}
     {error&&<p role="alert" className="error">{error}</p>}
-    <div className="actions">
+    <div className="actions profile-step-actions">
       {step>0?<button onClick={()=>{setStep(step-1);setError('');window.scrollTo(0,0);}}>上一步</button>:<button onClick={onCancel}>返回</button>}
-      <button className="primary" disabled={saving} onClick={advance}>{step===5?(saving?'正在保存…':'保存档案'):'继续'}</button>
+      <Action icon={step===5?'check':'arrow'} className="primary" disabled={saving} onClick={advance}>{step===5?(saving?'正在保存…':'保存档案'):'继续'}</Action>
     </div>
   </section>;
 }

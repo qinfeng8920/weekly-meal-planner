@@ -1,3 +1,4 @@
+import {Action,Icon} from './design';
 import {useState} from 'react';
 import {food} from './catalog';
 import type {PrepJob,Receipt} from './logistics';
@@ -34,8 +35,8 @@ export function PurchaseForm({id,previous,suggested,price,save}:{id:string;previ
     void save(receipt).finally(()=>setBusy(false));
   }
   return <section className="inline-editor" aria-label={food(id).name+'购买登记'}>
-    <div className="fields">
-      <label className="field">实际购买数量<input type="number" min=".01" step={counted?1:'any'} value={quantity} onChange={e=>{setQuantity(e.target.value);setNet('');}}/></label>
+    <div className="fields purchase-form-fields">
+      <label className="field">实际购买数量<input type="number" inputMode={counted?'numeric':'decimal'} min=".01" step={counted?1:'any'} value={quantity} onChange={e=>{setQuantity(e.target.value);setNet('');}}/></label>
       <label className="field">购买单位<select value={unit} onChange={e=>{setUnit(e.target.value as PriceUnit);setNet('');setEach('');}}>
         {priceUnits.map(u=><option key={u}>{u}</option>)}</select></label>
       <label className="field">实际支付（元，可选）<input type="number" min="0" step=".01" value={paid} onChange={e=>setPaid(e.target.value)}/></label>
@@ -47,7 +48,7 @@ export function PurchaseForm({id,previous,suggested,price,save}:{id:string;previ
     </div></details>
     {!!rawNet&&<p className="meta">本笔入库 <span className="unit">{decimal(rawNet)} 克净重</span>{previous?'，原入库 '+decimal(previous.net)+' 克':''}</p>}
     {error&&<p className="error" role="alert">{error}</p>}
-    <button className="primary" disabled={busy} onClick={submit}>保存实际购买</button>
+    <Action icon="check" className="primary purchase-submit" disabled={busy} onClick={submit}>{busy?'正在保存…':'保存实际购买'}</Action>
   </section>;
 }
 
@@ -75,11 +76,11 @@ export function WithdrawalControl({label,jobs,tasks,execute}:{label:string;jobs:
   if(!jobs.length)return null;
   return <div className="withdrawal-control">
     <div className="actions">
-      <button disabled={busy} onClick={confirmUsage}>{label}</button>
+      <Action icon="check" disabled={busy} onClick={confirmUsage}>{label}</Action>
       {pending.length>0&&<button className="flat" aria-expanded={editing} onClick={()=>setEditing(!editing)}>调整实际用量</button>}
     </div>
     {editing&&<div className="fields">{[...amounts].map(([id,grams])=><label key={id} className="field">{food(id).name}（克）
-      <input type="number" min="0" step="any" value={values[id]??String(grams)} onChange={e=>setValues({...values,[id]:e.target.value})}/></label> )}</div>}
+      <input type="number" inputMode="decimal" min="0" step="any" value={values[id]??String(grams)} onChange={e=>setValues({...values,[id]:e.target.value})}/></label> )}</div>}
     {error&&<p className="error" role="alert">{error}</p>}
   </div>;
 }

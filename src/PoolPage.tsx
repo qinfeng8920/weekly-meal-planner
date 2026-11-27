@@ -1,3 +1,4 @@
+import {Action,Icon,PageHeader,SearchField,Segment,StatusLabel} from './design';
 import {useEffect,useState,type ReactNode} from 'react';
 import {searchMatches} from './catalog-search';
 import {food,foods,recipeList} from './catalog';
@@ -47,6 +48,8 @@ export function PoolPage({initial,previous,templates,stock,quote,busy,onSave,onG
   const [fruitQuery,setFruitQuery]=useState('');
   const [query,setQuery]=useState(''),[group,setGroup]=useState(''),[subgroup,setSubgroup]=useState(''),[page,setPage]=useState(0);
   const [template,setTemplate]=useState('');
+  const [selectedOnly,setSelectedOnly]=useState(false),[batch,setBatch]=useState(false);
+  const [checked,setChecked]=useState<string[]>([]),[batchState,setBatchState]=useState<FoodState>('锁定必用');
   useEffect(()=>{if(!pending)setDraft(structuredClone(initial??defaultPool));},[initial,pending]);
   useEffect(()=>{onDirty(dirty);return ()=>onDirty(false);},[dirty,onDirty]);
   function update(operation:PreferenceUpdate) {
@@ -62,7 +65,7 @@ export function PoolPage({initial,previous,templates,stock,quote,busy,onSave,onG
   const fruitList=foods.filter(f=>f.category==='水果'&&recipeList.some(r=>r.group==='水果'&&r.ingredients[0].id===f.id));
   const foodList=foods.filter(f=>purchaseIngredientId(f.id,products)===f.id).map(f=>({f,...foodClass(f)}));
   const inGroup=foodList.filter(row=>!group||row.group===group);
-  const visible=inGroup.filter(({f,subgroup:sub})=>(!subgroup||sub===subgroup)&&searchMatches([f.name,...f.aliases],query));
+  const visible=inGroup.filter(({f,subgroup:sub})=>(!subgroup||sub===subgroup)&&(!selectedOnly||foodPreference(draft,f.id)!=='自动')&&searchMatches([f.name,...f.aliases],query));
   const locked=normalizeIds(draft.locked,products), priorities=normalizeIds(draft.preferred??[],products);
   const excluded=normalizeIds(draft.excluded,products), lockCount=counts(locked);
   const conflicts=preferenceConflicts(draft,products);
@@ -99,15 +102,10 @@ export function PoolPage({initial,previous,templates,stock,quote,busy,onSave,onG
     });
   }
   return <>
-    <div className="page-title"><h1>生成设置</h1></div>
-    <div className="card pool-toolbar"><div className="actions">
-      <button className="primary" disabled={busy||running} onClick={()=>void run('重新搭配')}>重新搭配</button>
-      {previous&&<><button disabled={busy||running} onClick={()=>void run('沿用食材')}>沿用食材</button>
-        <button disabled={busy||running} onClick={()=>void run('轮换食材')}>轮换食材</button></>}
-      <button disabled={busy||running} onClick={()=>void run('保存')}>保存设置</button>
-    </div>{dirty&&<p className="meta">基本或采购设置待保存。</p>}
-    {error&&<p className="error" role="alert">{error}</p>}</div>
-    <section className="card"><SectionTitle title="基本设置"/>
+    <PageHeader title="生成设置" subtitle="安排开始日期、采购和每餐偏好。">
+      <StatusLabel tone={dirty?'warning':'positive'}>{dirty?'有待保存的改动':'食材偏好自动保存'}</StatusLabel>
+    </PageHeader>
+    <section className="card settings-section"><SectionTitle title="基本设置"><Icon name="calendar"/></SectionTitle>
       <div className="fields">
         <label className="field">食谱从哪天开始<select value={start} onChange={e=>{setStart(e.target.value as StartChoice);mark();}}>{startChoices.map(x=><option key={x}>{x}</option>)}</select></label>
         <label className="field">烹饪偏好<select value={cooking} onChange={e=>{setCooking(e.target.value as CookingSelection);mark();}}><option>不限制</option><option>简单</option><option>家常</option></select></label>
@@ -115,11 +113,11 @@ export function PoolPage({initial,previous,templates,stock,quote,busy,onSave,onG
         <label className="field">全周预算（元，可选）<input type="number" min={.01} step=".01" value={budget} onChange={e=>{setBudget(e.target.value);mark();}}/></label>
       </div>
     </section>
-    <section className="card"><SectionTitle title="采购备餐"/>
-      <label className="field">采购模式<select value={displayPoolMode(draft.mode)} onChange={e=>patch({mode:e.target.value as PoolSettings['mode']})}>{visiblePoolModes.map(x=><option key={x}>{x}</option>)}</select></label>
+    <section className="card settings-section"><SectionTitle title="采购备餐"><Icon name="basket"/></SectionTitle>
+      <p className="field">采购模式</p><Segment label="采购模式" items={visiblePoolModes} value={displayPoolMode(draft.mode)} change={mode=>patch({mode})}/>
       <SupplyFields settings={settings} start={date} profile={profile} change={value=>{setSettings(value);mark();}}/>
     </section>
-    <section className="card"><SectionTitle title="食材设置"/>
+    <section className="card settings-section"><SectionTitle title="食材设置"><Icon name="box"/></SectionTitle>
       <p className="stat-strip"><span>已锁定 <b>{locked.length} 种</b></span><span>优先使用 <b>{priorities.length} 种</b></span><span>禁止使用 <b>{excluded.length} 种</b></span></p>
       <p className="meta">家中有库存 {[...stock.values()].filter(grams=>grams>0).length} 种
         {summary&&' · 本周实际使用 '+summary.used+' 种（主要食材 '+summary.main+'、调味料 '+summary.seasonings+'）'}
@@ -135,24 +133,34 @@ export function PoolPage({initial,previous,templates,stock,quote,busy,onSave,onG
       {conflicts.length>0&&<ul className="hint">{conflicts.map(issue=><li key={issue}>{issue}</li>)}</ul>}
       {draft.reviews?.map(row=><label className="field" key={row.id}>核对{food(row.id).name}的旧偏好<select value="" onChange={e=>change(row.id,e.target.value as FoodState)}>
         <option value="">请选择确认后的状态</option>{foodStates.map(state=><option key={state}>{state}</option>)}</select></label>)}
+      <div className="actions preference-tools"><button aria-pressed={selectedOnly} onClick={()=>{setSelectedOnly(!selectedOnly);setPage(0);}}>查看已选食材</button>
+        <button aria-pressed={batch} onClick={()=>{setBatch(!batch);setChecked([]);}}>{batch?'结束多选':'批量选择'}</button></div>
+      <SearchField label="搜索核心食材" placeholder="名称、别名或拼音" value={query} change={value=>{setQuery(value);setPage(0);}}/>
       <div className="fields">
-        <label className="field">搜索核心食材<input type="search" value={query} placeholder="名称、别名、拼音" onChange={e=>{setQuery(e.target.value);setPage(0);}}/></label>
         <label className="field">食材一级分类<select value={group} onChange={e=>{setGroup(e.target.value);setSubgroup('');setPage(0);}}>
           <option value="">全部</option>{foodGroups.map(g=><option key={g}>{g}</option>)}</select></label>
         {group&&<label className="field">食材二级分类<select value={subgroup} onChange={e=>{setSubgroup(e.target.value);setPage(0);}}>
           <option value="">全部</option>{[...new Set(inGroup.map(row=>row.subgroup))].map(g=><option key={g}>{g}</option>)}</select></label>}
       </div>
       {visible.length?<ul className="pool-items">{visible.slice(page*pageSize,(page+1)*pageSize).map(({f})=><li key={f.id}>
-        <div className="pool-food"><div><strong>{f.name}</strong><p className="meta">账面库存 {decimal(stock.get(f.id)??0)} 克</p></div>
+        <div className="pool-food"><div className="pool-food-name">
+          {batch&&<input type="checkbox" aria-label={'选择'+f.name} checked={checked.includes(f.id)} onChange={e=>{
+            const selected=e.target.checked;setChecked(previous=>selected?[...previous,f.id]:previous.filter(id=>id!==f.id));
+          }}/>}<div><strong>{f.name}</strong><p className="meta">账面库存 {decimal(stock.get(f.id)??0)} 克</p></div></div>
           <select aria-label={f.name+'偏好'} value={foodPreference(draft,f.id)} onChange={e=>change(f.id,e.target.value as FoodState)}>
             {foodStates.map(state=><option key={state}>{state}</option>)}</select></div>
         {draft.strict&&<label className="check"><input type="checkbox" disabled={draft.locked.includes(f.id)||draft.excluded.includes(f.id)}
           checked={!draft.excluded.includes(f.id)&&(draft.selected.includes(f.id)||draft.locked.includes(f.id))}
           onChange={e=>{const allowed=e.target.checked;update(current=>({...current,selected:allowed?[...new Set([...current.selected,f.id])]:current.selected.filter(id=>id!==f.id)}));}}/>允许用于严格食材池</label>}
       </li>)}</ul>:<Empty title="没有符合筛选的食材"/>}
+      {batch&&<div className="actions batch-preferences"><label className="field">批量状态<select value={batchState} onChange={e=>setBatchState(e.target.value as FoodState)}>
+        {foodStates.map(state=><option key={state}>{state}</option>)}</select></label>
+        <Action className="primary" icon="check" disabled={!checked.length} onClick={()=>{
+          update(current=>checked.reduce((next,id)=>setFoodPreference(next,id,batchState),current));setChecked([]);setBatch(false);
+        }}>应用到 {checked.length} 种</Action></div>}
       <CatalogPaging page={page} size={pageSize} total={visible.length} change={setPage}/>
     </section>
-    <section className="card"><SectionTitle title="固定搭配"/>
+    <section className="card settings-section"><SectionTitle title="固定搭配"><Icon name="lock"/></SectionTitle>
       {profile.fruit!=='不吃水果'&&<div className="fields">
         <label className="field">每周水果<select value={draft.fruitPolicy??'少量轮换'}
           onChange={e=>patch({fruitPolicy:e.target.value as PoolSettings['fruitPolicy']})}>{fruitPolicies.map(x=><option key={x}>{x}</option>)}</select></label>
@@ -198,5 +206,12 @@ export function PoolPage({initial,previous,templates,stock,quote,busy,onSave,onG
       }}>载入模板</button>
       <button onClick={()=>{const name=prompt('给食材设置模板起个名字')?.trim().slice(0,80);if(name)void onTemplate(name);}}>收藏为模板</button></div>
     </details>
+    <div className="card pool-toolbar" aria-label="生成与保存"><div className="actions">
+      <Action className="primary" icon="check" disabled={busy||running} onClick={()=>void run('重新搭配')}>重新搭配</Action>
+      {previous&&<><button disabled={busy||running} onClick={()=>void run('沿用食材')}>沿用食材</button>
+        <button disabled={busy||running} onClick={()=>void run('轮换食材')}>轮换食材</button></>}
+      <button disabled={busy||running} onClick={()=>void run('保存')}>保存设置</button>
+    </div>{dirty&&<p className="meta">基本或采购设置待保存。</p>}
+    {error&&<p className="error" role="alert">{error}</p>}</div>
   </>;
 }

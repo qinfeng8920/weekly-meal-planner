@@ -82,8 +82,10 @@ test('备份往返、分享净化、深色及 320 像素布局',async({page})=>{
   expect(exported).toContain('天天减 · 七天食谱');
   for(const word of [demo.name,'体重','疾病','身高','年龄']) expect(exported).not.toContain(word);
   await nav(page,'我的').click();
-  await page.getByLabel('外观').selectOption('深色');
+  await page.getByText('外观与安装',{exact:true}).click();
+    await page.getByLabel('外观').selectOption('深色');
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await page.getByText('本机数据与备份',{exact:true}).click();
   const backup=page.waitForEvent('download');
   await page.getByRole('button',{name:'导出个人备份'}).click();
   const path=await (await backup).path();
@@ -140,7 +142,7 @@ test('唯一生成设置保留固定早餐、资料筛选和营养详情',async(
   await nav(page,'食谱').click();
   await page.getByRole('button',{name:'生成设置',exact:true}).click();
   await page.getByText('早餐、午餐和晚餐偏好',{exact:true}).click();
-  await page.locator('summary').filter({hasText:/^早餐$/}).click();
+  await page.getByRole('group',{name:'餐次偏好'}).getByRole('button',{name:'早餐',exact:true}).click();
   await page.getByLabel('不喜欢的食材',{exact:true}).filter({visible:true}).fill('酸奶');
   await page.getByRole('button',{name:'保存分餐偏好'}).click();
   await expect(page.getByText(/分餐偏好已保存/)).toBeVisible();
@@ -171,7 +173,7 @@ test('起始日期显示真实星期，首页和食谱共用已保存设置',asy
   await expect(page.getByLabel('烹饪偏好')).toHaveValue('不限制');
   await expect(page.getByText('制作时间上限')).toHaveCount(0);
   await page.getByLabel('食谱从哪天开始').selectOption('今天');
-  await page.getByLabel('采购模式').selectOption('均衡搭配');
+  await page.getByRole('group',{name:'采购模式'}).getByRole('button',{name:'均衡搭配'}).click();
   await page.getByLabel('烹饪偏好').selectOption('家常');
   await page.getByRole('button',{name:'保存设置',exact:true}).click();
   await expect(page.getByText('生成设置已保存。')).toBeVisible();
@@ -181,7 +183,7 @@ test('起始日期显示真实星期，首页和食谱共用已保存设置',asy
     ' '+(new Date().getMonth()+1)+'/'+new Date().getDate());
   await expect(page.locator('.day-tabs button').first()).toHaveAccessibleName(now);
   await page.getByRole('button',{name:'生成设置',exact:true}).click();
-  await expect(page.getByLabel('采购模式')).toHaveValue('均衡搭配');
+  await expect(page.getByRole('group',{name:'采购模式'}).getByRole('button',{name:'均衡搭配'})).toHaveAttribute('aria-pressed','true');
   await expect(page.getByLabel('烹饪偏好')).toHaveValue('家常');
 });
 test('采购两次、备餐三批，改价同步但历史保持快照',async({page})=>{
@@ -201,8 +203,12 @@ test('采购两次、备餐三批，改价同步但历史保持快照',async({pa
   await expect(page.getByText('已保存到历史方案。')).toBeVisible();
   await nav(page,'采购').click();
   await expect(page.locator('summary').filter({hasText:/^采购第 [12] 批/})).toHaveCount(2);
-  const total=()=>page.locator('.section-title').filter({has:page.getByRole('heading',{name:'本周采购',exact:true})}).locator('strong');
-  const old=await total().innerText();
+  const total=async()=>{
+    const costs=page.locator('.purchase-overview details');
+    if(await costs.getAttribute('open')===null)await costs.getByText('费用明细',{exact:true}).click();
+    return costs.locator('dl > div').filter({hasText:'本周预计总支出'}).locator('dd');
+  };
+  const old=await (await total()).innerText();
   await page.getByRole('button',{name:'备餐清单',exact:true}).click();
   await expect(page.getByRole('heading',{name:'备餐周期 · 2＋2＋3'})).toBeVisible();
   await expect(page.getByText(/备餐第 [123] 批/)).toHaveCount(3);
@@ -214,7 +220,7 @@ test('采购两次、备餐三批，改价同步但历史保持快照',async({pa
   await page.getByRole('button',{name:'保存此食材价格',exact:true}).click();
   await expect(page.getByText('食材价格已保存。')).toBeVisible();
   await nav(page,'采购').click();
-  await expect(total()).not.toHaveText(old);
+  await expect(await total()).not.toHaveText(old);
   await page.reload();
   await nav(page,'我的').click();
   await page.getByRole('button',{name:'食材价格',exact:true}).click();
@@ -224,17 +230,17 @@ test('采购两次、备餐三批，改价同步但历史保持快照',async({pa
   await page.getByRole('button',{name:/历史方案/}).click();
   const saved=page.locator('section.card').filter({has:page.getByRole('heading',{name:'原价快照'})});
   await saved.getByRole('button',{name:'查看',exact:true}).click();
-  await expect(total()).toHaveText(old);
+  await expect(await total()).toHaveText(old);
   await page.getByRole('button',{name:'按最新价格重新估算',exact:true}).click();
-  await expect(total()).not.toHaveText(old);
+  await expect(await total()).not.toHaveText(old);
   await page.getByRole('button',{name:'返回历史价格快照',exact:true}).click();
-  await expect(total()).toHaveText(old);
+  await expect(await total()).toHaveText(old);
 });
 
 test('新生成设置、补充确认、分装进度和三种手机宽度的浅深色布局',async({page})=>{
   await setup(page);
   await page.getByRole('button',{name:'生成设置'}).click();
-  await page.getByLabel('采购模式').selectOption('少量种类');
+  await page.getByRole('group',{name:'采购模式'}).getByRole('button',{name:'少量种类'}).click();
   await page.getByText('高级设置',{exact:true}).click();
   await expect(page.getByLabel('启用严格食材池')).not.toBeChecked();
   await page.getByRole('button',{name:'重新搭配',exact:true}).click();
@@ -242,7 +248,7 @@ test('新生成设置、补充确认、分装进度和三种手机宽度的浅�
   await nav(page,'首页').click();
   await page.getByRole('button',{name:'继续备餐'}).click();
   const selected=page.locator('details.card[open]').filter({has:page.getByText(/备餐第 [123] 批/)}).first();
-  await selected.locator('summary').filter({hasText:/^制作步骤/}).click();
+  await selected.locator('summary').filter({hasText:/^集中制作与菜谱步骤/}).click();
   const task=selected.locator('.prep-task').first();
   await task.locator('summary').click();
   const label=task.getByRole('checkbox',{name:'已分装'});
@@ -250,12 +256,13 @@ test('新生成设置、补充确认、分装进度和三种手机宽度的浅�
   await expect(label).toBeChecked();
   await page.reload();
   await page.getByRole('button',{name:'继续备餐'}).click();
-  await page.locator('.prep-batch[open]').locator('summary').filter({hasText:/^制作步骤/}).click();
+  await page.locator('.prep-batch[open]').locator('summary').filter({hasText:/^集中制作与菜谱步骤/}).click();
   const saved=page.locator('.prep-batch[open] .prep-task summary').filter({hasText:'已分装'}).first();
   await saved.click();
   await expect(page.getByRole('checkbox',{name:'已分装',checked:true})).toBeVisible();
   for(const theme of ['浅色','深色']) {
     await nav(page,'我的').click();
+    await page.getByText('外观与安装',{exact:true}).click();
     await page.getByLabel('外观').selectOption(theme);
     for(const width of [360,390,430]) {
       await page.evaluate(()=>{document.documentElement.style.fontSize='20px';});
@@ -306,14 +313,15 @@ test('从库存页按公斤登记购买，修正后刷新保留且可以撤销',
   await setup(page);
   await nav(page,'我的').click();
   await page.getByRole('button',{name:'家中库存',exact:true}).click();
-  await expect(page.getByText(/数字是账面库存/)).toBeVisible();
+  await expect(page.getByRole('heading',{name:'账面库存'})).toBeVisible();
   await page.getByRole('button',{name:'添加或登记购买'}).click();
+  await page.getByRole('searchbox',{name:'搜索要登记的食材'}).fill('鸡胸肉');
   await page.getByLabel('选择食材').selectOption('chicken');
   await page.getByLabel('购买单位').selectOption('公斤');
   await page.getByLabel('实际购买数量').fill('1');
   await page.getByLabel('实际支付（元，可选）').fill('29');
   await page.getByRole('button',{name:'保存实际购买'}).click();
-  const chicken=()=>page.locator('summary').filter({hasText:/^鸡胸肉.*1,000 克$/});
+  const chicken=()=>page.locator('summary').filter({hasText:/^鸡胸肉.*1,000 克$/s});
   await expect(chicken()).toBeVisible();
   expect(await page.getByLabel('可用至').count()).toBe(0);
   expect(await page.getByLabel('保存方式').count()).toBe(0);
@@ -325,13 +333,14 @@ test('从库存页按公斤登记购买，修正后刷新保留且可以撤销',
   await page.locator('summary').filter({hasText:/采购入库/}).click();
   await page.getByLabel('实际购买数量').fill('1.2');
   await page.getByRole('button',{name:'保存实际购买'}).click();
-  await expect(page.locator('summary').filter({hasText:/^鸡胸肉.*1,200 克$/})).toBeVisible();
+  await expect(page.locator('summary').filter({hasText:/^鸡胸肉.*1,200 克$/s})).toBeVisible();
   const edit=page.locator('summary').filter({hasText:/\d{4}-\d{2}-\d{2} · 购买修正/});
   await edit.click();
   page.once('dialog',d=>d.accept());
   await page.getByRole('button',{name:'撤销购买',exact:true}).click();
   await expect(page.getByText('购买记录已撤销。')).toBeVisible();
-  await expect(page.locator('summary').filter({hasText:/^鸡胸肉.*1,200 克$/})).toHaveCount(0);
+  await page.getByRole('dialog',{name:'鸡胸肉',exact:true}).getByRole('button',{name:'关闭',exact:true}).click();
+  await expect(page.locator('.inventory-row summary').filter({hasText:/^鸡胸肉.*1,200 克$/s})).toHaveCount(0);
 });
 
 test('整批取用和食谱完成餐次联动，同一餐只扣一次',async({page})=>{
@@ -383,7 +392,7 @@ test('整批取用和食谱完成餐次联动，同一餐只扣一次',async({pa
   await expect(page.getByRole('button',{name:'换一天'})).toBeDisabled();
   await expect(finished.locator('.dish').first().getByRole('button',{name:/^换/})).toBeDisabled();
   await finished.locator('.dish-title').first().click();
-  await expect(finished.getByRole('button',{name:'调整克数'})).toBeDisabled();
+  await expect(page.getByRole('dialog').getByRole('button',{name:'调整克数'})).toBeDisabled();
   expect(await ledger()).toEqual(before);
 });
 
@@ -406,9 +415,10 @@ test('采购勾选实时显示单项、折叠批次、分类和全周进度',asy
   await expect(batchSummary).toContainText(/已购 0\/\d+ 项/);
   await expect(mainSummary).toContainText(/已购 0\/\d+ 项/);
   await check.click();
-  const suggested=await row.getByLabel('实际购买数量').inputValue();
-  await row.getByLabel('实际购买数量').fill('1');
-  await row.getByRole('button',{name:'保存实际购买',exact:true}).click();
+  const buyDialog=page.getByRole('dialog',{name:'确认实际购买',exact:true});
+  const suggested=await buyDialog.getByLabel('实际购买数量').inputValue();
+  await buyDialog.getByLabel('实际购买数量').fill('1');
+  await buyDialog.getByRole('button',{name:'保存实际购买',exact:true}).click();
   await expect(row.locator('.purchase-item-status')).toHaveText('已买部分');
   await expect(mainSummary).toContainText(/已购 0\/\d+ 项/);
   await row.getByRole('button',{name:'详情',exact:true}).click();
@@ -493,6 +503,7 @@ test('逐页检查手机的三个宽度、两种主题和常用操作',async({pa
   ] as const;
   for(const theme of ['浅色','深色']) {
     await nav(page,'我的').click();
+    await page.getByText('外观与安装',{exact:true}).click();
     await page.getByLabel('外观').selectOption(theme);
     for(const width of [360,390,430]) {
       await page.setViewportSize({width,height:850});
@@ -534,11 +545,12 @@ test('单项和全部清空只改真实库存，撤销后采购恢复，已付�
   await openStock();
   const item=page.locator('.inventory-manager .group-fold > .item-fold').first();
   await item.locator(':scope > summary').click();
-  page.once('dialog',dialog=>dialog.dismiss());
-  await item.getByRole('button',{name:'清空此项库存'}).click();
-  await expect(item).toBeVisible();
-  page.once('dialog',dialog=>dialog.accept());
-  await item.getByRole('button',{name:'清空此项库存'}).click();
+  await page.getByRole('button',{name:'清空此项库存'}).click();
+  await page.getByRole('dialog',{name:/^清空 /}).getByRole('button',{name:'取消',exact:true}).click();
+  await page.getByRole('button',{name:'清空此项库存'}).click();
+  await page.getByRole('button',{name:'确认清空'}).click();
+  await expect(page.getByRole('dialog',{name:'清空 全鸡蛋'})).toHaveCount(0);
+  await page.getByRole('dialog',{name:'全鸡蛋',exact:true}).getByRole('button',{name:'关闭',exact:true}).click();
   await expect(page.getByRole('button',{name:'撤销最近清空'})).toBeVisible();
   await nav(page,'采购').click();
   await page.getByText('费用明细',{exact:true}).click();
@@ -549,8 +561,8 @@ test('单项和全部清空只改真实库存，撤销后采购恢复，已付�
   await page.getByRole('button',{name:'撤销最近清空'}).click();
   await expect(item).toBeVisible();
   await page.getByText('库存管理',{exact:true}).click();
-  page.once('dialog',dialog=>dialog.accept());
   await page.getByRole('button',{name:'清空全部库存'}).click();
+  await page.getByRole('button',{name:'确认清空'}).click();
   await expect(page.getByRole('button',{name:'撤销最近清空'})).toBeVisible();
   await page.reload();
   await openStock();
@@ -595,10 +607,10 @@ test('菜谱详情手动选库存中的替代油后同步实际配方和采购',
   await page.locator('.day-tabs button').nth(dish!.d).click();
   const row=page.locator('.meal-card').nth(dish!.m).locator('.dish-wrap').nth(dish!.i);
   await row.locator('.dish-title').click();
-  await row.getByRole('button',{name:'换做法',exact:true}).click();
-  await row.getByRole('searchbox',{name:'搜索替换候选'}).fill('橄榄油');
+  await page.getByRole('dialog').getByRole('button',{name:'换做法',exact:true}).click();
+  await page.getByRole('searchbox',{name:'搜索替换候选'}).fill('橄榄油');
   page.once('dialog',dialog=>dialog.accept());
-  await row.locator('.replacement-row').filter({hasText:dish!.row.recipe.name}).filter({hasText:'橄榄油'}).getByRole('button',{name:'选择此项'}).first().click();
+  await page.locator('.replacement-row').filter({hasText:dish!.row.recipe.name}).filter({hasText:'橄榄油'}).getByRole('button',{name:'选择此项'}).first().click();
   await expect(page.getByText(/调整完成，已同步采购和备餐/)).toBeVisible();
   await expect(row.locator('.dish-ingredients')).toContainText('橄榄油');
   await expect(row.locator('.dish-ingredients')).not.toContainText('菜籽油');
@@ -620,13 +632,15 @@ test('大字号采购行的食材、部分购买状态、长规格和详情互�
   await row.getByRole('button',{name:'保存此食材价格'}).click();
   await expect(page.getByText('食材价格已保存。')).toBeVisible();
   await row.getByRole('checkbox').click();
-  await row.getByLabel('实际购买数量').fill('1');
-  await row.getByRole('button',{name:'保存实际购买',exact:true}).click();
+  const purchase=page.getByRole('dialog',{name:'确认实际购买'});
+  await purchase.getByLabel('实际购买数量').fill('1');
+  await purchase.getByRole('button',{name:'保存实际购买',exact:true}).click();
   await expect(row.locator('.purchase-item-status')).toHaveText('已买部分');
   await expect(row.locator('.purchase-quantity b')).toHaveText(/1,590\s克/);
   await expect(row.locator('.purchase-quantity small')).toContainText('1,590');
   for(const theme of ['浅色','深色']) {
     await nav(page,'我的').click();
+    await page.getByText('外观与安装',{exact:true}).click();
     await page.getByLabel('外观').selectOption(theme);
     await nav(page,'采购').click();
     for(const width of [320,360,390,430]) {
@@ -659,6 +673,7 @@ test('食谱大全和原材料大全分开浏览，支持拼音、分页、价�
   await nav(page,'我的').click();
   await page.getByRole('button',{name:'原材料大全',exact:true}).click();
   await expect(page.getByRole('heading',{name:'原材料大全',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'查看全部原材料'}).click();
   await page.getByRole('button',{name:'下一页'}).click();
   await expect(page.getByText(/第 2 \/ /)).toBeVisible();
   await page.getByRole('searchbox',{name:'搜索原材料'}).fill('shengnvguo');
@@ -679,6 +694,7 @@ test('食谱大全和原材料大全分开浏览，支持拼音、分页、价�
     await assertFit(page);
   }
   await page.getByRole('searchbox',{name:'搜索菜谱'}).fill('');
+  await page.getByRole('button',{name:'查看全部',exact:true}).click();
   await page.getByRole('button',{name:'下一页'}).click();
   await expect(page.getByText(/第 2 \/ /)).toBeVisible();
   await expect(page.getByRole('navigation',{name:'主导航'}).getByRole('button')).toHaveCount(4);
@@ -812,6 +828,7 @@ test('固定水果硬上限冲突、生成失败后保留、库存清空归零�
   await nav(page,'我的').click();
   await page.getByRole('button',{name:'家中库存',exact:true}).click();
   await page.getByRole('button',{name:'添加或登记购买'}).click();
+  await page.getByRole('searchbox',{name:'搜索要登记的食材'}).fill('鸡胸肉');
   await page.getByLabel('选择食材').selectOption('chicken');
   await page.getByLabel('实际购买数量').fill('300');
   await page.getByRole('button',{name:'保存实际购买',exact:true}).click();
@@ -822,11 +839,136 @@ test('固定水果硬上限冲突、生成失败后保留、库存清空归零�
   await nav(page,'我的').click();
   await page.getByRole('button',{name:'家中库存',exact:true}).click();
   await page.getByText('库存管理',{exact:true}).click();
-  page.once('dialog',d=>d.accept());
   await page.getByRole('button',{name:'清空全部库存',exact:true}).click();
+  await page.getByRole('button',{name:'确认清空'}).click();
   await expect(page.getByText(/库存已清空/)).toBeVisible();
   await generationSettings(page);
   await page.getByRole('searchbox',{name:'搜索核心食材'}).fill('鸡胸肉');
   await expect(page.locator('.pool-items > li').filter({has:page.getByRole('combobox',{name:'鸡胸肉偏好',exact:true})})
     .getByText('账面库存 0 克',{exact:true})).toBeVisible();
+});
+
+test('原材料按两级分类浏览，返回关闭详情并保留筛选',async({page})=>{
+  await page.goto('./');
+  await nav(page,'我的').click();
+  await page.getByRole('button',{name:'原材料大全',exact:true}).click();
+  await page.getByText('肉类',{exact:true}).click();
+  const search=page.getByRole('searchbox',{name:'搜索原材料'});
+  await search.fill('jixiongrou');
+  const chicken=page.getByRole('button').filter({has:page.getByText('鸡胸肉',{exact:true})});
+  await chicken.click();
+  const details=page.getByRole('dialog',{name:'鸡胸肉',exact:true});
+  await expect(details.getByRole('heading',{name:'营养概览'})).toBeVisible();
+  await page.goBack();
+  await expect(details).toHaveCount(0);
+  await expect(search).toHaveValue('jixiongrou');
+  await expect(chicken).toBeFocused();
+  await page.goBack();
+  await search.fill('');
+  await expect(page.getByText('鱼虾海鲜',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'返回',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'食谱与食材'})).toBeVisible();
+});
+
+test('采购弹层验证无效数量、约束焦点并可返回取消',async({page})=>{
+  await setup(page);
+  await generate(page);
+  await nav(page,'采购').click();
+  const checkbox=page.locator('.batch-fold[open]').getByRole('checkbox').first();
+  await checkbox.click();
+  const modal=page.getByRole('dialog',{name:'确认实际购买'});
+  await expect(modal).toBeVisible();
+  await modal.getByRole('spinbutton',{name:'实际购买数量'}).fill('0');
+  await modal.getByRole('button',{name:'保存实际购买'}).click();
+  await expect(modal.getByRole('alert')).toContainText('请核对购买数量');
+  for(let i=0;i<8;i++){
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(()=>Boolean(document.activeElement?.closest('dialog[open]')))).toBe(true);
+  }
+  await page.keyboard.press('Escape');
+  await expect(modal).toHaveCount(0);
+  await expect(checkbox).toBeFocused();
+  await expect(checkbox).not.toBeChecked();
+});
+
+test('筛选内批量锁定跨搜索保留选择，刷新后恢复',async({page})=>{
+  await setup(page);
+  await page.getByRole('button',{name:'生成设置'}).click();
+  await page.getByRole('button',{name:'批量选择'}).click();
+  const search=page.getByRole('searchbox',{name:'搜索核心食材'});
+  for(const name of ['鸡胸肉','瘦牛肉']){
+    await search.fill(name);
+    await page.getByRole('checkbox',{name:'选择'+name,exact:true}).check();
+  }
+  await page.getByLabel('批量状态').selectOption('锁定必用');
+  await page.getByRole('button',{name:'应用到 2 种'}).click();
+  await expect(page.getByText('食材偏好已保存。')).toBeVisible();
+  await page.reload();
+  await page.getByRole('button',{name:'生成设置'}).click();
+  await expect(page.getByLabel('解除鸡胸肉锁定')).toBeVisible();
+  await expect(page.getByLabel('解除瘦牛肉锁定')).toBeVisible();
+});
+
+test('原材料分类浅深色适配小屏、平板和桌面',async({page})=>{
+  await page.goto('./');
+  await nav(page,'我的').click();
+  await page.getByRole('button',{name:'原材料大全',exact:true}).click();
+  for(const colorScheme of ['light','dark'] as const){
+    await page.emulateMedia({colorScheme});
+    for(const width of [320,360,375,390,430,768,1200]){
+      await page.setViewportSize({width,height:800});
+      await assertFit(page);
+      const row=page.getByText('主食杂粮',{exact:true});
+      await expect(row).toBeVisible();
+      await expect(page.getByRole('navigation',{name:'主导航'}).getByRole('button')).toHaveCount(4);
+      const text=row.locator('..');
+      expect(await text.evaluate(element=>element.scrollWidth<=element.clientWidth+1)).toBe(true);
+    }
+  }
+});
+
+test('小屏保留超长菜名、大额库存和缺失微量营养提示',async({page})=>{
+  await setup(page);
+  await nav(page,'食谱').click();
+  await expect(page.getByRole('heading',{name:'还没有每周食谱'})).toBeVisible();
+  await generate(page);
+  const name='广东家常蒸煮混合杂粮饭搭配时令蔬菜与新鲜豆制品的测试菜名'.repeat(3);
+  await page.evaluate(name=>new Promise<void>((resolve,reject)=>{
+    const request=indexedDB.open('tiantianjian',1);
+    request.onerror=()=>reject(request.error);
+    request.onsuccess=()=>{
+      const db=request.result,tx=db.transaction('app','readwrite'),store=tx.objectStore('app');
+      const entry=store.get('data');
+      entry.onsuccess=()=>{
+        const data=entry.result;
+        const dish=data.plan.days[0].meals[0].dishes[0];
+        dish.recipe.name=name;
+        dish.nutrients.calcium=null;
+        data.supply??={};
+        data.supply.ledger??={version:1,review:[],events:[]};
+        data.supply.ledger.events.push({id:'large-stock-v3',item:'chicken',source:'large-stock-v3|chicken',
+          kind:'手动补充',quantity:1_234_567,unit:'克',delta:1_234_567});
+        store.put(data,'data');
+      };
+      tx.oncomplete=()=>{db.close();resolve();};
+      tx.onerror=()=>reject(tx.error);
+    };
+  }),name);
+  await page.reload();
+  await page.setViewportSize({width:320,height:750});
+  await page.evaluate(()=>{document.documentElement.style.fontSize='22px';});
+  await nav(page,'食谱').click();
+  const dish=page.getByRole('button',{name,exact:true});
+  await expect(dish).toBeVisible();
+  await expect(dish).toHaveText(name);
+  await assertFit(page);
+  await page.getByText('每日微量营养与覆盖',{exact:true}).click();
+  await expect(page.getByText('部分食材缺值',{exact:true}).first()).toBeVisible();
+  await dish.click();
+  await expect(page.getByRole('dialog',{name,exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'关闭',exact:true}).click();
+  await nav(page,'我的').click();
+  await page.getByRole('button',{name:'家中库存',exact:true}).click();
+  await expect(page.getByText('1,234,567 克',{exact:true})).toBeVisible();
+  await assertFit(page);
 });

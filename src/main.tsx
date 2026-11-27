@@ -1,3 +1,5 @@
+import {Action,Icon,IconButton,knownLayer,ListRow,PageHeader,Sheet,Skeleton,type IconName} from './design';
+import {createPortal} from 'react-dom';
 import {PoolPage,type GenerationDraft,type PreferenceUpdate} from './PoolPage';
 import {executeJobs,type TaskAction} from './execution';
 import {adjustStock,balances,clearInventory,currentLedger,recordPurchase,resolveReview,reverseAdjustment,undoInventoryClear,type InventoryEvent} from './inventory';
@@ -33,7 +35,12 @@ import './style.css';
 const Library=lazy(()=>import('./Library').then(file=>({default:file.Library})));
 const IngredientsLibrary=lazy(()=>import('./IngredientsLibrary').then(file=>({default:file.IngredientsLibrary})));
 const pages=['首页','食谱','采购','我的'];
-const icons=['⌂','▤','▣','◉'];
+const icons:IconName[]=['home','book','basket','user'];
+const routes:Record<string,{title:string;parent:string}>={
+  编辑档案:{title:'个人档案',parent:'我的'},生成设置:{title:'生成设置',parent:'食谱'},备餐:{title:'备餐清单',parent:'采购'},
+  库存:{title:'家中库存',parent:'我的'},食材价格:{title:'食材价格',parent:'我的'},菜谱库:{title:'食谱大全',parent:'我的'},
+  原材料大全:{title:'原材料大全',parent:'我的'},历史方案:{title:'历史方案',parent:'我的'},查看历史:{title:'方案详情',parent:'历史方案'},
+};
 type InstallEvent=Event&{prompt:()=>Promise<void>;userChoice:Promise<{outcome:string}>};
 const planningProfile=(p:Profile)=>({...p,people:'',prep:'',trips:'',budget:'',minutes:'',skill:'',
   cooking:undefined,mealPreferences:p.mealPreferences?Object.fromEntries(Object.entries(p.mealPreferences).map(([key,value])=>[key,{...value,minutes:''}])):undefined});
@@ -48,12 +55,20 @@ function App() {
   const [data,setData]=useState<Data|null>(null);
   const [fatal,setFatal]=useState('');
   const [page,setPage]=useState('首页'),[status,setStatus]=useState<{text:string;error?:boolean}|null>(null);
+  const pageRef=useRef('首页'),position=useRef(0);
+  const scrollPositions=useRef(new Map<number,number>()),skipPop=useRef(false);
   const [day,setDay]=useState(0),[seed,setSeed]=useState(''),[archived,setArchived]=useState<Plan|null>(null);
   const [historyQuote,setHistoryQuote]=useState<Logistics|undefined>();
   const [busy,setBusy]=useState(false),[offline,setOffline]=useState(!navigator.onLine),[cached,setCached]=useState(false);
   const [libraryQuery,setLibraryQuery]=useState('');
   const [update,setUpdate]=useState<ServiceWorker|null>(null),[canInstall,setInstall]=useState<InstallEvent|null>(null);
   const [confirmDelete,setConfirmDelete]=useState(false);
+  const [overlayBody,setOverlayBody]=useState<Element|null>(null);
+  useEffect(()=>{
+    const changed=()=>setOverlayBody([...document.querySelectorAll('dialog[open] .sheet-body')].at(-1)??null);
+    window.addEventListener('ttj-layer-change',changed);
+    return ()=>window.removeEventListener('ttj-layer-change',changed);
+  },[]);
   const pendingWrites=useRef(0),writeFailed=useRef(false),preferenceQueue=useRef<Promise<unknown>>(Promise.resolve());
   const unsaved=useRef(false);
   const markSettingsDirty=useCallback((value:boolean)=>{unsaved.current=value;},[]);
@@ -63,6 +78,26 @@ function App() {
     };
     window.addEventListener('beforeunload',beforeUnload);
     return ()=>window.removeEventListener('beforeunload',beforeUnload);
+  },[]);
+  useEffect(()=>{
+    window.history.scrollRestoration='manual';
+    window.history.replaceState({ttjPage:'首页',ttjPosition:0},'');
+    const onPop=(event:PopStateEvent)=>{
+      if(event.state?.ttjLayer&&!knownLayer(event.state.ttjLayer)){window.history.back();return;}
+      const target=event.state?.ttjPage??'首页';
+      const next=Number(event.state?.ttjPosition??0);
+      if(skipPop.current){skipPop.current=false;return;}
+      if(target===pageRef.current)return;
+      if(pageRef.current==='生成设置'&&unsaved.current&&!confirm('基本或采购设置尚未保存。离开并放弃改动？')) {
+        skipPop.current=true;window.history.go(position.current-next);return;
+      }
+      unsaved.current=false;
+      scrollPositions.current.set(position.current,window.scrollY);
+      pageRef.current=target;position.current=next;setPage(target);setStatus(null);
+      requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0,scrollPositions.current.get(next)??0)));
+    };
+    window.addEventListener('popstate',onPop);
+    return ()=>window.removeEventListener('popstate',onPop);
   },[]);
   const saving=useRef(false),working=useRef(false);
   const generation=useRef(0);
@@ -124,9 +159,15 @@ function App() {
       if(!confirm('基本或采购设置尚未保存。离开并放弃这些改动？食材偏好会继续自动保存。'))return;
       unsaved.current=false;
     }
-    if (target==='食谱') setDay(planDay(data?.plan?.start,dateKey()));
+    if(target===pageRef.current){window.scrollTo(0,0);return;}
+    scrollPositions.current.set(position.current,window.scrollY);
+    position.current++;
+    pageRef.current=target;
+    window.history.pushState({ttjPage:target,ttjPosition:position.current},'');
+    if(target==='食谱')setDay(planDay(data?.plan?.start,dateKey()));
     setPage(target);setStatus(null);window.scrollTo(0,0);
   }
+  const goBack=()=>position.current>0?window.history.back():go(routes[page]?.parent??'首页');
   const quote=useMemo(()=>{
     if(!data?.plan)return;
     const {plan,profile}=data;
@@ -135,7 +176,7 @@ function App() {
   },[data?.plan,data?.profile,data?.pantry,data?.supply]);
   const notify=(text:string,error=false)=>setStatus({text,error});
   if (fatal) return <main className="container"><Empty title="读取本机数据失败"><p>{fatal}</p><button onClick={()=>location.reload()}>重新读取</button></Empty></main>;
-  if (!data) return <main className="container"><p role="status">正在读取本机数据…</p></main>;
+  if (!data) return <main className="shell container"><Skeleton label="正在读取本机数据…"/></main>;
   const {profile,weights,plan}=data;
   const pantry=data.pantry;
   let targets=null,reason='';
@@ -391,8 +432,6 @@ function App() {
     const quantities=balances(ledger);
     const count=[...quantities.values()].filter(grams=>grams>0).length;
     if(item?!(quantities.get(item)??0):!count)return false;
-    const target=item?food(item).name+' '+decimal(quantities.get(item)!)+' 克':`全部 ${count} 种食材`;
-    if(!confirm('确认清空'+target+'的账面库存？购买记录、实付和历史食谱会保留，可撤销本次清空。'))return false;
     const next=clearInventory(ledger,'清空|'+crypto.randomUUID(),dateKey(),item);
     return mutate({supply:{...supply,ledger:next}},'库存已清空，采购和备餐已更新。');
   }
@@ -478,20 +517,25 @@ function App() {
     share:(p:Plan,share:boolean)=>void send(planText(p),share),exportText:(p:Plan)=>downloadFile('天天减-七天食谱.txt',planText(p),'text/plain;charset=utf-8'),
   };
 
+  const feedback=status?<div className={'notice '+(status.error?'error':'')} role={status.error?'alert':'status'}>
+    <Icon name={status.error?'shield':'check'} size={18}/><span>{status.text}</span><IconButton label="关闭提示" icon="close" onClick={()=>setStatus(null)}/>
+  </div>:null;
+  const activeSheet=status&&overlayBody?.isConnected?overlayBody:null;
   return <>
-    <header className="topbar"><div className="shell topbar-inner"><button className="brand" onClick={()=>go('首页')}>
-      <img src={import.meta.env.BASE_URL+'icon-192.png'} alt=""/><span>天天减</span></button>
-      <button className="top-profile" aria-label="我的档案与设置" onClick={()=>go('我的')}>{profile?.name?.slice(0,1)||'我'}</button>
+    <header className="topbar"><div className="shell topbar-inner">
+      {routes[page]?<><IconButton icon="back" label="返回" onClick={goBack}/><span className="app-bar-name">{routes[page].title}</span></>:
+        <button className="brand" onClick={()=>go('首页')}><img src={import.meta.env.BASE_URL+'icon-192.png'} alt=""/><span>天天减</span></button>}
+      <button className="top-profile" aria-label="我的档案与设置" onClick={()=>go('我的')}>{profile?.name?.slice(0,1)||<Icon name="user" size={20}/>}</button>
     </div></header>
     <main className="shell container">
       {busy&&<div className="hint generation-progress" role="status"><span>正在搭配未来七天的食谱…</span><button onClick={cancelGeneration}>取消生成</button></div>}
       {(offline||update)&&<div className="hint network">{offline?'当前离线，已缓存的功能仍可使用。':''}{update&&<button onClick={()=>update.postMessage('UPDATE')}>应用新版本</button>}</div>}
-      {status&&<div className={'notice '+(status.error?'error':'')} role={status.error?'alert':'status'}><span>{status.text}</span><button aria-label="关闭提示" onClick={()=>setStatus(null)}>×</button></div>}
+      {activeSheet?createPortal(feedback,activeSheet):feedback}
       {page==='首页'&&<Dashboard quote={quote} poolCount={quote?.lines.filter(r=>r.uses.length>0).length??0} profile={profile} t={targets} reason={reason} weights={weights} plan={plan} stale={stale}
         poolMode={(data.poolSettings??defaultPool).mode} schedule={profile?shoppingSchedule(activeSettings,profile).count:undefined}
         prep={activeSettings.prep} execution={supply.execution} generate={()=>void generate()} busy={busy} go={go} edit={()=>go('编辑档案')}
         write={rows=>mutate({weights:rows},'称重记录已保存。')}/>}
-      {page==='编辑档案'&&<><div className="page-title"><div><h1>{profile?'编辑个人档案':'建立个人档案'}</h1><p>身体数据只保存在当前浏览器。</p></div></div>
+      {page==='编辑档案'&&<><PageHeader title={profile?'编辑个人档案':'建立个人档案'} subtitle="身体数据只保存在这台设备。"/>
         <ProfileForm value={profile} onSave={saveProfile} onCancel={()=>go(profile?'我的':'首页')}/></>}
       {page==='食谱'&&<PlanPage plan={plan} {...planProps}/>}
       {page==='生成设置'&&profile&&<PoolPage initial={data.poolSettings??defaultPool} previous={plan?.pool}
@@ -503,7 +547,7 @@ function App() {
           if(templates.length>=50)throw Error('已达到 50 个模板。');
           return {...current,poolTemplates:[...templates,{id:crypto.randomUUID(),name,settings:current.poolSettings??defaultPool}]};
         },'已收藏食材池模板。')}>
-        <details className="card settings"><summary>固定搭配与随机种子</summary>
+        <details className="settings item-fold"><summary>固定搭配与随机种子</summary>
           <div className="fields"><label className="field">固定早餐<select value={profile.fixedBreakfast} onChange={e=>rule(e.target.value,profile.requiredDish)}>
             <option value="">随机搭配</option>{profile.fixedBreakfast&&![...breakfastMenus,...fixedBreakfasts].some(r=>r.id===profile.fixedBreakfast)&&
               <option value={profile.fixedBreakfast}>已保存的旧版早餐设置</option>}
@@ -520,11 +564,11 @@ function App() {
       </PoolPage>}
       {(['采购','备餐'].includes(page))&&<ShoppingPage key={page} plan={plan} quote={quote}
         state={supply} actions={supplyActions} initialTab={page==='备餐'?'备餐清单':'采购清单'} onSettings={()=>go('生成设置')} {...shoppingOutput}/>}
-      {page==='食材价格'&&<><div className="page-title"><h1>食材价格</h1><button onClick={()=>go('我的')}>返回我的</button></div>
+      {page==='食材价格'&&<><PageHeader title="食材价格" subtitle="管理参考价和你常用的购买规格。"/>
         <PriceManager book={supply.prices??{}} pantry={pantry} products={supply.products} save={supplyActions.savePrice}
           saveProducts={products=>mutate({supply:{...supply,products}},'换算与采购费用已更新。')}
           resetAll={supplyActions.resetPrices} exportPrices={supplyActions.exportPrices} importPrices={supplyActions.importPrices}/></>}
-      {page==='库存'&&<><div className="page-title"><h1>库存</h1><button onClick={()=>go('我的')}>返回我的</button></div>
+      {page==='库存'&&<><PageHeader title="库存"/>
         <InventoryManager pantry={pantry} prices={supply.prices??{}} ledger={ledger} receipts={supply.receipts??{}} execution={supply.execution}
           inventory={Object.fromEntries(quote?.inventory.map(row=>[row.id,row])??[])}
           save={stock} savePurchase={receipt} reverse={removeInventory} clear={clearStock} undoClear={undoClear}
@@ -534,60 +578,70 @@ function App() {
             }catch(e){notify(errorText(e),true);return false;}
           }}/>
       </>}
-      {page==='菜谱库'&&<Suspense fallback={<p role="status">正在载入食谱大全…</p>}><Library favorites={data.favorites} blocked={data.blocked} toggleFavorite={planProps.favorite} toggleBlocked={planProps.block}
+      {page==='菜谱库'&&<Suspense fallback={<Skeleton label="正在载入食谱大全…"/>}><Library favorites={data.favorites} blocked={data.blocked} toggleFavorite={planProps.favorite} toggleBlocked={planProps.block}
         profile={profile??undefined} stock={balances(ledger)} prices={supply.prices??{}} pantry={pantry} products={supply.products} initialQuery={libraryQuery}
-        back={()=>go('我的')} slots={librarySlots} add={addLibraryRecipe} required={r=>rule(profile?.fixedBreakfast??'',profile?.requiredDish===r.id?'':r.id)} busy={busy}/></Suspense>}
-      {page==='原材料大全'&&<Suspense fallback={<p role="status">正在载入原材料大全…</p>}><IngredientsLibrary stock={balances(ledger)} pantry={pantry} prices={supply.prices??{}} products={supply.products}
+        back={goBack} slots={librarySlots} add={addLibraryRecipe} required={r=>rule(profile?.fixedBreakfast??'',profile?.requiredDish===r.id?'':r.id)} busy={busy}/></Suspense>}
+      {page==='原材料大全'&&<Suspense fallback={<Skeleton label="正在载入原材料大全…"/>}><IngredientsLibrary stock={balances(ledger)} pantry={pantry} prices={supply.prices??{}} products={supply.products}
         settings={data.poolSettings??defaultPool} savePrice={supplyActions.savePrice} savePurchase={receipt} change={ingredientPreference}
-        related={query=>{setLibraryQuery(query);go('菜谱库');}} back={()=>go('我的')}/></Suspense>}
+        related={query=>{setLibraryQuery(query);go('菜谱库');}} back={goBack}/></Suspense>}
       {page==='我的'&&<>
-        <div className="page-title"><div><h1>我的</h1><p>管理档案、历史和本机设置。</p></div></div>
-        <section className="card"><SectionTitle title="个人档案"/><p>{profile?(profile.name||'已保存档案')+' · '+profile.goal:'还没有个人档案'}</p>
-          {profile?.conditions.includes('脂肪肝')&&<p className="hint">一般饮食建议是少喝含糖饮料与酒，少吃添加糖，完整水果仍可适量食用。</p>}
-          {profile?.conditions.includes('痤疮')&&<p className="hint">饮食与痤疮的相关证据有限。按个人耐受选择乳制品，症状持续时可咨询医生。</p>}
-          <div className="actions"><button className="primary" onClick={()=>go('编辑档案')}>{profile?'编辑档案':'填写档案'}</button>
-            <button onClick={()=>go('历史方案')}>历史方案 · {data.history.length}</button><button onClick={()=>go('食材价格')}>食材价格</button><button onClick={()=>go('库存')}>家中库存</button><button onClick={()=>{setLibraryQuery('');go('菜谱库');}}>食谱大全</button><button onClick={()=>go('原材料大全')}>原材料大全</button></div>
+        <PageHeader title="我的"/>
+        <section className="card profile-hero"><div className="profile-avatar" aria-hidden="true">{profile?.name?.slice(0,1)||<Icon name="user"/>}</div>
+          <div><h2>{profile?.name||'个人档案'}</h2><p className="meta">{profile?profile.goal+' · '+profile.meals+' 餐计划':'填写档案后开始配餐'}</p></div>
+          <Action icon="edit" onClick={()=>go('编辑档案')}>{profile?'编辑档案':'填写档案'}</Action>
         </section>
-        {profile&&<details className="card group-fold"><summary>饮食、厨具与采购偏好</summary>
+        <h2 className="settings-caption">食谱与食材</h2>
+        <div className="row-stack">
+          <ListRow icon={<Icon name="book"/>} title="食谱大全" detail="按餐次、厨具与做法浏览" label="食谱大全" onClick={()=>{setLibraryQuery('');go('菜谱库');}}/>
+          <ListRow icon={<Icon name="tag"/>} title="原材料大全" detail="查找食材、营养与替代选项" label="原材料大全" onClick={()=>go('原材料大全')}/>
+          <ListRow icon={<Icon name="box"/>} title="家中库存" detail="实际结余、购买与流水" label="家中库存" onClick={()=>go('库存')}/>
+          <ListRow icon={<Icon name="basket"/>} title="食材价格" detail="参考价格与自定义单价" label="食材价格" onClick={()=>go('食材价格')}/>
+          <ListRow icon={<Icon name="calendar"/>} title="历史方案" detail={data.history.length+' 份已保存'} label={'历史方案 · '+data.history.length} onClick={()=>go('历史方案')}/>
+        </div>
+        <h2 className="settings-caption">设置与数据</h2>
+        {profile&&<details className="card group-fold"><summary><Icon name="slider" size={18}/>饮食、厨具与采购偏好</summary>
           <p>{profile.meals==='4'?'三餐和加餐':profile.meals==='2'?'两餐':'三餐'} · {profile.cooking?.mode??'简单'}烹饪 · {supply.settings?.prep??supplyDefaults(profile).prep}备餐</p>
           <p className="meta">{profile.tools.join('、')||'未选择厨具'}</p>
           <div className="actions"><button onClick={()=>go('生成设置')}>本周生成偏好</button></div>
         </details>}
-        <section className="card"><SectionTitle title="外观与安装"><span className="meta">V{version}</span></SectionTitle><label className="field">外观<select value={data.theme} onChange={e=>void mutate({theme:e.target.value as Data['theme']})}><option>系统</option><option>浅色</option><option>深色</option></select></label>
+        <details className="card settings-group"><summary><Icon name="palette" size={18}/><span>外观与安装</span><small className="settings-version">V{version}</small></summary><label className="field">外观<select value={data.theme} onChange={e=>void mutate({theme:e.target.value as Data['theme']})}><option>系统</option><option>浅色</option><option>深色</option></select></label>
           <p className="meta">{cached?'离线资源已缓存。':'首次成功缓存后可离线查看和生成食谱。'}</p>
           {canInstall&&<button onClick={()=>void canInstall.prompt().then(()=>canInstall.userChoice).then(()=>setInstall(null)).catch(e=>notify(errorText(e),true))}>安装天天减</button>}
           <details><summary>添加到主屏幕</summary><p>安卓 Chrome 打开浏览器右上角菜单，选「安装应用」或「添加到主屏幕」。iPhone 用 Safari 打开，点分享，再选「添加到主屏幕」。</p></details>
-        </section>
-        <section className="card"><SectionTitle title="本机数据与备份"/><p>同一设备和浏览器共享本机存储。换手机、使用隐私浏览或清除站点数据可能丢失档案和记录。建议定期导出备份，备份含健康信息，请妥善保存。</p>
+        </details>
+        <details className="card settings-group"><summary><Icon name="box" size={18}/>本机数据与备份</summary><p>同一设备和浏览器共享本机存储。换手机、使用隐私浏览或清除站点数据可能丢失档案和记录。建议定期导出备份，备份含健康信息，请妥善保存。</p>
           <div className="actions"><button onClick={()=>downloadFile('天天减-个人备份-'+dateKey()+'.json',JSON.stringify(data))}>导出个人备份</button>
             <label className="file-button">导入并恢复<input type="file" aria-label="导入并恢复" accept=".json,application/json" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)void restore(f);}}/></label>
             <button className="danger" onClick={()=>setConfirmDelete(true)}>删除全部数据</button>
           </div>
-          {confirmDelete&&<div className="hint"><p>删除本机的档案、食谱、库存和体重记录。请确认已取得需要的备份。</p><div className="actions">
-            <button onClick={()=>setConfirmDelete(false)}>取消</button><button className="danger" onClick={()=>void mutate({...fresh(),supply:undefined,poolTemplates:undefined},'本机个人数据已清除。').then(ok=>{if(ok)setConfirmDelete(false);})}>确认删除</button></div></div>}
-        </section>
-        <details className="card group-fold"><summary>隐私与健康说明</summary><p>应用无需账号。档案、体重及健康信息在设备上处理，分享食谱只包含餐次、菜名和食材重量。访问网站由静态托管服务处理普通网页请求。</p>
+          {confirmDelete&&<Sheet title="删除本机数据" kind="dialog" close={()=>setConfirmDelete(false)}>
+            <p>此操作将删除这台设备的档案、食谱、库存和体重记录。请确认已导出需要的备份。</p>
+            <div className="actions"><button onClick={()=>setConfirmDelete(false)}>取消</button><Action icon="trash" className="danger"
+              onClick={()=>void mutate({...fresh(),supply:undefined,poolTemplates:undefined},'本机个人数据已清除。').then(ok=>{if(ok)setConfirmDelete(false);})}>确认删除</Action></div>
+          </Sheet>}
+        </details>
+        <details className="card settings-group"><summary><Icon name="shield" size={18}/>隐私与健康说明</summary><p>应用无需账号。档案、体重及健康信息在设备上处理，分享食谱只包含餐次、菜名和食材重量。访问网站由静态托管服务处理普通网页请求。</p>
           <p>营养计算是面向一般成年人的估算。涉及疾病、药物和特殊饮食医嘱时，请向医生或注册营养师咨询。食物过敏者需核查包装标签和厨房交叉接触。</p></details>
       </>}
       {page==='历史方案'&&<>
-        <div className="page-title"><div><h1>历史方案</h1><p>保留每次保存时的完整搭配和营养信息。</p></div><button onClick={()=>go('食谱')}>返回食谱</button></div>
-        {data.history.length?data.history.map(p=><section className="card history-item" key={p.id}><SectionTitle title={p.name}/>
-          <p className="meta">从 {p.start} 起 · 七天 · 生成体重 {p.weight} 千克 · {p.favorite?'已收藏':'历史方案'}</p>
-          <div className="actions">
-            <button onClick={()=>{setArchived(p);setHistoryQuote(undefined);setDay(0);go('查看历史');}}>查看</button><button onClick={()=>editHistory(p)}>改名</button>
+        <PageHeader title="历史方案" subtitle={data.history.length+' 份已保存食谱'}/>
+        {data.history.length?data.history.map(p=><section className="card history-item" key={p.id}><div className="history-head"><div><SectionTitle title={p.name}/>
+          <p className="meta">{p.start} 至 {addDays(p.start,6)} · 生成体重 {p.weight} 千克</p>{p.favorite&&<small>已收藏</small>}</div><Icon name="calendar"/></div>
+          <div className="actions"><Action icon="book" onClick={()=>{setArchived(p);setHistoryQuote(undefined);setDay(0);go('查看历史');}}>查看</Action></div>
+          <details className="history-more"><summary><Icon name="dots" size={17}/>方案操作</summary><div className="actions"><button onClick={()=>editHistory(p)}>改名</button>
             <button onClick={()=>historyEdit(p.id,row=>({...row,favorite:!row.favorite}))}>{p.favorite?'取消收藏':'收藏'}</button>
             <button onClick={()=>{if(data.history.length>=500){notify('历史方案已达存储上限。',true);return;}void mutate({history:[{...structuredClone(p),id:crypto.randomUUID(),name:p.name.slice(0,95)+'（副本）'},...data.history]},'已复制方案。');}}>复制方案</button>
             <button onClick={()=>void reuse(p)}>重新使用</button><button onClick={()=>planProps.exportText(p)}>导出食谱</button>
             <button onClick={()=>planProps.share(p,true)}>分享</button>
             <button className="danger" onClick={()=>{if(confirm('删除这份历史方案？'))void mutate({history:data.history.filter(row=>row.id!==p.id)},'已删除方案。');}}>删除</button>
-          </div></section>):<Empty title="还没有历史方案"><p>在食谱页面点「保存到历史」，即可随时找回。</p></Empty>}
+          </div></details></section>):<Empty title="还没有历史方案"><p>在食谱页面点「保存到历史」，即可随时找回。</p></Empty>}
       </>}
-      {page==='查看历史'&&archived&&<><button onClick={()=>go('历史方案')}>返回历史</button><PlanPage {...planProps} plan={archived} readonly stale={false}/>
+      {page==='查看历史'&&archived&&<><PlanPage {...planProps} plan={archived} readonly stale={false}/>
         <ShoppingPage plan={archived} quote={historyQuote??archived.logistics}
           reprice={repriceHistory} repriced={Boolean(historyQuote)} {...shoppingOutput}/></>}
     </main>
     <nav className="bottom-nav" aria-label="主导航"><div className="shell">{pages.map((p,i)=><button key={p} aria-current={page===p||p==='采购'&&page==='备餐'||p==='我的'&&['食材价格','库存','菜谱库','原材料大全','历史方案'].includes(page)?'page':undefined} onClick={()=>go(p)}>
-      <span aria-hidden="true">{icons[i]}</span>{p}</button>)}</div></nav>
+      <Icon name={icons[i]}/>{p}</button>)}</div></nav>
   </>;
 }
 

@@ -6,14 +6,15 @@ import {createRequire} from 'node:module';
 import assert from 'node:assert/strict';
 const repo=fileURLToPath(new URL('../',import.meta.url));
 const [oldDist,screenshotDirectory,mode]=process.argv.slice(2);
+const v3=mode==='--v3';
 const v241=mode==='--v241';
-const v24=mode==='--v24'||v241;
+const v24=mode==='--v24'||v241||v3;
 const ingredients=mode==='--ingredients'||v24;
-const previousVersion=v241?'2.4.0':v24?'2.3.2':ingredients?'2.3.0':'2.2.1';
-const currentVersion=v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
-const latestAlgorithm=v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
-const prefix=v241?'v241':v24?'v24':ingredients?'v231':'v23';
-if(!oldDist||!screenshotDirectory)throw Error('用法 node scripts/verify-v23-upgrade.mjs <旧版 dist> <截图目录> [--ingredients|--v24|--v241]');
+const previousVersion=v3?'2.4.1':v241?'2.4.0':v24?'2.3.2':ingredients?'2.3.0':'2.2.1';
+const currentVersion=v3?'3.0.0':v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
+const latestAlgorithm=v3?'2.4.1':v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
+const prefix=v3?'v3':v241?'v241':v24?'v24':ingredients?'v231':'v23';
+if(!oldDist||!screenshotDirectory)throw Error('用法 node scripts/verify-v23-upgrade.mjs <旧版 dist> <截图目录> [--ingredients|--v24|--v241|--v3]');
 const output=resolve(screenshotDirectory);
 await mkdir(output,{recursive:true});
 const {chromium,devices,expect}=createRequire(repo+'/package.json')('@playwright/test');
@@ -53,8 +54,8 @@ try {
  await page.getByRole('button',{name:'生成设置',exact:true}).click();
  await page.getByText('固定搭配与随机种子',{exact:true}).click();
  await page.getByLabel('随机种子（选填）').fill('采购验收');
- await page.getByRole('button',{name:'按设置生成',exact:true}).click();
- await expect(page.getByText('算法 '+(v241?'2.4.0':v24?'2.3.1':ingredients?'2.3.0':'2.2.0'),{exact:false})).toBeVisible();
+ await page.getByRole('button',{name:v3?'重新搭配':'按设置生成',exact:true}).click();
+ await expect(page.getByText('算法 '+(v3?'2.4.1':v241?'2.4.0':v24?'2.3.1':ingredients?'2.3.0':'2.2.0'),{exact:false})).toBeVisible();
 
  await nav('采购').click();
  await page.getByRole('checkbox').first().click();
@@ -70,7 +71,7 @@ try {
  await oats.getByRole('button',{name:'保存此食材价格'}).click();
  await expect(page.getByText('食材价格已保存。')).toBeVisible();
  await nav('我的').click();
- await page.getByRole('button',{name:v241?'食谱大全':'菜谱库与收藏'}).click();
+ await page.getByRole('button',{name:v241||v3?'食谱大全':'菜谱库与收藏'}).click();
  await page.locator('details.recipe-card summary').first().click();
  await page.getByRole('button',{name:'收藏菜谱',exact:true}).click();
  await nav('食谱').click();
@@ -151,7 +152,7 @@ try {
       assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
       await snap(prefix+'-ingredients-'+width);
    }
-   await page.getByRole('button',{name:'返回我的'}).click();
+   await (v3?nav('我的'):page.getByRole('button',{name:'返回我的'})).click();
    await page.getByRole('button',{name:'食谱大全',exact:true}).click();
    await expect(page.getByRole('heading',{name:'食谱大全',exact:true})).toBeVisible();
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));

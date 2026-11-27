@@ -1,3 +1,4 @@
+import {Action,Icon,PageHeader,Progress,Segment,Sheet,StatusLabel} from './design';
 import {procurementSummary} from './procurement-score';
 import {useState} from 'react';
 import {food} from './catalog';
@@ -103,17 +104,16 @@ export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab=
   const weeklyProgress=purchaseProgress(weeklyRows);
   const editPrice=actions?.savePrice;
   return <>
-    <div className="page-title"><h1>采购</h1>
-      {onSettings&&<button className="flat" onClick={onSettings}>生成设置</button>}
-      {reprice&&<button onClick={reprice}>{repriced?'返回历史价格快照':'按最新价格重新估算'}</button>}</div>
-    {quote&&<Overview quote={quote} progress={weeklyProgress}/>}
+    <PageHeader title="采购" subtitle={plan?'按实际库存和采购批次整理':'生成食谱后查看待买食材和备餐安排。'}>
+      {onSettings&&<Action icon="slider" className="flat" onClick={onSettings}>生成设置</Action>}
+      {reprice&&<button onClick={reprice}>{repriced?'返回历史价格快照':'按最新价格重新估算'}</button>}</PageHeader>
+    <Segment label="采购与备餐视图" items={tabs} value={tab} change={t=>{setTab(t);setDetail('');setPurchase(null);}}/>
+    {quote&&tab==='采购清单'&&<Overview quote={quote} progress={weeklyProgress}/>}
     {quote?.conflicts?.length? <section className="hint error" role="alert"><strong>这份采购计划有待解决的日期或换算问题</strong>
       <ul>{quote.conflicts.slice(0,5).map(t=><li key={t}>{t}</li>)}</ul>
       {quote.conflicts.length>5&&<p>另有 {quote.conflicts.length-5} 项待核对</p>}
       <p>请调整购物日期、食材或已确认库存。费用为当前可估算部分。</p>
     </section>:null}
-    <div className="segmented" aria-label="采购与备餐视图">{tabs.map(t=><button key={t}
-      aria-pressed={tab===t} onClick={()=>{setTab(t);setDetail('');setPurchase(null);}}>{t}</button>)}</div>
     {!quote&&(!plan?<Empty title="尚无食谱"><p>生成后可查看购物日和备餐清单。</p></Empty>:
       <section className="card"><SectionTitle title="旧版快照"/>
         <button className="small" onClick={()=>copy(purchaseText(plan.purchases))}>复制历史清单</button>
@@ -121,7 +121,7 @@ export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab=
           <ul>{plan.purchases.map(p=><li key={p.id}>{p.name} · {decimal(p.buy)} 克 · {p.cost===null?'价格待补充':yuan(p.cost)}</li>)}</ul>}
       </section>)}
     {tab==='采购清单'&&quote&&<>
-      <div className="actions list-actions"><button onClick={()=>copy(batchPurchaseText(quote.lines,'全周清单'))}>复制全周</button>
+      <div className="actions list-actions"><Action icon="copy" onClick={()=>copy(batchPurchaseText(quote.lines,'全周清单'))}>复制全周</Action>
         <details><summary>更多</summary><div className="actions">
           <button onClick={()=>copy(batchPurchaseText(quote.lines,'全周清单'),true)}>分享清单</button>
           <button onClick={()=>download(batchPurchaseText(quote.lines,'全周清单'))}>下载清单</button></div></details></div>
@@ -137,7 +137,7 @@ export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab=
         <GroupedLines rows={quote.lines.filter(row=>purchaseStatus(row)!=='无需补购')} progressRows={weeklyRows} start={quote.start} detail={detail} setDetail={setDetail} editPrice={editPrice}/>
       </details>
       {!!stored.length&&<details className="card"><summary>已有库存抵扣 · {stored.length} 种</summary>
-        <ul className="ledger-list">{stored.map(row=><li key={row.id}><span>{food(row.id).name}</span><span className="unit">{decimal(row.stock+row.carry)} 克</span></li>)}</ul>
+        <ul className="ledger-list">{stored.map(row=><li key={row.id}><span>{food(row.id).name}</span><span className="unit">{decimal(row.stock+row.carry)} 克 <small className="purchase-stock">库存覆盖</small></span></li>)}</ul>
       </details>}
       {!!changed.size&&<details className="card"><summary>本周食材替换 · {changed.size} 种</summary>
         <ul className="ledger-list">{[...changed.values()].map(r=>{
@@ -162,18 +162,22 @@ export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab=
         const work=state?prepWork(batch,state.products,new Map(quote.inventory.map(row=>[row.id,row.usable??row.home])),state.execution):[];
         const portions=main.filter(row=>row.uses.some(needsPortion));
         const done=batch.jobs.filter(j=>j.key&&tasks?.[j.key]?.taken).length;
+        const made=batch.jobs.filter(j=>j.key&&tasks?.[j.key]?.made).length;
+        const packed=batch.jobs.filter(j=>j.key&&tasks?.[j.key]?.packed).length;
         return <details className="card batch-fold prep-batch" key={batch.start} open={selected?true:undefined}>
           <summary><span>备餐第 {i+1} 批 · {dateLabel(batch.start)} 至 {dateLabel(batch.end)}</span><span className="meta unit">{done}/{batch.jobs.length} 已取用</span></summary>
-          <div className="fold-body">
+          <div className="fold-body prep-flow">
+            <div className="prep-status"><StatusLabel>{done} 项已取用</StatusLabel><StatusLabel>{made} 项已制作</StatusLabel><StatusLabel>{packed} 项已分装</StatusLabel></div>
+            <Progress value={done} max={batch.jobs.length} label={'第 '+(i+1)+' 批取用进度'}/>
             <p className="meta">准备 {dateLabel(batch.prepDate)} · {batch.tools.join('、')||'无需加热厨具'} · {batch.boxes} 个分装容器</p>
             {schedule.concentrated.map(s=><p className="meta" key={s.date}>{dateLabel(s.date)} 集中备餐估算 · 主动 <span className="unit">{s.active} 分钟</span> · 等待 <span className="unit">{s.waiting} 分钟</span></p>)}
             {!schedule.concentrated.length&&<p className="meta">这批按食用日现做。</p>}
             <div className="actions"><button className="small" onClick={()=>copy(prepText(batch,quote.start,work))}>复制这一批备餐</button></div>
             {actions&&done<batch.jobs.length&&<WithdrawalControl label="确认本批实际取用" jobs={batch.jobs} tasks={tasks} execute={jobs=>actions.task(jobs,'取用',true)}/>}
-            <details className="group-fold" open={selected?true:undefined}><summary>食材取用<span className="meta unit">{main.length} 种</span></summary>
+            <details className="group-fold" open={selected?true:undefined}><summary><Icon name="box" size={17}/>食材取用<span className="meta unit">{main.length} 种</span></summary>
               {main.length?main.map(row=>{
                 const portions=row.uses.filter(needsPortion);
-                const packed=portions.filter(u=>u.jobKey&&(tasks?.[u.jobKey]?.packed||tasks?.[u.jobKey]?.taken)).length;
+                const packed=portions.filter(u=>u.jobKey&&tasks?.[u.jobKey]?.packed).length;
                 const used=row.uses.filter(u=>u.jobKey&&tasks?.[u.jobKey]?.taken).length;
                 const totals=row.uses.reduce((a,u)=>({stock:a.stock+(u.sourcing?.home??0)+(u.sourcing?.carry??0),forecast:a.forecast+(u.sourcing?.forecast??0)}),{stock:0,forecast:0});
                 return <details className="item-fold" key={row.id}>
@@ -183,10 +187,7 @@ export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab=
                 </details>;
               }):<p className="meta">本批无主要食材。</p>}
             </details>
-            <details className="group-fold"><summary>调味料用量<span className="meta unit">{seasonings.length} 种</span></summary>
-              {seasonings.length?<ul className="ledger-list">{seasonings.map(row=><li key={row.id}><span>{food(row.id).name}</span><span className="unit">{decimal(row.grams)} 克</span></li>)}</ul>:<p className="meta">本批无调味料。</p>}
-            </details>
-            <details className="group-fold prep-steps"><summary>制作步骤<span className="meta unit">{batch.jobs.length} 项</span></summary>
+            <details className="group-fold prep-steps"><summary><Icon name="pot" size={17}/>集中制作与菜谱步骤<span className="meta unit">{batch.jobs.length} 项</span></summary>
               {work.filter(row=>row.kind==='煮熟').map(row=><div className="hint" key={row.key}>
                 <strong>{row.blend?.length===2?'小米糙米饭':food(row.id).name}集中煮熟 · {dateLabel(addDays(quote.start,row.at))}</strong>
                 <p>净料 {decimal(row.raw)} 克 · {row.cooked===undefined?'出锅后称熟重':`预计熟重 ${decimal(row.cooked)} 克`} · {row.portions.length} 份 · {row.method}</p>
@@ -203,7 +204,7 @@ export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab=
                   '制备 '+addDays(quote.start,job.at),'食用 '+addDays(quote.start,job.day)+' '+job.meal,job.method].join(' · ');
                 return <details className="item-fold prep-task" key={job.key??j}>
                   <summary><span>{job.name}<small>{dateLabel(addDays(quote.start,job.at))} · {job.meal}</small></span>
-                    <span className="meta unit">{task?.eaten?'已用餐':task?.made?'已制作':task?.taken?'已取用':task?.packed?'已分装':''}</span></summary>
+                    <span className="meta unit">{task?.eaten?'已用餐':task?.made?'已制作':task?.taken?'已取用':task?.packed?'已分装':'待完成'}</span></summary>
                   <div className="fold-body">
                     <p className="meta">{job.tools.join('、')||'无需加热'} · {job.method}</p>
                     {actions&&job.key&&<><div className="actions">{([['分装',task?.packed],['制作',task?.made]] as const).map(([action,flag])=>
@@ -215,7 +216,7 @@ export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab=
                   </div></details>;
               })}
             </details>
-            <details className="group-fold"><summary>分装<span className="meta unit">{portions.length} 种</span></summary>
+            <details className="group-fold"><summary><Icon name="scale" size={17}/>称重分装<span className="meta unit">{portions.length} 种</span></summary>
               {work.filter(row=>row.kind==='称量分装').map(row=><div className="hint" key={row.key}>
                 <strong>{food(row.id).name}统一称量 · {dateLabel(addDays(quote.start,row.at))}</strong>
                 <p>{decimal(row.raw)} 克生净重 · {row.portions.length} 份。生熟分开，各份按菜谱调味。</p>
@@ -226,6 +227,9 @@ export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab=
               {portions.map(row=><div className="ledger-line" key={row.id}><span>{food(row.id).name}</span>
                 <span className="unit">{row.uses.filter(needsPortion).length} 份</span></div>)}
               {!portions.length&&!work.some(row=>row.kind==='称量分装')&&<p className="meta">本批按食用日称量。</p>}
+            </details>
+            <details className="group-fold"><summary><Icon name="tag" size={17}/>调味料用量<span className="meta unit">{seasonings.length} 种</span></summary>
+              {seasonings.length?<ul className="ledger-list">{seasonings.map(row=><li key={row.id}><span>{food(row.id).name}</span><span className="unit">{decimal(row.grams)} 克</span></li>)}</ul>:<p className="meta">本批无调味料。</p>}
             </details>
             <details className="group-fold"><summary>储存与复热</summary>
               <ul className="share-details">{quote.notice.map(n=><li key={n}>{n}</li>)}</ul>
@@ -242,13 +246,14 @@ function Overview({quote:q,progress:{done,total}}:{quote:Logistics;progress:Retu
   const paidEstimate=[...q.batches,...q.actualBatches??[]].some(batch=>batch.lines.some(row=>row.paidEstimated));
   const avg={...q.consumed,known:q.consumed.known/7};
   const summary=procurementSummary(q);
-  return <section className="card"><SectionTitle title="本周采购"><strong className="unit">{costText(q.purchase)}</strong></SectionTitle>
-    <p className="meta">使用 {summary.used} 种 · 需买 {summary.needed} 种 · 预定采购 {q.batches.length} 次 · {total?`已购 ${done}/${total} 项`:'无需补购'}</p>
-    {total>0&&<progress value={done} max={total} aria-label="采购完成进度"/>}
+  const paid=q.actualPaid?.items===0&&q.unpricedPaid?.items?'暂未登记':costText(q.actualPaid??q.paid);
+  return <section className="card purchase-overview"><SectionTitle title="本周采购"><Icon name="basket"/></SectionTitle>
+    <dl className="purchase-totals"><div><dt>{q.actualPaid?'已实际支付':paidEstimate?'历史付款与估算':'历史实付'}</dt><dd>{paid}</dd></div>
+      <div><dt>剩余预计采购费用</dt><dd>{costText(q.remaining)}</dd></div></dl>
+    <p className="meta">使用 {summary.used} 种 · 需买 {summary.needed} 种 · {total?`已购 ${done}/${total} 项`:'无需补购'}</p>
+    <Progress value={done} max={total} label="采购完成进度"/>
     <details><summary>费用明细</summary><dl className="supply-summary">
-      <div><dt>{q.actualPaid?'已实际支付':paidEstimate?'历史付款与估算':'历史实付'}</dt><dd>{q.actualPaid?.items===0&&q.unpricedPaid?.items?'暂未登记':costText(q.actualPaid??q.paid)}</dd></div>
       {!!q.unpricedPaid?.items&&<div><dt>已购未填实付（参考）</dt><dd>{costText(q.unpricedPaid)}</dd></div>}
-      <div><dt>剩余预计采购费用</dt><dd>{costText(q.remaining)}</dd></div>
       <div><dt>本周预计总支出</dt><dd>{costText(q.purchase)}</dd></div>
       {purchaseCategories.map(category=><div key={category}><dt>{category==='常备调味料'?'常备调味料补货':category}费用</dt><dd>{q.categories[category]?costText(q.categories[category]):'无需补购'}</dd></div>)}
       <div><dt>本周食材消耗价值</dt><dd>{costText(q.consumed)}</dd></div>
@@ -282,18 +287,17 @@ function LineList({rows,start,detail,setDetail,receipt,editPrice,purchase,setPur
           setDetail('');
           setPurchase?.({key:k,source:row.confirmed?'手动|'+crypto.randomUUID()+'|'+row.id:k});
         } else void receipt(k);
-      }}/>}<span className="purchase-name">{f.name}{(status==='已购'||status==='已买部分')&&<small className={'purchase-item-status'+(status==='已购'?' complete':'')}>{status}</small>}</span></label>
+      }}/>}<span className="purchase-name">{f.name}{<small className={'purchase-item-status'+(status==='已购'?' complete':status==='已买部分'?' partial':status==='待买'?' pending':'')}>{status}</small>}</span></label>
       <span className="purchase-quantity"><b>{row.estimate===null&&!row.buy?'待补全':quantity.replace(' ','\u00a0')}</b>
         {packaging&&<small>{packaging}</small>}</span>
       <button className="small flat" aria-expanded={detail===k} onClick={()=>{setPurchase?.(null);setDetail(detail===k?'':k);}}>{detail===k?'收起':'详情'}</button></div>
       <p className="meta purchase-price">{editPrice?<button className="small flat" onClick={()=>{setPurchase?.(null);setDetail(detail===k?'':k);}} aria-label={'编辑'+f.name+'单价'}>{pendingPrice(row)}</button>:pendingPrice(row)}
         <b className="unit">{costText(row.cost)}</b></p>
-      {receipt&&purchase?.key===k&&<div className="hint">
-        <p className="meta">{row.confirmed?'登记再次购买':'确认实际购买'}</p>
+      {receipt&&purchase?.key===k&&<Sheet title={row.confirmed?'登记再次购买':'确认实际购买'} subtitle={f.name} close={()=>setPurchase?.(null)}>
         <PurchaseForm key={purchase.source} id={row.id} suggested={row.remaining||undefined} price={row.price}
           save={async value=>{const ok=await receipt(purchase.source,value);if(ok)setPurchase?.(null);return ok;}}/>
         <button className="flat" onClick={()=>setPurchase?.(null)}>取消登记</button>
-      </div>}
+      </Sheet>}
       {detail===k&&<>
         {row.price?.basis==='毛重'&&<p className="meta">{row.price.yieldPercent?`按可食率 ${row.price.yieldPercent}% 将净需求换算为毛重。`:'未填写可食率，只显示净料下限。'}</p>}
         {editPrice&&<details><summary>修改此食材单价</summary><PriceEditor key={JSON.stringify(row.price)} id={row.id} current={row.price} save={editPrice}/></details>}

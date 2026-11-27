@@ -1,4 +1,5 @@
-import {useMemo,useState} from 'react';
+import {SearchField,Segment,Sheet} from './design';
+import {Fragment,useMemo,useState} from 'react';
 import {food,recipeMap,serving,type Serving} from './catalog';
 import {searchMatches} from './catalog-search';
 import {recipeCooking} from './cooking';
@@ -59,13 +60,14 @@ export function ReplacementPanel({current,other,profile,meal,settings,used,stock
     apply({replacement:row.recipe.id,swapMode,expandPool:row.strict,weekFruit});
   }
   const random=result.filter(r=>available.includes(r)&&!tried.includes(r.recipe.id));
-  return <section className="replacement-panel" aria-label="智能替换选择">
-    <div className="section-title"><h3>{labels(current.recipe).slot}候选</h3><button className="small" onClick={close}>关闭</button></div>
-    <div className="segmented">{(['换食材','换做法'] as const).map(mode=><button key={mode} aria-pressed={mode===swapMode}
-      onClick={()=>{setMode(mode);setPage(0);setWeekFruit(false);setTried([]);}}>{mode}</button>)}</div>
+  const visible=result.slice(page*pageSize,(page+1)*pageSize);
+  const group=(row:typeof rows[number])=>row.reasons.length||row.strict?'不符合当前条件':tiers[row.rank];
+  return <Sheet title="智能替换选择" subtitle={current.recipe.name+' · '+meal} close={close}><section className="replacement-panel" aria-label="智能替换选择">
+    <Segment label="替换方式" items={['换食材','换做法'] as const} value={swapMode}
+      change={mode=>{setMode(mode);setPage(0);setWeekFruit(false);setTried([]);}}/>
     {fruit&&swapMode==='换食材'&&<label className="check-line"><input type="checkbox" checked={weekFruit} onChange={e=>{setWeekFruit(e.target.checked);setPage(0);}}/>更换本周尚未执行的水果</label>}
+    <SearchField label="搜索替换候选" placeholder="菜名、食材或拼音" value={query} change={value=>{setQuery(value);setPage(0);}}/>
     <div className="fields">
-      <label className="field">搜索替换候选<input type="search" value={query} onChange={e=>{setQuery(e.target.value);setPage(0);}}/></label>
       <label className="field">候选分组<select value={tier} onChange={e=>{setTier(e.target.value);setPage(0);}}><option value="">全部可选</option>{tiers.map(t=><option key={t}>{t}</option>)}</select></label>
       <label className="field">制作方式<select value={method} onChange={e=>{setMethod(e.target.value);setPage(0);}}><option value="">全部</option>{[...new Set(rows.map(r=>r.info.method))].map(m=><option key={m}>{m}</option>)}</select></label>
     </div>
@@ -75,14 +77,16 @@ export function ReplacementPanel({current,other,profile,meal,settings,used,stock
       if(row)pick(row);
     }}>随机更换</button>
     {!result.length&&<p className="meta">暂无其他符合条件的{swapMode==='换食材'?'核心食材':'做法'}。可清除筛选或查看受限原因。</p>}
-    {result.slice(page*pageSize,(page+1)*pageSize).map(row=><div className="replacement-row" key={row.recipe.id}>
+    {visible.map((row,index)=><Fragment key={row.recipe.id}>
+      {(index===0||group(visible[index-1])!==group(row))&&<h3 className="replacement-group">{group(row)}</h3>}
+      <div className="replacement-row">
       <div><strong>{row.recipe.name}</strong><p className="meta">{row.nominal.ingredients.map(i=>food(i.id).name+' '+decimal(i.grams)+' 克').join('、')} · 约 {Math.round(row.nominal.nutrients.kcal)} 千卡/人</p>
-        <p className="meta">{row.reasons.length?row.reasons.join('、'):row.strict?'严格食材池外，需确认调整':tiers[row.rank]}
-        {!row.reasons.length&&row.added.length>0&&' · 本餐净重缺口 '+row.added.map(i=>food(i.id).name+' '+decimal(i.grams)+' 克'+(i.cost===null?'（价格待补）':'（约 ¥'+i.cost.toFixed(2)+'）')).join('、')}</p>
+        <p className="meta">{row.reasons.length?row.reasons.join('、'):row.strict?'严格食材池外，需确认调整':''}
+        {!row.reasons.length&&row.added.length>0&&'本餐净重缺口 '+row.added.map(i=>food(i.id).name+' '+decimal(i.grams)+' 克'+(i.cost===null?'（价格待补）':'（约 ¥'+i.cost.toFixed(2)+'）')).join('、')}</p>
       </div>
       {!row.reasons.length&&<button className="small" disabled={busy} onClick={()=>pick(row)}>{row.strict?'确认加入并替换':'选择此项'}</button>}
-    </div>)}
+    </div></Fragment>)}
     {result.length>pageSize&&<div className="actions"><button disabled={page===0} onClick={()=>setPage(page-1)}>上一页</button>
       <span className="meta">第 {page+1} / {Math.ceil(result.length/pageSize)} 页</span><button disabled={(page+1)*pageSize>=result.length} onClick={()=>setPage(page+1)}>下一页</button></div>}
-  </section>;
+  </section></Sheet>;
 }

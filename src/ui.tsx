@@ -1,6 +1,7 @@
+import {Icon} from './design';
 import {type ReactNode} from 'react';
 import {alternativeRecipes,categoriesOf,foodMap,foodState,serving,type Recipe,type Serving} from './catalog';
-import {type Nutrients} from './nutrition';
+import {type Nutrients,type Targets} from './nutrition';
 import {addDays} from './batches';
 import {purchaseFood,type PurchaseOptions} from './purchase-food';
 import {type Plan} from './planner';
@@ -15,11 +16,11 @@ export function SectionTitle({title,children}:{title:string;children?:ReactNode}
   return <div className="section-title"><h2>{title}</h2>{children}</div>;
 }
 export function Empty({title,children}:{title:string;children?:ReactNode}) {
-  return <div className="card empty"><span aria-hidden="true" className="empty-mark">◌</span><h3>{title}</h3>{children}</div>;
+  return <div className="card empty"><span aria-hidden="true" className="empty-mark"><Icon name="box"/></span><h3>{title}</h3>{children}</div>;
 }
-export function NutritionRow({value}:{value:Nutrients}) {
+export function NutritionRow({value,targets}:{value:Nutrients;targets?:Targets}) {
   return <div className="nutrition-row">{([['kcal','能量','千卡'],['protein','蛋白质','克'],['carbs','碳水','克'],['fat','脂肪','克'],['fiber','膳食纤维','克']] as const)
-    .map(([key,label,unit])=><div key={key}><span>{label}</span><b className="unit"><strong>{integer(value[key])}</strong><small> {unit}</small></b></div>)}</div>;
+    .map(([key,label,unit])=><div key={key}><span>{label}</span><b className="unit"><strong>{integer(value[key])}</strong><small> {unit}</small></b>{targets&&<small className="macro-target">目标 {integer(targets[key])} {unit}</small>}</div>)}</div>;
 }
 export function prepStorage(recipe:Recipe) {
   if (!recipe.batch) return '按包装说明储存，洗切或组合后尽快吃完。';
@@ -33,14 +34,14 @@ export function RecipeInfo({recipe,value,products}:{recipe:Recipe;value?:Serving
   const extraMinutes=products?conversions.reduce((t,r)=>t+r.minutes,0):0;
   const allergy=value ? [...new Set(value.ingredients.flatMap(i=>foodMap.get(i.id)?.allergens??[]))] : categoriesOf(recipe);
   return <div className="recipe-info">
-    <p className="meta">{recipe.cuisine} · {recipe.flavor} · {recipe.skill} · <span className="unit">约 {recipe.prep+recipe.cook+extraMinutes} 分钟</span></p>
+    <p className="recipe-meta meta"><Icon name="clock" size={16}/>{recipe.cuisine} · {recipe.flavor} · {recipe.skill} · <span className="unit">约 {recipe.prep+recipe.cook+extraMinutes} 分钟</span></p>
     <NutritionRow value={current.nutrients}/>
     <h4>单人用量</h4><ul className="ingredients">{current.ingredients.map(i=>{
       const f=foodMap.get(i.id);
       return <li key={i.id}><span>{f?.name??i.id} <small>{f?foodState[f.state]:''}</small></span><strong>{decimal(i.grams)} 克</strong></li>;
     })}</ul>
     <div className="hint"><strong>厨具</strong> {recipe.tools.join('、')||'无需加热设备'}<br/><strong>过敏原</strong> {allergy.join('、')||'配方未含标注的过敏原'}。预包装食材需核对标签及交叉接触提示。</div>
-    <h4>制作步骤</h4>{products&&conversions.length>0&&<p className="meta">未备好熟料时，先完成下列自制步骤。</p> }<ol>{[...conversions.filter(()=>products!==undefined).map(rule=>rule.steps),...recipe.steps].map(step=><li key={step}>{step}</li>)}</ol>
+    <h4>制作步骤</h4>{products&&conversions.length>0&&<p className="meta">未备好熟料时，先完成下列自制步骤。</p> }<ol className="recipe-steps">{[...conversions.filter(()=>products!==undefined).map(rule=>rule.steps),...recipe.steps].map(step=><li key={step}>{step}</li>)}</ol>
     <p className="meta">备料 {recipe.prep} 分钟 · 烹制 {recipe.cook} 分钟。放大份量时分批烹调，按实际熟度确认。</p>
     <h4>储存与复热</h4><p>{prepStorage(recipe)}</p>
     {alternativeRecipes(recipe).length>0&&<details><summary>同类食谱备选</summary><p>{alternativeRecipes(recipe).map(r=>r.name).join('、')}。在当前食谱使用换菜时会重新校验。</p></details>}
