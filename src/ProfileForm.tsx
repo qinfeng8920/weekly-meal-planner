@@ -1,6 +1,8 @@
 import {useState, type ReactNode} from 'react';
 import {allergens, conditions, cuisines, equipment, initialProfile, screening, type Profile} from './profile';
 import {foods} from './catalog';
+import {foodClass} from './catalog-taxonomy';
+import {searchMatches} from './catalog-search';
 import {between} from './nutrition';
 
 type TextKey = {[K in keyof Profile]-?:Profile[K] extends string?K:never}[keyof Profile];
@@ -11,13 +13,15 @@ const preferences: [ArrayKey,string,string[]][] = [
   ['protein','蛋白质',['鸡胸肉','鸡腿肉','牛肉','猪肉','鱼肉','虾','鸡蛋','豆腐','牛奶','无糖酸奶']],
   ['starch','主食',['米饭','糙米杂粮饭','燕麦','红薯','土豆','玉米','面条','馒头','全麦面包']],
   ...([['vegetables','蔬菜','蔬菜'],['fruits','水果','水果'],['nuts','坚果与种子','坚果种子'],['seasonings','调味品','调味品']] as const)
-    .map(([key,label,category]): [ArrayKey,string,string[]]=>[key,label,foods.filter(f=>f.category===category).map(f=>f.name)]),
+    .map(([key,label,category]): [ArrayKey,string,string[]]=>[key,label,foods.filter(f=>
+      f.category===category&&(key!=='vegetables'||foodClass(f).group!=='调味料')).map(f=>f.name)]),
 ];
 export function ProfileForm({value,onSave,onCancel}:{value:Profile|null;onSave:(p:Profile)=>Promise<boolean>;onCancel:()=>void}) {
   const [p,set]=useState<Profile>(()=>structuredClone(value??initialProfile));
   const [step,setStep]=useState(0);
   const [error,setError]=useState('');
   const [saving,setSaving]=useState(false);
+  const [preferenceQuery,setPreferenceQuery]=useState(''),[preferenceLimits,setPreferenceLimits]=useState<Record<string,number>>({});
   function patch<K extends keyof Profile>(key:K,value:Profile[K]) {set(before=>({...before,[key]:value}));setError('');}
   const text=(key:TextKey,label:string,type='text',placeholder='')=><label className="field" key={key}>{label}<input
     type={type} inputMode={type==='number'?'decimal':undefined} step={type==='number'?'any':undefined}
@@ -69,7 +73,17 @@ export function ProfileForm({value,onSave,onCancel}:{value:Profile|null;onSave:(
     </>}
     {step===3&&<>
       {multi('cuisines','喜欢的菜系',cuisines)}
-      {preferences.map(([key,label,options])=><details className="group-fold" key={key}><summary>{label}{p[key].length?(' · 已选 '+p[key].length):''}</summary>{multi(key,label,options)}</details>)}
+      <label className="field">搜索偏好食材<input type="search" value={preferenceQuery} onChange={e=>{
+        setPreferenceQuery(e.target.value);setPreferenceLimits({});
+      }}/></label>
+      {preferences.map(([key,label,options])=>{
+        const matches=options.filter(name=>searchMatches([name,...(foods.find(f=>f.name===name)?.aliases??[])],preferenceQuery));
+        const limit=preferenceLimits[key]??16;
+        return <details className="group-fold" key={key}><summary>{label}{p[key].length?(' · 已选 '+p[key].length):''}</summary>
+          {matches.length?multi(key,label,matches.slice(0,limit)):<p className="meta">当前分类没有匹配项。</p>}
+          {matches.length>limit&&<button onClick={()=>setPreferenceLimits({...preferenceLimits,[key]:limit+16})}>显示更多{label}</button>}
+        </details>;
+      })}
       {text('preferred','自定义偏好，用顿号分隔')}
       {grids(select('fruit','水果',['正常摄入','优先低糖水果','自定义摄入量','不吃水果']),
         p.fruit==='自定义摄入量'?text('fruitGrams','每日水果克数','number'):null,

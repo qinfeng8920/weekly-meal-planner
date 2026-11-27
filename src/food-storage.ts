@@ -1,7 +1,7 @@
 import {food} from './catalog';
 
-export const leafyFoods=new Set(['napa','bok','spinach','romaine','kale','mustard','watercress','arugula','leek']);
-export const riceFoods=new Set(['rice','brown','cookedbrown']);
+export const leafyFoods=new Set(['napa','bok','spinach','romaine','kale','mustard','watercress','arugula','leek','amaranthleaf','butterlettuce','redlettuce','chard','collards','mungsprout']);
+export const riceFoods=new Set(['rice','brown','cookedbrown','sticky']);
 export function rawSeafood(id:string) {
   const f=food(id);
   return f.category==='鱼虾'&&f.state==='raw';

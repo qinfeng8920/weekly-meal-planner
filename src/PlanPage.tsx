@@ -1,11 +1,13 @@
+import {ReplacementPanel} from './ReplacementPanel';
+import type {PriceBook} from './prices';
 import {WithdrawalControl} from './InventoryInputs';
 import type {PrepJob} from './logistics';
 import type {Execution} from './execution';
 import {useState} from 'react';
 import {foodMap,foodState} from './catalog';
-import {algorithmVersion,dayNutrition,executionLocked,substitutionOptions,type Change,type Plan,type Lock} from './planner';
+import {algorithmVersion,dayNutrition,executionLocked,type Change,type Plan,type Lock} from './planner';
 import {cookingRule,usesNamedBreakfast} from './cooking-profile';
-import {mealPreference,type MealName,type Profile} from './profile';
+import {dateKey,mealPreference,type MealName,type Profile} from './profile';
 import {breakfastMenus,labels} from './meal-catalog';
 import {nutritionReview} from './diet-check';
 
@@ -15,7 +17,7 @@ import type {WeeklyIngredientPool} from './ingredient-pool';
 import {PoolOverview} from './PoolPage';
 import {dateLabel,decimal,Empty,NutritionRow,RecipeInfo,SectionTitle} from './ui';
 
-type Props = {plan:Plan|null;profile:Profile|null;busy:boolean;stale:boolean;products?:PurchaseOptions;livePool?:WeeklyIngredientPool;stock?:ReadonlyMap<string,number>;blocked?:string[];day:number;setDay:(n:number)=>void;
+type Props = {plan:Plan|null;profile:Profile|null;busy:boolean;stale:boolean;products?:PurchaseOptions;prices?:PriceBook;livePool?:WeeklyIngredientPool;stock?:ReadonlyMap<string,number>;blocked?:string[];day:number;setDay:(n:number)=>void;
   locks:Lock[];favorites:string[]; generate:()=>void;editProfile:()=>void; openHistory:()=>void;
   change:(pos:Change)=>void; lock:(lock:Lock)=>void; favorite:(id:string)=>void;block:(id:string)=>void;
   revise:(day:number,meal:number,dish:number,grams:number[])=>Promise<boolean>;
@@ -24,12 +26,13 @@ type Props = {plan:Plan|null;profile:Profile|null;busy:boolean;stale:boolean;pro
 export function PlanPage(props:Props) {
   const {plan,profile,day,setDay,busy,stale,locks,favorites,generate,editProfile,openHistory,change,lock,favorite,block,revise,save,share,exportText,readonly,products}=props;
   const [open,setOpen]=useState('');
-  const [alternative,setAlternative]=useState('');
+  const [alternative,setAlternative]=useState<{key:string;mode:Change['swapMode']}|null>(null);
   const [grams,setGrams]=useState<string[]|null>(null);
   const pool=readonly?plan?.pool:props.livePool??plan?.pool;
   const current=plan?.days[day];
   const n=current?dayNutrition(current):null;
   const readonlyOrStale=readonly||stale;
+  const elapsed=Boolean(plan&&addDays(plan.start,day)<dateKey());
   const dayExecuted=Boolean(plan&&executionLocked(plan,props.execution,day));
   const legacy=plan&&plan.algorithmVersion!==algorithmVersion;
   const selectedBreakfast=breakfastMenus.find(m=>m.id===profile?.fixedBreakfast);
@@ -44,8 +47,8 @@ export function PlanPage(props:Props) {
       {legacy&&<p className="hint">这是旧版本生成的食谱，原菜谱和历史记录继续保留。</p>}
       {stale&&!legacy&&<p className="hint" role="status">个人档案、体重或屏蔽设置已更新。当前展示保存时的计划。若要调整，请先生成新方案。</p>}
       <div className="day-tabs" aria-label="选择星期">{dates.map((name,i)=><button aria-pressed={day===i} key={name}
-        onClick={()=>{setDay(i);setOpen('');setGrams(null);}}><span>{name.split(' ')[0]}</span><small>{name.split(' ')[1]}</small></button>)}</div>
-      <section className="card"><SectionTitle title={dates[day]+' 营养'}>{!readonlyOrStale&&<button className="small" disabled={busy||dayExecuted} onClick={()=>change({day})}>换一天</button>}</SectionTitle>
+        onClick={()=>{setDay(i);setOpen('');setAlternative(null);setGrams(null);}}><span>{name.split(' ')[0]}</span><small>{name.split(' ')[1]}</small></button>)}</div>
+      <section className="card"><SectionTitle title={dates[day]+' 营养'}>{!readonlyOrStale&&<button className="small" disabled={busy||elapsed||dayExecuted} onClick={()=>change({day})}>换一天</button>}</SectionTitle>
         <NutritionRow value={n}/>
         {nutritionReview([current]).some(r=>['低于','高于','数据不全'].some(v=>r.status.includes(v)))&&
           <p className="hint">部分微量营养指标需关注，展开查看。</p>}
@@ -59,41 +62,35 @@ export function PlanPage(props:Props) {
         const mealExecuted=executionLocked(plan,props.execution,day,mi);
         const eaten=jobs.length>0&&jobs.every(job=>job.key&&props.execution?.tasks?.[job.key]?.eaten);
         return <section className="card meal-card" key={meal.name}>
-        <SectionTitle title={meal.name}>{!readonlyOrStale&&<button className="small" disabled={busy||fixedMeal||mealExecuted} onClick={()=>change({day,meal:mi})}>换一餐</button>}</SectionTitle>
+        <SectionTitle title={meal.name}>{!readonlyOrStale&&<button className="small" disabled={busy||elapsed||fixedMeal||mealExecuted} onClick={()=>change({day,meal:mi})}>换一餐</button>}</SectionTitle>
         {mealExecuted&&!readonly&&<p className="meta">已执行的菜品已锁定。</p>}
         {fixedMeal&&<p className="meta">已固定搭配</p>}
         {meal.dishes.map((s,di)=>{
           const key=mi+':'+di,locked=locks.some(l=>l.day===day&&l.meal===mi&&l.dish===di),fav=favorites.includes(s.recipe.id);
-          const options=alternative===key&&open===key&&!readonly&&!stale&&profile?
-            substitutionOptions(s.recipe,profile,name,pool?.settings,props.stock??new Map(),props.blocked??[],products):[];
           const executed=executionLocked(plan,props.execution,day,mi,di);
-          const cannotSwap=busy||locked||executed||fixedMeal&&labels(s.recipe).slot!=='水果'||meal.name==='早餐'&&usesNamedBreakfast(plan.profile,day)&&di<(selectedBreakfast?.recipes.length??1);
+          const cannotSwap=busy||elapsed||locked||executed||fixedMeal&&labels(s.recipe).slot!=='水果'||meal.name==='早餐'&&usesNamedBreakfast(plan.profile,day)&&di<(selectedBreakfast?.recipes.length??1);
           return <div className="dish-wrap" key={key}><div className="dish">
-            <div><button className="dish-title" aria-expanded={open===key} onClick={()=>{setOpen(open===key?'':key);setAlternative('');setGrams(null);}}>{s.recipe.name}</button>
+            <div><button className="dish-title" aria-expanded={open===key} onClick={()=>{setOpen(open===key?'':key);setAlternative(null);setGrams(null);}}>{s.recipe.name}</button>
               <div className="meta">{Math.round(s.nutrients.kcal)} 千卡{!readonly&&(executed?' · 已执行 · 已锁定':locked?' · 已锁定':'')}</div><p className="meta dish-ingredients">{s.ingredients.map(i=>{const f=foodMap.get(i.id);return <span key={i.id}>{f?.name??i.id} <span className="unit">{decimal(i.grams)} 克</span> <small>{f?foodState[f.state]:''}</small></span>;})}</p></div>
-            {!readonlyOrStale&&<button className="small" disabled={cannotSwap} onClick={()=>change({day,meal:mi,dish:di})}>换{labels(s.recipe).slot}</button>}</div>
+            {!readonlyOrStale&&<button className="small" disabled={cannotSwap} onClick={()=>setAlternative(alternative?.key===key?null:{key,mode:'换食材'})}>换{labels(s.recipe).slot}</button>}</div>
             {open===key&&<><RecipeInfo recipe={s.recipe} value={s} products={readonly?undefined:products??{}}/>
               {s.recipe.replacements?.map(row=><p className="meta" key={row.from}>{foodMap.get(row.from)?.name} → {foodMap.get(row.to)?.name} · 已按实际配方计算</p>)}
               {!readonly&&<div className="actions">
                 <button aria-pressed={fav} onClick={()=>favorite(s.recipe.id)}>{fav?'取消收藏':'收藏菜谱'}</button>
                 <button onClick={()=>block(s.recipe.id)}>屏蔽菜品</button>
-                {!stale&&<><button disabled={cannotSwap} onClick={()=>setAlternative(alternative===key?'':key)}>更换同类食材</button>
+                {!stale&&<><button disabled={cannotSwap} onClick={()=>setAlternative(alternative?.key===key?null:{key,mode:'换做法'})}>换做法</button>
                   <button disabled={executed} aria-pressed={locked} onClick={()=>lock({day,meal:mi,dish:di,serving:s})}>{locked?'解除锁定':'锁定这道菜'}</button>
                   <button disabled={locked||executed} onClick={()=>setGrams(grams?null:s.ingredients.map(i=>String(i.grams)))}>调整克数</button></>}
-              </div>}
-              {alternative===key&&!executed&&!readonly&&!stale&&!cannotSwap&&<div className="hint">
-                {options.length?<label className="field">选择替代做法<select value="" onChange={e=>{
-                  if(e.target.value){setAlternative('');change({day,meal:mi,dish:di,intent:'更换同类食材',replacement:e.target.value});}
-                }}><option value="">请选择</option>{options.map(recipe=>{
-                  const have=recipe.ingredients.filter(item=>item.grams>=1&&props.stock?.get(item.id)).map(item=>foodMap.get(item.id)?.name);
-                  const further=recipe.replacements?.map(row=>foodMap.get(row.to)?.name).join('、');
-                  return <option key={recipe.id} value={recipe.id}>{recipe.name}{further?'（'+further+'）':''}{have.length?' · 家中有 '+have.join('、'):''}</option>;
-                })}</select></label>:<p>当前偏好、厨具或锁定食材下暂无已审核的做法。</p>}
               </div>}
               {grams&&!executed&&<div className="hint"><div className="fields">{s.ingredients.map((i,index)=><label className="field" key={i.id}>{foodMap.get(i.id)?.name??i.id}（克）
                 <input type="number" step=".01" value={grams[index]} onChange={e=>setGrams(grams.map((g,j)=>j===index?e.target.value:g))}/></label>)}</div>
                 <button className="primary" onClick={()=>void revise(day,mi,di,grams.map(Number)).then(ok=>{if(ok)setGrams(null);})}>验证并应用</button></div>}
             </>}
+            {alternative?.key===key&&!readonlyOrStale&&profile&&<ReplacementPanel key={key+s.recipe.id+alternative.mode}
+              current={s} other={meal.dishes.filter((_,i)=>i!==di)} profile={profile} meal={name} settings={pool?.settings}
+              used={new Set(pool?.used.map(i=>i.id))} stock={props.stock??new Map()} blocked={props.blocked??[]} prices={props.prices}
+              products={products} busy={busy} initialMode={alternative.mode} apply={value=>change({day,meal:mi,dish:di,...value})}
+              close={()=>setAlternative(null)}/>}
           </div>;
         })}
         {!readonly&&jobs.length>0&&props.completeMeal&&(eaten?<div className="actions"><span className="meta">本餐已完成</span>{props.undoMeal&&

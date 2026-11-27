@@ -2,7 +2,7 @@ import {food, type Recipe} from './catalog';
 import {labels} from './meal-catalog';
 
 const equivalent:Record<string,string>={
-  yogurt:'yogurt',greek:'yogurt',eggwhite:'egg',boiledegg:'egg',cookedchicken:'chicken',
+  yogurt:'yogurt',greek:'yogurt',greek0:'yogurt',eggwhite:'egg',boiledegg:'egg',cookedchicken:'chicken',
   softtofu:'tofu',cookedsweet:'sweet',cookedcorn:'corn',cookedbrown:'brown',asianpear:'pear',
   yellowpepper:'redpepper',
 };
@@ -53,7 +53,7 @@ function describeRecipe(recipe:Recipe) {
     if(m.subtype==='酸奶'&&grams>=Math.max(55,total*.30)) core.push(m);
   }
   const exclusion=core.flatMap(i=>{
-    if(i.standardId==='chicken'||i.standardId==='thigh') return [i.exclusion,'肉类:鸡肉'];
+    if(['chicken','thigh','drumstick','gizzard','chickenheart'].includes(i.standardId)) return [i.exclusion,'肉类:鸡肉'];
     return i.exclusion?[i.exclusion]:[];
   });
   return {core:[...new Set(core.map(i=>i.standardId))],types:[...new Set(core.map(i=>i.subtype))],
@@ -90,4 +90,8 @@ export function overlapPenalty(recipes:Recipe[]) {
 export function sameFood(a:Recipe,b:Recipe) {
   const x=recipeMeaning(a),y=recipeMeaning(b);
   return x.role===y.role && x.exclusion.some(group=>y.exclusion.includes(group));
+}
+
+export function coreSignature(recipe:Recipe) {
+  return [...recipeMeaning(recipe).core].sort().join('|');
 }

@@ -158,7 +158,7 @@ test('唯一生成设置保留固定早餐、资料筛选和营养详情',async(
   await page.getByText('全周日均营养检查',{exact:true}).click();
   await expect(page.locator('details[open]').filter({has:page.getByText('全周日均营养检查',{exact:true})}).getByText('参考值 800 毫克',{exact:true})).toBeVisible();
   await nav(page,'我的').click();
-  await page.getByRole('button',{name:'菜谱库与收藏'}).click();
+  await page.getByRole('button',{name:'食谱大全'}).click();
   await page.getByRole('button',{name:'早餐搭配',exact:true}).click();
   await expect(page.getByRole('heading',{name:/43 套早餐搭配/})).toBeVisible();
   await assertFit(page);
@@ -493,7 +493,7 @@ test('逐页检查手机的三个宽度、两种主题和常用操作',async({pa
   await expect(page.getByText('已保存到历史方案。')).toBeVisible();
   const routes=[
     ['编辑档案','编辑个人档案'],
-    ['菜谱库与收藏','菜谱库'],
+    ['食谱大全','食谱大全'],
     ['家中库存','库存'],
     ['食材价格','食材价格'],
     [/^历史方案 ·/,'历史方案'],
@@ -602,10 +602,10 @@ test('菜谱详情手动选库存中的替代油后同步实际配方和采购',
   await page.locator('.day-tabs button').nth(dish!.d).click();
   const row=page.locator('.meal-card').nth(dish!.m).locator('.dish-wrap').nth(dish!.i);
   await row.locator('.dish-title').click();
-  await row.getByRole('button',{name:'更换同类食材',exact:true}).click();
-  const option=dish!.row.recipe.id+'--olive';
-  await expect(row.locator('option').filter({hasText:/橄榄油.*家中有/}).first()).toBeAttached();
-  await row.getByLabel('选择替代做法').selectOption(option);
+  await row.getByRole('button',{name:'换做法',exact:true}).click();
+  await row.getByRole('searchbox',{name:'搜索替换候选'}).fill('橄榄油');
+  page.once('dialog',dialog=>dialog.accept());
+  await row.locator('.replacement-row').filter({hasText:dish!.row.recipe.name}).filter({hasText:'橄榄油'}).getByRole('button',{name:'选择此项'}).first().click();
   await expect(page.getByText(/调整完成，已同步采购和备餐/)).toBeVisible();
   await expect(row.locator('.dish-ingredients')).toContainText('橄榄油');
   await expect(row.locator('.dish-ingredients')).not.toContainText('菜籽油');
@@ -659,4 +659,63 @@ test('大字号采购行的食材、部分购买状态、长规格和详情互�
   }
   await row.getByRole('button',{name:'详情',exact:true}).click();
   await expect(row.getByText(/净需求/).filter({visible:true}).first()).toBeVisible();
+});
+
+test('食谱大全和原材料大全分开浏览，支持拼音、分页、价格编辑及手机布局',async({page})=>{
+  await setup(page);
+  await nav(page,'我的').click();
+  await page.getByRole('button',{name:'原材料大全',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'原材料大全',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'下一页'}).click();
+  await expect(page.getByText(/第 2 \/ /)).toBeVisible();
+  await page.getByRole('searchbox',{name:'搜索原材料'}).fill('shengnvguo');
+  await page.getByText('红色小番茄',{exact:true}).click();
+  await expect(page.getByText(/圣女果、樱桃番茄/)).toBeVisible();
+  await expect(page.getByRole('link',{name:'查看营养原始条目'})).toHaveAttribute('href',/mext\.go\.jp/);
+  await page.getByRole('button',{name:'修改价格',exact:true}).click();
+  await page.getByLabel('单价（元）').fill('19');
+  await page.getByRole('button',{name:'保存此食材价格'}).click();
+  await expect(page.getByText('食材价格已保存。')).toBeVisible();
+  await expect(page.getByText(/¥19\.00\/斤 · 净重 · 用户自定义/)).toBeVisible();
+  await page.getByRole('button',{name:/查看 .* 道相关菜谱/}).click();
+  await expect(page.getByRole('heading',{name:'食谱大全'})).toBeVisible();
+  await expect(page.getByRole('searchbox',{name:'搜索菜谱'})).toHaveValue('红色小番茄');
+  await expect(page.getByText('小番茄凉拌黄瓜',{exact:true})).toBeVisible();
+  for(const width of [360,390,430]){
+    await page.setViewportSize({width,height:860});
+    await assertFit(page);
+  }
+  await page.getByRole('searchbox',{name:'搜索菜谱'}).fill('');
+  await page.getByRole('button',{name:'下一页'}).click();
+  await expect(page.getByText(/第 2 \/ /)).toBeVisible();
+  await expect(page.getByRole('navigation',{name:'主导航'}).getByRole('button')).toHaveCount(4);
+});
+
+test('指定固定橙子，候选排除同水果，明确选择后同步食谱和采购',async({page})=>{
+  await setup(page);
+  await page.getByRole('button',{name:'生成设置',exact:true}).click();
+  await page.getByLabel('每周水果').selectOption('每周固定一种');
+  await page.getByLabel('搜索固定水果').fill('chengzi');
+  await page.getByRole('combobox',{name:'固定水果',exact:true}).selectOption('orange');
+  await page.getByRole('button',{name:'按设置生成'}).click();
+  await expect(page.getByText('七天食谱已生成。')).toBeVisible({timeout:12000});
+  await page.getByRole('button',{name:'换水果',exact:true}).click();
+  const panel=page.getByRole('region',{name:'智能替换选择'});
+  const search=panel.getByRole('searchbox',{name:'搜索替换候选'});
+  await search.fill('橙子');
+  await expect(panel.locator('.replacement-row')).toHaveCount(0);
+  await expect(panel.getByText(/暂无其他符合条件/)).toBeVisible();
+  await search.fill('猕猴桃');
+  for(const width of [360,390,430]){
+    await page.setViewportSize({width,height:860});
+    await assertFit(page);
+  }
+  const candidate=panel.locator('.replacement-row').filter({hasText:/猕猴桃/}).filter({hasNotText:/黄心/}).first();
+  await expect(candidate).toBeVisible();
+  page.once('dialog',dialog=>dialog.accept());
+  await candidate.getByRole('button',{name:'选择此项'}).click();
+  await expect(page.getByText(/调整完成，已同步采购和备餐/)).toBeVisible();
+  await expect(page.locator('.dish-ingredients').filter({hasText:/猕猴桃/})).toBeVisible();
+  await nav(page,'采购').click();
+  await expect(page.getByText(/猕猴桃/).first()).toBeAttached();
 });

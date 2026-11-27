@@ -6,12 +6,13 @@ import {createRequire} from 'node:module';
 import assert from 'node:assert/strict';
 const repo=fileURLToPath(new URL('../',import.meta.url));
 const [oldDist,screenshotDirectory,mode]=process.argv.slice(2);
-const ingredients=mode==='--ingredients';
-const previousVersion=ingredients?'2.3.0':'2.2.1';
-const currentVersion=ingredients?'2.3.1':'2.3.0';
-const latestAlgorithm=ingredients?'2.3.1':'2.3.0';
-const prefix=ingredients?'v231':'v23';
-if(!oldDist||!screenshotDirectory)throw Error('用法 node scripts/verify-v23-upgrade.mjs <旧版 dist> <截图目录> [--ingredients]');
+const v24=mode==='--v24';
+const ingredients=mode==='--ingredients'||v24;
+const previousVersion=v24?'2.3.2':ingredients?'2.3.0':'2.2.1';
+const currentVersion=v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
+const latestAlgorithm=v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
+const prefix=v24?'v24':ingredients?'v231':'v23';
+if(!oldDist||!screenshotDirectory)throw Error('用法 node scripts/verify-v23-upgrade.mjs <旧版 dist> <截图目录> [--ingredients|--v24]');
 const output=resolve(screenshotDirectory);
 await mkdir(output,{recursive:true});
 const {chromium,devices,expect}=createRequire(repo+'/package.json')('@playwright/test');
@@ -52,7 +53,7 @@ try {
  await page.getByText('固定搭配与随机种子',{exact:true}).click();
  await page.getByLabel('随机种子（选填）').fill('采购验收');
  await page.getByRole('button',{name:'按设置生成',exact:true}).click();
- await expect(page.getByText('算法 '+(ingredients?'2.3.0':'2.2.0'),{exact:false})).toBeVisible();
+ await expect(page.getByText('算法 '+(v24?'2.3.1':ingredients?'2.3.0':'2.2.0'),{exact:false})).toBeVisible();
 
  await nav('采购').click();
  await page.getByRole('checkbox').first().click();
@@ -129,6 +130,23 @@ try {
  assert.equal(after.plan.algorithmVersion,latestAlgorithm);
  assert.deepEqual(after.plan.days[0].meals[0],before.plan.days[0].meals[0]);
  for(const key of ['history','profile','weights','pantry','favorites','supply'])assert.deepEqual(after[key],before[key],key);
+ if(v24){
+   await nav('我的').click();
+   await page.getByRole('button',{name:'原材料大全',exact:true}).click();
+   await page.getByRole('searchbox',{name:'搜索原材料'}).fill('huolongguo');
+   await expect(page.getByText('火龙果',{exact:true})).toBeVisible();
+   for(const width of [360,390,430]){
+      await page.setViewportSize({width,height:850});
+      assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+      await snap(prefix+'-ingredients-'+width);
+   }
+   await page.getByRole('button',{name:'返回我的'}).click();
+   await page.getByRole('button',{name:'食谱大全',exact:true}).click();
+   await expect(page.getByRole('heading',{name:'食谱大全',exact:true})).toBeVisible();
+   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+   await snap(prefix+'-library-430');
+   await page.setViewportSize({width:390,height:850});
+ }
  await nav('采购').click();
  await snap(prefix+'-purchase-390');
  await page.getByRole('button',{name:'备餐清单',exact:true}).click();

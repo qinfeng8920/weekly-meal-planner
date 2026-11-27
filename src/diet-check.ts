@@ -1,9 +1,9 @@
 import {sum,type Nutrients} from './nutrition';
 import {food} from './catalog';
+import {foodClass} from './catalog-taxonomy';
 import type {Day} from './shopping';
 
 export const calciumCeiling=2000;
-const oils=new Set(['canola','olive','peanutoil','sesameoil']);
 
 export const reference = {
   calcium:{label:'钙',amount:800,unit:'毫克',max:false},
@@ -15,6 +15,12 @@ export const reference = {
 };
 export function dailyIntake(day:Day) {
   return sum(day.meals.flatMap(meal=>meal.dishes.map(s=>s.nutrients)));
+}
+export function sodiumUpperBound(day:Day) {
+  return day.meals.flatMap(meal=>meal.dishes.flatMap(row=>row.ingredients)).reduce((total,item)=>{
+    const f=food(item.id);
+    return total+(f.nutrients.sodium??f.sodiumUpperBound??Infinity)*item.grams/100;
+  },0);
 }
 export function nutritionReview(days:Day[]) {
   const values=days.map(day=>{
@@ -30,7 +36,7 @@ export function nutritionReview(days:Day[]) {
     return {...ref,key,value:amount,goal:ref.amount,missing:days.length-complete.length,
       status:amount===null?'数据不全':key==='calcium'&&amount>calciumCeiling?'高于参考上限':(ref.max?amount>ref.amount:amount<ref.amount)?(ref.max?'高于参考':'低于参考'):'达到参考'};
   });  const oil=days.length?days.flatMap(d=>d.meals.flatMap(m=>m.dishes.flatMap(s=>s.ingredients)))
-    .filter(i=>oils.has(i.id)).reduce((n,i)=>n+i.grams,0)/days.length:null;
+    .filter(i=>foodClass(food(i.id)).group==='食用油').reduce((n,i)=>n+i.grams,0)/days.length:null;
   return [...rows,{key:'oil' as const,label:'食用油',amount:30,goal:30,unit:'克',max:true,value:oil,missing:0,
     status:oil===null?'数据不全':oil>30?'高于参考':'未超参考上限'}];
 }

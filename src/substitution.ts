@@ -20,20 +20,21 @@ export const directRules:Rule[]=[
 export type Replacement={from:string;to:string;rule:string};
 
 const conditionalGroups=[
-  ['禽肉',['chicken','thigh','turkey','cookedchicken']],
-  ['去骨白肉鱼',['tilapia','bass','cod']],
+  ['禽肉',['chicken','thigh','turkey','cookedchicken','drumstick']],
+  ['去骨白肉鱼',['tilapia','bass','cod','haddock','halibut','catfish']],
   ['脂肪较高的鱼',['salmon','trout','mackerel']],
   ['全蛋做法',['egg','boiledegg']],
   ['鲜豆腐',['tofu','softtofu']],
-  ['原味无糖酸奶',['greek','yogurt']],
-  ['干谷物独立主食',['rice','brown','millet','quinoa','buckwheat','barley']],
+  ['原味无糖酸奶',['greek','yogurt','greek0']],
+  ['干谷物独立主食',['rice','brown','millet','quinoa','buckwheat','barley','sticky']],
   ['薯类及玉米主食',['sweet','potato','corn','cookedsweet','cookedcorn']],
-  ['叶菜',['bok','napa','romaine','spinach','kale','mustard','arugula','watercress']],
+  ['叶菜',['bok','napa','romaine','spinach','kale','mustard','arugula','watercress','chard','butterlettuce','redlettuce','collards']],
   ['花球蔬菜',['broccoli','cauliflower']],
+  ['凉拌番茄',['tomato','cherrytomato']],
   ['同用途彩椒',['redpepper','yellowpepper']],
-  ['鲜菌菇',['shiitake','whitefungi','oystermushroom','enoki']],
-  ['整果',['apple','pear','asianpear','orange','mandarin','kiwi','peach','banana','strawberry','blueberry','grape','plum','watermelon','melon','pineapple','mango','papaya','pomegranate','apricot','fig']],
-  ['原味树坚果',['almond','walnut','cashew','pistachio','hazelnut']],
+  ['鲜菌菇',['shiitake','whitefungi','oystermushroom','enoki','crimini','maitake']],
+  ['整果',['apple','pear','asianpear','orange','mandarin','kiwi','peach','banana','strawberry','blueberry','grape','plum','pitaya','bayberry','watermelon','melon','pineapple','mango','papaya','pomegranate','apricot','fig','pomelo','raspberry','sapodilla','goldkiwi','lychee','longan','passionfruit','loquat','mulberry','persimmon','sweetcherry','guava','blackberry','redcurrant','jackfruit']],
+  ['原味树坚果',['almond','walnut','cashew','pistachio','hazelnut','pecan','macadamia','pinenut']],
 ] as const;
 const roles=new Map<string,string>(conditionalGroups.flatMap(([group,ids])=>ids.map(id=>[id,group])));
 export function conditionalPair(from:string,to:string) {

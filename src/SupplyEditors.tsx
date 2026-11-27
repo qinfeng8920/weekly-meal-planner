@@ -1,3 +1,5 @@
+import {foodClass,foodGroups} from './catalog-taxonomy';
+import {searchMatches} from './catalog-search';
 import {useState} from 'react';
 import {food,foods,foodState} from './catalog';
 import {addDays,patternOptions,prepPeriods,shoppingOffsets,splitWeek,type ShoppingSchedule,type SupplySettings} from './batches';
@@ -12,7 +14,7 @@ import type {Profile} from './profile';
 import type {Pantry} from './shopping';
 import {dateLabel,decimal,SectionTitle} from './ui';
 
-const categories=[...new Set(foods.map(f=>f.category))];
+const categories=foodGroups;
 export const yuan=(amount:number)=>'¥'+amount.toFixed(2);
 export function PriceLabel({id,book,pantry}:{id:string;book:PriceBook;pantry:Pantry}) {
   const price=priceFor(id,book,pantry[id]);
@@ -23,8 +25,8 @@ function FoodSearch({category,query,onCategory,onQuery}:{category:string;query:s
     {categories.map(c=><option key={c}>{c}</option>)}</select></label>
     <label className="field">搜索食材<input type="search" value={query} onChange={e=>onQuery(e.target.value)} placeholder="例如鸡胸肉、酸奶"/></label></div>;
 }
-function matches(category:string,query:string){return (f:typeof foods[number])=>(category==='全部'||f.category===category)&&
-  [f.name,...f.aliases].some(n=>n.includes(query.trim()));}
+function matches(category:string,query:string){return (f:typeof foods[number])=>(category==='全部'||foodClass(f).group===category)&&
+  searchMatches([f.name,...f.aliases],query);}
 export function PriceManager({book,pantry,save,resetAll,exportPrices,importPrices,products,saveProducts}:{
   book:PriceBook;pantry:Pantry;save:(id:string,value?:PriceInput)=>Promise<boolean>;resetAll:()=>void;
   exportPrices:()=>void;importPrices:(file:File)=>void;products?:PurchaseOptions;saveProducts:(products:PurchaseOptions)=>Promise<boolean>;
@@ -104,7 +106,12 @@ export function InventoryManager(props:InventoryProps) {
   const [query,setQuery]=useState(''),[all,setAll]=useState(false),[isAdding,setAdding]=useState(false),[choose,setChoose]=useState(''),[mode,setMode]=useState('实际购买');
   const quantities=balances(ledger), found=foods.filter(matches('全部',query));
   const items=found.filter(f=>all||(quantities.get(f.id)??0)>0);
+  const [choicePage,setChoicePage]=useState(0);
+  const common=['chicken','oats','olive','egg','rice','yogurt','tofu','broccoli','apple','milk'];
+  const order=[...found].sort((a,b)=>Number(common.includes(b.id))-Number(common.includes(a.id)));
+  const pageChoice=order.slice(choicePage*24,choicePage*24+24);
   const entering=foods.find(f=>f.id===choose);
+  if(entering&&!pageChoice.some(f=>f.id===choose))pageChoice.unshift(entering);
   const events=new Map<string,InventoryEvent[]>();
   for(const event of ledger.events) {
     const entries=events.get(event.item)??[];
@@ -119,10 +126,13 @@ export function InventoryManager(props:InventoryProps) {
       <label className="check"><input type="checkbox" checked={all} onChange={e=>setAll(e.target.checked)}/>显示零库存</label>
       {lastClear?.reference&&<button className="small" onClick={()=>void props.undoClear(lastClear.reference!)}>撤销最近清空</button>}
     </div>
-    <label className="field inventory-search">搜索食材<input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="例如鸡胸肉、食盐"/></label>
+    <label className="field inventory-search">搜索食材<input type="search" value={query} onChange={e=>{setQuery(e.target.value);setChoicePage(0);}} placeholder="例如鸡胸肉、食盐"/></label>
     {isAdding&&<section className="inline-editor">
       <label className="field">选择食材<select value={choose} onChange={e=>setChoose(e.target.value)}>
-        <option value="">请选择</option>{found.map(f=><option value={f.id} key={f.id}>{f.name}</option>)}</select></label>
+        <option value="">请选择</option>{pageChoice.map(f=><option value={f.id} key={f.id}>{f.name}</option>)}</select></label>
+      {found.length>24&&<div className="actions"><button disabled={choicePage===0} onClick={()=>setChoicePage(choicePage-1)}>上一页食材</button>
+        <span className="meta">第 {choicePage+1} / {Math.ceil(found.length/24)} 页</span>
+        <button disabled={(choicePage+1)*24>=found.length} onClick={()=>setChoicePage(choicePage+1)}>下一页食材</button></div>}
       <label className="field">登记方式<select value={mode} onChange={e=>setMode(e.target.value)}><option>实际购买</option><option>手动补充</option></select></label>
       {entering&&(mode==='实际购买'?<NewInventoryPurchase key={choose} id={choose} price={priceFor(choose,prices,pantry[choose])}
         save={savePurchase} close={()=>setAdding(false)}/>:<StockEdit key={choose} initial={quantities.get(choose)??0} onlyAdd

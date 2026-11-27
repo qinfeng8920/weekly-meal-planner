@@ -2,10 +2,13 @@ import {buildSubstitutionVariants,recipeBaseId,type Replacement} from './substit
 import {cookingRecipes} from './cooking-recipes';
 import {quickRecipes} from './quick-recipes';
 import data from './foods.json';
+import expansion from './foods-v24.json';
+import mext from './foods-mext-v24.json';
 import {macroKeys, scale, sum, type Nutrients} from './nutrition';
 
-export type Food = typeof data[number];
-export const foods = data;
+export type Food = {id:string;name:string;category:string;fdc?:number;description:string;state:string;
+  allergens:string[];aliases:string[];nutrients:Record<keyof Nutrients,number|null>;sourceUrl?:string;subcategory?:string;sodiumUpperBound?:number};
+export const foods:Food[] = [...data,...expansion,...mext];
 export const foodMap = new Map(foods.map(f=>[f.id,f]));
 export const food = (id: string) => {
   const value = foodMap.get(id);
@@ -13,7 +16,7 @@ export const food = (id: string) => {
   return value;
 };
 export const foodState: Record<string,string> = {raw:'生鲜可食部',dry:'干重',cooked:'熟重',ready:'成品净重',frozen:'冷冻净重'};
-export const catalogVersion = '2026.11-sr4';
+export const catalogVersion = '2026.11-sr5';
 export type Ingredient = {id:string; grams:number};
 export type Group = '蛋白质菜'|'蔬菜'|'主食'|'早餐'|'水果'|'加餐'|'汤类';
 export type Recipe = {
@@ -142,7 +145,83 @@ add('snack-almond','原味杏仁','加餐',items(['almond',20]),[],1,0,['检查�
 add('snack-milk','纯牛奶','加餐',items(['milk',225]),[],1,0,['选巴氏杀菌或灭菌纯牛奶，开封后按包装储存。'],{max:1.33,batch:false});
 
 recipes.push(...quickRecipes,...cookingRecipes);
+const fruitPrep:Record<string,string>={
+  pomelo:'剥去厚皮、内膜和籽，称果肉。',sapodilla:'选已成熟变软的果实，去皮并剔除硬籽。',
+  lychee:'剥壳去核，只称果肉。',longan:'剥壳去核，只称果肉。',passionfruit:'剖开取果浆和籽，果壳丢弃。',
+  pitaya:'对半切开，挖取果肉，外皮弃掉。',bayberry:'去掉果梗，慢慢吃并吐出果核。',
+  loquat:'去皮、去核与内膜，只称果肉。',persimmon:'选成熟无涩味的甜柿，去蒂和种子。',
+  jackfruit:'掰出成熟果苞，剔除核与纤维。',sweetcherry:'摘梗并去核。',guava:'用清洁刀具切片，弃去不食用的硬籽及边角。',
+};
+for(const f of foods.filter(f=>f.category==='水果'&&f.state==='raw'&&f.id!=='quince'&&
+  macroKeys.every(k=>f.nutrients[k]!==null)&&!recipes.some(r=>r.group==='水果'&&r.ingredients.some(i=>i.id===f.id)))) {
+  add('fruit-'+f.id,'鲜食'+f.name,'水果',items([f.id,200]),[],4,0,
+    ['在流动水下洗净果实，使用干净的刀和砧板。',fruitPrep[f.id]??'摘除果梗及不可食部分，按可食净重称量，现做现吃。'],
+    {min:.1,max:1.75,batch:false});
+}
+for(const [id,minutes,prep] of [
+  ['loofah',7,'用不苦的嫩丝瓜去皮并切滚刀块'],['kohlrabi',8,'剥去硬皮，切成薄片'],
+  ['butterlettuce',3,'剥开并洗净菜心，沥干'],['redlettuce',3,'掰开叶片冲洗并切段'],
+  ['crimini',8,'刷净蘑菇，切成厚片'],['lotusroot',12,'莲藕削皮，切成半厘米片'],
+  ['butternut',14,'去皮去籽，切成宽两厘米的薄块'],
+  ['maitake',9,'切除带泥的根部，撕开菌簇'],['mungsprout',6,'冲洗并弃去腐烂豆芽'],
+  ['brussels',9,'剥去老叶，从根部纵切成两半'],['chayote',8,'削皮去籽，切薄片'],
+  ['collards',10,'洗净后抽掉粗梗，把叶片切成短条'],['chard',6,'菜梗与叶片分开洗净切段'],
+] as const) {
+  add('v24-boil-'+id,'清煮'+food(id).name,'蔬菜',items([id,175],['canola',8],['salt',.45]),['煮锅'],6,minutes,
+    [prep+'。','待水沸后下菜，小火保持沸腾。',`约 ${minutes} 分钟检查，煮至全部熟透再捞出，拌油和盐。`]);
+}
+for(const id of ['carp','haddock','halibut','catfish','drumstick','ducklean','porkleg','porkshoulder']) {
+  const f=food(id);
+  const poultry=['drumstick','ducklean'].includes(id);
+  const fish=f.category==='鱼虾';
+  const minutes=fish?10:poultry?15:13;
+  add('v24-steam-'+id,'姜丝蒸'+f.name,'蛋白质菜',items([id,145],['ginger',5],['scallion',6],['canola',8],['salt',.5]),
+    ['蒸锅'],7,minutes,[fish?'用去骨鱼柳，逐片检查残刺，整齐铺盘。':'去骨后切成厚度一致的薄块，生熟案板分开。',
+      '把姜切细丝，与盐一起撒在食材上，沸水上锅。',
+      `约 ${minutes} 分钟后先确认最厚处${poultry?'达到 74°C':fish?'达到 63°C':'达到 63°C 后静置 3 分钟'}。撒葱淋油后食用。`],{cuisine:'粤菜'});
+}
+for(const id of ['quailegg','duckegg','gooseegg']) {
+  const minutes=id==='quailegg'?5:id==='duckegg'?13:18;
+  add('v24-egg-'+id,'水煮'+food(id).name,'蛋白质菜',items([id,100]),['煮锅'],2,minutes,
+    ['新鲜全蛋带壳冷水下锅，水盖过蛋。',`水沸后保持小沸约 ${minutes} 分钟。剥开检查蛋黄与蛋白都凝固，未全熟则继续加热。`]);
+}
+add('v24-cornmeal','玉米面粥','主食',items(['cornmeal',65]),['煮锅'],3,18,
+  ['取约六倍重量的水，留一部分冷水把玉米粉调匀。','其余水煮沸后缓缓倒入粉浆，边倒边搅拌。','小火约 15～18 分钟，经常搅底，煮至均匀稠滑且无生粉味。'],{max:2});
+add('v24-taro','蒸去皮芋头','主食',items(['taro',225]),['蒸锅'],6,22,
+  ['用水刷洗芋头，戴手套削皮，切成大小相近的小块，按生净重称量。','水开后把芋头薄铺于蒸盘，约 22 分钟后用筷子检查。','持续加热至每块中心都软透，再与主菜一起食用。'],{batch:false,max:1.6});
+add('v24-sticky','清蒸糯米饭','主食',items(['sticky',65]),['蒸锅'],4,40,
+  ['糯米洗净，按包装说明提前冷藏浸泡，沥掉泡米水。','沸水上锅蒸，按实际软硬检查米粒中心是否熟透。','用清洁筷子翻松并趁热食用。'],{max:2,batch:false});
+add('v24-soup-lotus','莲藕豆腐汤','汤类',items(['lotusroot',135],['tofu',165],['ginger',5],['salt',.6],['canola',7]),['煮锅'],7,20,
+  ['莲藕削皮切薄片，豆腐切成小块，姜切片。','清水煮沸，放莲藕和姜片，煮至藕片柔软后放豆腐。','继续小火加热至豆腐中心热透，加入油盐，连汤和食材一起食用。'],{cuisine:'粤菜'});
+add('v24-pumpkin-chicken','鸡腿南瓜煲','蛋白质菜',items(['butternut',130],['drumstick',145],['ginger',4],['salt',.55],['canola',8]),['煮锅'],9,20,
+  ['鸡小腿去皮去骨切小块，分开用洁净刀板给南瓜去皮去籽切块。','锅里加油和姜，放鸡肉翻动至表面变色，再加南瓜和少量水盖锅焖煮。','中心达到 74°C 且南瓜软熟后加盐，汤汁随菜食用。'],{cuisine:'粤菜'});
+add('v24-greek0','原味无脂希腊酸奶','加餐',items(['greek0',170]),[],1,0,
+  ['选包装标注无添加糖的原味产品。用干净勺称重，按包装要求冷藏。'],{batch:false});
+for(const id of ['macadamia','pecan','sunflowerseed','pinenut'])
+  add('v24-nut-'+id,food(id).name,'加餐',items([id,20]),[],1,0,
+    ['选无加盐、无糖且包装标注可直接食用的产品，核对过敏提示，按净重称量。'],{batch:false,max:1.2});
+add('v24-tomato-cucumber','小番茄凉拌黄瓜','蔬菜',items(['cherrytomato',100],['cucumber',100],['vinegar',6],['olive',8],['salt',.4]),[],6,0,
+  ['流水清洗小番茄和黄瓜。用清洁砧板把小番茄切四瓣，黄瓜纵切再切块。','临吃时加苹果醋、橄榄油和盐拌匀。'],{batch:false});
+add('v24-mushroom-egg','蘑菇蒸蛋羹','蛋白质菜',items(['crimini',70],['egg',110],['salt',.45],['canola',5]),['蒸锅'],7,18,
+  ['用湿布擦净鲜蘑菇，切薄片，先用浅盘蒸至软熟。','全蛋打散，加入约等重的温水和盐，把蘑菇放入蛋液。','浅碗中继续蒸至中心凝固并达到 71°C，最后淋上菜籽油。'],{cuisine:'粤菜'});
+add('v24-guava-cottage','番石榴茅屋奶酪碗','加餐',items(['guava',75],['cottage2',100]),[],5,0,
+  ['挑成熟番石榴，流水洗净，切去不食用的蒂、硬籽和边角，按净重切丁。','选巴氏杀菌牛奶制作的即食奶酪，按重量加入碗中，现拌现吃。'],{batch:false,cuisine:'西式轻食'});
+add('v24-chayote-tofu','佛手瓜豆腐汤','汤类',items(['chayote',140],['tofu',165],['ginger',4],['canola',7],['salt',.5]),['煮锅'],8,16,
+  ['佛手瓜洗净，削掉外皮，剖开去籽切薄片。豆腐切小块，姜切细片。','把瓜片和姜下入沸水，小火煮到瓜片半透明，加入豆腐煮透。','加油和盐，连汤食用。'],{cuisine:'粤菜'});
+add('v24-white-bean-tomato','小番茄白芸豆煮菜','蛋白质菜',items(['navyready',195],['cherrytomato',120],['olive',8],['salt',.45]),['煮锅'],5,12,
+  ['选无盐且已彻底煮熟的白芸豆，沥去保存液。小番茄流水洗净并切四瓣。','小番茄和油放入锅中，加少量水炖出汁后倒入熟白芸豆。','煮沸后轻压一部分豆子使汤汁浓稠，小火煮透，加盐。'],{cuisine:'西式轻食'});
 export const recipeList = recipes;
+const fruitByIngredient=new Map<string,Recipe[]>();
+for(const recipe of recipes) if(recipe.group==='水果') {
+  const id=recipe.ingredients[0].id;
+  const group=fruitByIngredient.get(id);
+  if(group)group.push(recipe);
+  else fruitByIngredient.set(id,[recipe]);
+}
+export const baseRecipeList=recipes.filter(r=>r.group!=='水果'||fruitByIngredient.get(r.ingredients[0].id)?.[0]===r);
+export function fruitPreparations(recipe:Recipe) {
+  return recipe.group==='水果'?(fruitByIngredient.get(recipe.ingredients[0].id)??[]).filter(r=>r.id!==recipe.id):[];
+}
 export const recipeVariants=new Map(recipes.map(r=>[r.id,[r,...buildSubstitutionVariants(r,food)]]));
 export const recipeMap = new Map([...recipeVariants.values()].flat().map(r=>[r.id,r]));
 export const variantsOf=(recipe:Recipe)=>recipeVariants.get(recipeBaseId(recipe))??[recipe];

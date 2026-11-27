@@ -51,10 +51,10 @@ export function labels(recipe:Recipe):{tags:MealTag[];slot:Slot} {
   const placement=cookingPlacements.get(id);
   if(placement==='早餐套餐') return {tags:['早餐'],slot:'一锅套餐'};
   if(placement==='正餐套餐') return {tags:['午餐','晚餐'],slot:'一锅套餐'};
-  if (breakfastProtein.has(id) || id==='boiled-egg') return {tags:['早餐'],slot:'蛋白质'};
+  if (breakfastProtein.has(id) || id==='boiled-egg'||id==='v24-egg-quailegg'||id==='v24-egg-duckegg'||id==='v24-egg-gooseegg') return {tags:['早餐'],slot:'蛋白质'};
   if (lightSoups.has(id)) return {tags:['午餐','晚餐','通用配菜'],slot:'清汤'};
   switch(recipe.group) {
-    case '主食': return {tags:breakfastStarch.has(id)?['早餐','通用主食']:['通用主食'],slot:'主食'};
+    case '主食': return {tags:(breakfastStarch.has(id)||id==='v24-cornmeal')?['早餐','通用主食']:['通用主食'],slot:'主食'};
     case '早餐': return {tags:['早餐'],slot:'主食'};
     case '蔬菜': return {tags:['通用配菜'],slot:'蔬菜'};
     case '水果': return {tags:['早餐','加餐'],slot:'水果'};

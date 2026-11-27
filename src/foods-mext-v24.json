@@ -1,0 +1,5 @@
+[
+  {"id":"pitaya","sodiumUpperBound":0.5,"name":"火龙果","category":"水果","subcategory":"热带水果","state":"raw","allergens":[],"aliases":["量天尺果"],"description":"ドラゴンフルーツ／生","sourceUrl":"https://fooddb.mext.go.jp/details/details.pl?ITEM_NO=7_07111_6","nutrients":{"kcal":52,"protein":1.4,"carbs":11.8,"fat":0.3,"fiber":1.9,"sodium":null,"calcium":6,"potassium":350,"vitaminC":7}},
+  {"id":"bayberry","name":"杨梅","category":"水果","subcategory":"核果类","state":"raw","allergens":[],"aliases":["树梅"],"description":"やまもも／生","sourceUrl":"https://fooddb.mext.go.jp/details/details.pl?ITEM_NO=7_07141_7","nutrients":{"kcal":47,"protein":0.5,"carbs":11.3,"fat":0.2,"fiber":1.1,"sodium":4,"calcium":4,"potassium":120,"vitaminC":4}},
+  {"id":"cherrytomato","name":"红色小番茄","category":"蔬菜","subcategory":"茄果类","state":"raw","allergens":[],"aliases":["圣女果","樱桃番茄","小西红柿"],"description":"赤色ミニトマト／果実／生","sourceUrl":"https://fooddb.mext.go.jp/details/details.pl?ITEM_NO=06_06183_7","nutrients":{"kcal":30,"protein":1.1,"carbs":7.2,"fat":0.1,"fiber":1.4,"sodium":4,"calcium":12,"potassium":290,"vitaminC":32}}
+]

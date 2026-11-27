@@ -1,3 +1,4 @@
+import {foodMap,recipeMap} from './catalog';
 import {ingredientPoolSchema,poolSettingsSchema,poolTemplateSchema} from './pool-storage';
 import {defaultPool,type PoolSettings,type PoolTemplate} from './ingredient-pool';
 import {logisticsSchema,supplySchema,validLedger} from './logistics-storage';
@@ -44,13 +45,13 @@ const purchase = z.strictObject({id:string,name:string,category:string,state:str
 const plan = z.strictObject({id:string,name:string,created:z.iso.datetime(),start:date,seed:string,profile,weight:num,
   days:z.array(z.strictObject({meals:z.array(z.strictObject({name:string,dishes:z.array(serving).min(1).max(6)})).min(2).max(4)})).length(7),
   targets:z.strictObject({...macros,bmi:num,bmr:num,tdee:num,water:num.nullable(),message:string}),
-  purchases:z.array(purchase).max(180),prep:z.strictObject({mode:string,notice:names,days:z.array(z.strictObject({date,task:string,minutes:num,meals:names})).length(7)}),
+  purchases:z.array(purchase).max(foodMap.size),prep:z.strictObject({mode:string,notice:names,days:z.array(z.strictObject({date,task:string,minutes:num,meals:names})).length(7)}),
   algorithmVersion:string,catalogVersion:string,favorite:z.boolean(),taskScope:z.uuid().optional(),cookingOverride:cookingMode.optional(),logistics:logisticsSchema.optional(),pool:ingredientPoolSchema.optional()});
 const metrics = z.record(z.string().regex(/^[a-z][a-z0-9-]{0,49}$/),
   z.strictObject({stock:num.optional(),bought:num.optional(),price:num.optional(),pack:num.positive().optional(),yieldPercent:num.min(1).max(100).optional()}));
 const schema = z.strictObject({version:z.literal(1),profile:profile.nullable(),
   weights:z.array(z.strictObject({date,kg:z.number().min(35).max(260),waist:z.number().min(35).max(250).optional()})).max(20000),
-  plan:plan.nullable(),history:z.array(plan).max(500),pantry:metrics,blocked:names,favorites:names,
+  plan:plan.nullable(),history:z.array(plan).max(500),pantry:metrics,blocked:z.array(string).max(recipeMap.size),favorites:z.array(string).max(recipeMap.size),
   locks:z.array(z.strictObject({day:z.int().min(0).max(6),meal:z.int().min(0).max(3),dish:z.int().min(0).max(5),serving})).max(168),
   theme:z.enum(['系统','浅色','深色']),supply:supplySchema.optional(),poolSettings:poolSettingsSchema.optional(),poolTemplates:z.array(poolTemplateSchema).max(50).optional()});
 

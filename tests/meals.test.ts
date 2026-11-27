@@ -7,7 +7,7 @@ import {mealConflict} from '../src/food-semantics';
 import {dayNutrition,fruitGoal,regenerate} from '../src/planner';
 import {defaultMealPreference,mealPreference} from '../src/profile';
 import {purchaseFood,rawNetGrams} from '../src/purchase-food';
-import {nutritionReview} from '../src/diet-check';
+import {nutritionReview,sodiumUpperBound} from '../src/diet-check';
 import {parseBackup,fresh} from '../src/store';
 import {demo} from './fixtures';
 
@@ -35,7 +35,7 @@ test('120 个独立种子验收餐次、营养、厨具和采购用量',()=>{
     for(const [dayIndex,day] of plan.days.entries()) {
       const daily=dayNutrition(day);
       ok(Math.abs(daily.kcal-plan.targets.kcal)<=plan.targets.kcal*.05,'热量，种子 '+i);
-      ok(daily.fiber>=25 && daily.sodium!==null&&daily.sodium<=2000);
+      ok(daily.fiber>=25 && (daily.sodium??sodiumUpperBound(day))<=2000);
       ok(daily.calcium!==null&&daily.calcium<=2000);
       for(const [index,meal] of day.meals.entries()) {
         const name=names[index];

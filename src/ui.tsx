@@ -58,3 +58,8 @@ export async function shareText(text:string,share:boolean) {
   if (navigator.clipboard) {await navigator.clipboard.writeText(text);return '已复制到剪贴板。';}
   throw Error('浏览器无法写入剪贴板，请使用文本下载。');
 }
+
+export function CatalogPaging({total,page,size,change}:{total:number;page:number;size:number;change:(n:number)=>void}) {
+  return total>size&&<div className="actions taxonomy-pages"><button disabled={page===0} onClick={()=>change(page-1)}>上一页</button>
+    <span className="meta">第 {page+1} / {Math.ceil(total/size)} 页</span><button disabled={(page+1)*size>=total} onClick={()=>change(page+1)}>下一页</button></div>;
+}

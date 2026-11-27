@@ -1,11 +1,10 @@
 import {food} from './catalog';
+import {foodClass} from './catalog-taxonomy';
 
-// 显式商品分类。柠檬、葱姜蒜和鲜香草在当前食谱中作为调味食材。
-const freshSeasonings=new Set(['ginger','garlic','scallion','cilantro','lemon']);
 export const purchaseCategories=['主要食材','新鲜调味食材','常备调味料'] as const;
 export type PurchaseCategory=typeof purchaseCategories[number];
 export function purchaseCategory(id:string):PurchaseCategory {
-  if(freshSeasonings.has(id))return '新鲜调味食材';
+  if(foodClass(food(id)).subgroup==='新鲜调味食材')return '新鲜调味食材';
   return food(id).category==='调味品'?'常备调味料':'主要食材';
 }
 

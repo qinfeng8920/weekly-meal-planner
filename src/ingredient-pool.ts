@@ -13,10 +13,11 @@ export const poolMethods=['自动选择','手动指定','库存优先'] as const
 export const rotations=['保留上周','部分轮换','全部刷新'] as const;
 export const poolGroups=['肉鱼虾','蔬菜','主食','水果'] as const;
 export type PoolGroup=typeof poolGroups[number];
+export const fruitPolicies=['每周固定一种','少量轮换','丰富多样'] as const;
 export type PoolSettings={
   mode:typeof poolModes[number];method:typeof poolMethods[number];strict:boolean;
   selected:string[];locked:string[];excluded:string[];
-  preferred?:string[];caps?:Partial<Record<PoolGroup,number>>;goals?:Record<string,number>;rotation:typeof rotations[number];
+  fruitPolicy?:typeof fruitPolicies[number];fruitId?:string;fruitOverrides?:Record<string,string>;preferred?:string[];caps?:Partial<Record<PoolGroup,number>>;goals?:Record<string,number>;rotation:typeof rotations[number];
 };
 export type WeeklyIngredientPool={
   version:1;week:string;settings:PoolSettings;selected:string[];
@@ -27,7 +28,7 @@ export const defaultPool:PoolSettings={mode:'少量种类',method:'自动选择'
 const low={肉鱼虾:3,蔬菜:4,主食:2,水果:2}, middle={肉鱼虾:4,蔬菜:6,主食:3,水果:3}, rich={肉鱼虾:7,蔬菜:10,主食:5,水果:4};
 export const capsFor:Record<typeof poolModes[number],Record<PoolGroup,number>>={
   少量种类:low,均衡搭配:middle,丰富多样:rich,极简采购:low,均衡采购:middle,丰富采购:rich,
-  自由搭配:{肉鱼虾:128,蔬菜:128,主食:128,水果:128},
+  自由搭配:{肉鱼虾:foods.length,蔬菜:foods.length,主食:foods.length,水果:foods.length},
 };
 export const standardId=purchaseIngredientId;
 export const standardFoods=foods.filter(f=>standardId(f.id)===f.id);
@@ -37,7 +38,9 @@ export const poolGroup=(id:string):PoolGroup|'基础食材'=>{
   return ['肉类','鱼虾'].includes(category)?'肉鱼虾':category==='蔬菜'||category==='主食'||category==='水果'?category:'基础食材';
 };
 export const normalizeIds=(ids:string[],options?:PurchaseOptions)=>[...new Set(ids.map(id=>standardId(id,options)))];
-export const capOf=(setting:PoolSettings,group:PoolGroup)=>setting.caps?.[group]??capsFor[setting.mode][group];
+export const capOf=(setting:PoolSettings,group:PoolGroup)=>setting.caps?.[group]??
+  (group==='水果'&&setting.fruitPolicy==='丰富多样'?6:group==='水果'&&setting.fruitPolicy==='少量轮换'?2:group==='水果'&&setting.fruitPolicy==='每周固定一种'?
+    1+new Set(Object.values(setting.fruitOverrides??{}).filter(id=>id!==setting.fruitId)).size:capsFor[setting.mode][group]);
 export function counts(ids:Iterable<string>) {
   const out={肉鱼虾:0,蔬菜:0,主食:0,水果:0,基础食材:0};
   for(const id of new Set(ids))out[poolGroup(id)]++;

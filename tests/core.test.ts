@@ -25,7 +25,7 @@ test('安全筛查、低体重和异常输入',()=>{
 });
 test('可追溯食材与可计算菜谱',()=>{
   ok(foods.length>=100);ok(recipeList.length>=100);
-  for(const f of foods){ok((f.fdc??0)>0||f.sourceUrl?.startsWith('https://'));ok(macroKeys.every(k=>typeof f.nutrients[k]==='number'));}
+  for(const f of foods){ok((f.fdc??0)>0||f.sourceUrl?.startsWith('https://'));ok(macroKeys.every(k=>f.nutrients[k]===null||typeof f.nutrients[k]==='number'));}
   for(const r of recipeList){
     ok(r.steps.length>0);
     const row=serving(r);
@@ -100,9 +100,12 @@ test('损坏备份、未知版本与历史快照',()=>{
   throws(()=>parseBackup(JSON.stringify({...value,version:99})),/版本/);
 });
 test('录入可食率按毛重换算，未知项保留净料提示',()=>{
-  const initial=shopping(base.days,demo,{}).find(p=>p.id==='apple'||p.id==='pear'||p.id==='orange');
-  ok(initial);
-  const updated=shopping(base.days,demo,{[initial.id]:{yieldPercent:50}}).find(p=>p.id===initial.id)!;
+  const days=structuredClone(base.days);
+  const fruit=days[0].meals[0].dishes.findIndex(row=>row.recipe.group==='水果');
+  ok(fruit>=0);
+  days[0].meals[0].dishes[fruit]=serving(recipeList.find(r=>r.id==='fruit-orange')!);
+  const initial=shopping(days,demo,{}).find(p=>p.id==='orange')!;
+  const updated=shopping(days,demo,{[initial.id]:{yieldPercent:50}}).find(p=>p.id===initial.id)!;
   ok(updated.buy>=Math.ceil(initial.need*2)&&updated.buy<=Math.ceil(initial.need*2)+1);
   equal(updated.uncertain,false);
 });

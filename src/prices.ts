@@ -49,7 +49,9 @@ assumed('greek',20,'公斤');
 for(const id of ['almond','walnut','cashew','pistachio','hazelnut']) assumed(id,60);
 for(const f of foods) {
   if(prices[f.id]) continue;
-  if(f.category==='蔬菜'||f.category==='水果') {
+  if(f.subcategory&&(f.category==='蔬菜'||f.category==='水果')) {
+    assumed(f.id,f.category==='蔬菜'?5:12,'斤');
+  } else if(f.category==='蔬菜'||f.category==='水果') {
     const vegetable=f.category==='蔬菜';
     add(f.id,vegetable?8.4:11.4,'公斤','类别参考',
       '广东省商务厅 · '+(vegetable?'蔬菜':'水果')+'零售均价折作预算参考',{basis:'毛重',yieldPercent:vegetable?88:78},'gd');

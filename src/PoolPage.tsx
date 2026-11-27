@@ -1,7 +1,8 @@
 import {conditionalPair,directRules} from './substitution';
 import {useState,type ReactNode} from 'react';
-import {food,foods} from './catalog';
-import {capOf,counts,defaultPool,displayPoolMode,normalizeIds,poolGroup,poolGroups,poolMethods,visiblePoolModes,rotations,standardFoods,type PoolSettings,type PoolTemplate,type WeeklyIngredientPool} from './ingredient-pool';
+import {searchMatches} from './catalog-search';
+import {food,foods,recipeList} from './catalog';
+import {capOf,counts,defaultPool,displayPoolMode,normalizeIds,poolGroup,poolGroups,poolMethods,fruitPolicies,visiblePoolModes,rotations,standardFoods,type PoolSettings,type PoolTemplate,type WeeklyIngredientPool} from './ingredient-pool';
 import {Empty,decimal,SectionTitle} from './ui';
 import type {Pantry} from './shopping';
 import {SupplyFields} from './SupplyEditors';
@@ -38,6 +39,8 @@ export function PoolPage({initial,previous,templates,pantry,busy,onSave,onGenera
   const [people,setPeople]=useState(profile.people),[budget,setBudget]=useState(profile.budget),[start,setStart]=useState(startChoice);
   const legacyCooking=profile.cooking?.mode;
   const [cooking,setCooking]=useState<CookingSelection>(legacyCooking==='极简'?'简单':legacyCooking==='简单'||legacyCooking==='家常'?legacyCooking:'不限制');
+  const [fruitQuery,setFruitQuery]=useState('');
+  const fruitList=foods.filter(f=>f.category==='水果'&&recipeList.some(r=>r.group==='水果'&&r.ingredients[0].id===f.id));
   const [error,setError]=useState('');
   const foodList=products?.ready?.length?foods.filter(f=>purchaseIngredientId(f.id,products)===f.id):standardFoods;
   const date=newPlanStart(start);
@@ -46,6 +49,7 @@ export function PoolPage({initial,previous,templates,pantry,busy,onSave,onGenera
       splitWeek(settings);shoppingOffsets(settings,profile,date,dateKey());
       if(!Number.isInteger(+people)||+people<1||+people>12||budget&&(!Number.isFinite(+budget)||+budget<=0||+budget>1e7))
         throw Error('请检查人数及预算。');
+      if(draft.fruitPolicy==='每周固定一种'&&profile.fruit!=='不吃水果'&&!draft.fruitId)throw Error('请选择固定水果。');
       const values={settings,people,budget,startChoice:start,cooking};
       setError('');
       if(action==='保存')void onSave(draft,values);
@@ -58,7 +62,7 @@ export function PoolPage({initial,previous,templates,pantry,busy,onSave,onGenera
   const chosen=normalizeIds([...draft.selected,...draft.locked],products);
   const visible=foodList.filter(f=>(group==='全部'||poolGroup(f.id)===group)&&
     (view!=='已选／锁定'||chosen.includes(f.id))&&(view!=='排除'||draft.excluded.includes(f.id))&&
-    (!query.trim()||[f.name,...f.aliases].some(n=>n.toLowerCase().includes(query.trim().toLowerCase()))));
+    searchMatches([f.name,...f.aliases],query));
   const set=(options:Partial<PoolSettings>)=>{setDraft(s=>({...s,...options}));setMessage('');};
   const toggle=(field:'selected'|'locked'|'excluded',id:string)=>{
     const exists=draft[field].includes(id);
@@ -88,6 +92,16 @@ export function PoolPage({initial,previous,templates,pantry,busy,onSave,onGenera
         <label className="field">食谱从哪天开始<select value={start} onChange={e=>setStart(e.target.value as StartChoice)}>{startChoices.map(x=><option key={x}>{x}</option>)}</select></label>
         <label className="field">烹饪偏好<select value={cooking} onChange={e=>setCooking(e.target.value as CookingSelection)}><option>不限制</option><option>简单</option><option>家常</option></select></label>
       </div>
+      {profile.fruit!=='不吃水果'&&<div className="fields">
+        <label className="field">每周水果<select value={draft.fruitPolicy??'少量轮换'}
+          onChange={e=>set({fruitPolicy:e.target.value as PoolSettings['fruitPolicy']})}>{fruitPolicies.map(x=><option key={x}>{x}</option>)}</select></label>
+        {draft.fruitPolicy==='每周固定一种'&&<div className="field">
+          <label className="field">搜索固定水果<input type="search" value={fruitQuery} onChange={e=>setFruitQuery(e.target.value)}/></label>
+          <label className="field">固定水果<select value={draft.fruitId??''} onChange={e=>set({fruitId:e.target.value||undefined})}>
+            <option value="">请选择</option>{fruitList.filter(f=>f.id===draft.fruitId||searchMatches([f.name,...f.aliases],fruitQuery)).map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+          </select></label>
+        </div>}
+      </div>}
       <SupplyFields settings={settings} start={date} profile={profile} change={setSettings}/>
       {error&&<p className="error" role="alert">{error}</p>}
       <div className="actions"><button className="primary" disabled={busy} onClick={()=>run('生成')}>按设置生成</button>
