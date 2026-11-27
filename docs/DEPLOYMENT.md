@@ -31,3 +31,7 @@
 ## V2.3 正式验收
 
 最终生产提交为 `135b436`。GitHub Actions 通过 51 项模块、14 项 Chromium 端到端测试和生产构建，随后发布至原 GitHub Pages。线上 Service Worker 与本地生产文件字节相同，缓存标识 `b6e8c753eb9d`。初始匿名模拟安卓成功离线生成、确认实购金额 18.37 元、查看实付与待购估算，折叠进度和付款在刷新后保留。V2.2.1 的旧资料、历史和取用流水通过同源升级复核。安卓实体机尚未测试。 [最终发布](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/45861101424)
+
+## V2.3.1 正式验收
+
+最终生产提交 `1bf5f3c` 通过 56 项模块测试、16 项 Chromium 端到端测试和生产构建。GitHub Pages 已发布，线上 Service Worker 与本地一致，缓存标识 `47db68f3ff82`。匿名 Chromium 模拟安卓复核离线生成、确认实付 18.37 元、折叠进度、刷新保留、清空和撤销。清空后的实付仍为 18.37 元。安卓实体机未测试。 [正式工作流](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/45947514141)
