@@ -67,3 +67,9 @@
 ## V3.1.2 正式验收
 
 提交 `3fd361d` 通过 74 项模块测试、30 项 Chromium 流程与生产构建。正式站以只有 71 千克档案体重的测试资料验证，选择缓慢减脂可查看预计目标，取消仍显示 2006 千卡，确认适用后更新为 1721 千卡，离线刷新仍保留。正式缓存 `a1d99b2f03ed` 与本地构建相同。V3.1.1 至 V3.1.2 的同源升级核对旧档案、历史、已执行任务及库存逐字段一致。 [正式发布工作流](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/46103178762)
+
+## V3.2 正式验收
+
+最终发布提交为 `f973a98`。GitHub Actions 通过 76 项模块测试、35 项 Chromium 端到端测试和生产构建，并部署至原地址。另以 WebKit 的 iPhone 13 配置通过 3 项增重及多档案验证。 [正式发布工作流](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/46125065404)
+
+正式站匿名 HTTPS 返回 200。独立 Chromium 确认 V3.2.0、72 千克虚构档案的 1815 千卡目标及断网刷新。线上 Service Worker 与本地生产文件的 SHA-256 均为 `2a8f8d62f6068cb09265a7a37f0576d91f1a0cbf4b7755dd0c87bef8159d43b1`，缓存标识为 `d72ef9efab6e`。另在原网址用同一虚构浏览器档案从 V3.1.2 升级，档案、称重、库存、实际购买、收藏、历史和执行数据逐字段一致，断网更新未执行食谱后已执行餐次和流水仍保留。实体手机安装未实测。 [正式站](https://qinfeng8920.github.io/weekly-meal-planner/)
