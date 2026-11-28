@@ -5,10 +5,16 @@ import data from './foods.json';
 import expansion from './foods-v24.json';
 import mext from './foods-mext-v24.json';
 import {macroKeys, scale, sum, type Nutrients} from './nutrition';
+import planningData from './food-planning-nutrients.json';
 
 export type Food = {id:string;name:string;category:string;fdc?:number;description:string;state:string;
   allergens:string[];aliases:string[];nutrients:Record<keyof Nutrients,number|null>;sourceUrl?:string;subcategory?:string;sodiumUpperBound?:number};
-export const foods:Food[] = [...data,...expansion,...mext];
+export const planningNutrition=planningData as Record<string,{verified:boolean;sodium:number|null;additions:Partial<Nutrients>}>;
+export const foods:Food[] = [...data,...expansion,...mext].map(f=>{
+  return {...f,nutrients:{...f.nutrients,...planningNutrition[f.id]?.additions}};
+});
+export const hasPlanningNutrition=(f:Food)=>Boolean(planningNutrition[f.id]?.verified&&planningNutrition[f.id]?.sodium!=null&&
+  macroKeys.every(key=>typeof f.nutrients[key]==='number'&&Number.isFinite(f.nutrients[key])&&f.nutrients[key]>=0));
 export const foodMap = new Map(foods.map(f=>[f.id,f]));
 export const food = (id: string) => {
   const value = foodMap.get(id);
@@ -16,7 +22,7 @@ export const food = (id: string) => {
   return value;
 };
 export const foodState: Record<string,string> = {raw:'生鲜可食部',dry:'干重',cooked:'熟重',ready:'成品净重',frozen:'冷冻净重'};
-export const catalogVersion = '2026.11-sr5';
+export const catalogVersion = '2026.11-nutrients1';
 export type Ingredient = {id:string; grams:number};
 export type Group = '蛋白质菜'|'蔬菜'|'主食'|'早餐'|'水果'|'加餐'|'汤类';
 export type Recipe = {
@@ -229,7 +235,7 @@ export function serving(recipe:Recipe, factor = 1, grams?: Ingredient[]): Servin
   const ingredients = grams ?? recipe.ingredients.map(i=>({...i,grams:Math.round(i.grams*factor*100)/100}));
   const nutrients = sum(ingredients.map(i => {
     const n = food(i.id).nutrients;
-    if (macroKeys.some(key=>n[key] === null)) throw Error('食材缺少必要营养数据。');
+    if (macroKeys.some(key=>n[key] == null)) throw Error('食材缺少必要营养数据。');
     return scale(n as Nutrients,i.grams/100);
   }));
   return {recipe,ingredients,nutrients};

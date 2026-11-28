@@ -5,6 +5,8 @@ import {type Nutrients,type Targets} from './nutrition';
 import {addDays} from './batches';
 import {purchaseFood,type PurchaseOptions} from './purchase-food';
 import {type Plan} from './planner';
+import {NutrientDisclosure} from './NutrientDisclosure';
+import type {Profile} from './profile';
 
 export const integer = (n:number) => Math.round(n).toLocaleString('zh-CN');
 export const decimal = (n:number) => Number(n.toFixed(1)).toLocaleString('zh-CN');
@@ -27,7 +29,7 @@ export function prepStorage(recipe:Recipe) {
   if (recipe.ingredients.some(i=>['肉类','鱼虾','蛋','豆制品'].includes(foodMap.get(i.id)?.category??''))) return '生料密封冷藏并尽快加工。熟食分浅盒两小时内冷藏，建议两天内食用；需要更久时当天冷冻。冷藏解冻，中心复热至 74°C。';
   return '烹制后尽快分装，浅盒快速降温，两小时内冷藏。出锅后尽快食用，复热时中心达到 74°C。';
 }
-export function RecipeInfo({recipe,value,products}:{recipe:Recipe;value?:Serving;products?:PurchaseOptions}) {
+export function RecipeInfo({recipe,value,products,profile}:{recipe:Recipe;value?:Serving;products?:PurchaseOptions;profile?:Profile|null}) {
   const current=value??serving(recipe);
   const conversions=current.ingredients.filter(i=>i.id!==purchaseFood(i.id,products).purchaseIngredientId)
     .map(i=>purchaseFood(i.id,products).conversion!);
@@ -36,6 +38,7 @@ export function RecipeInfo({recipe,value,products}:{recipe:Recipe;value?:Serving
   return <div className="recipe-info">
     <p className="recipe-meta meta"><Icon name="clock" size={16}/>{recipe.cuisine} · {recipe.flavor} · {recipe.skill} · <span className="unit">约 {recipe.prep+recipe.cook+extraMinutes} 分钟</span></p>
     <NutritionRow value={current.nutrients}/>
+    <NutrientDisclosure label="本份详细营养与覆盖" ingredients={current.ingredients} profile={profile} daily={false}/>
     <h4>单人用量</h4><ul className="ingredients">{current.ingredients.map(i=>{
       const f=foodMap.get(i.id);
       return <li key={i.id}><span>{f?.name??i.id} <small>{f?foodState[f.state]:''}</small></span><strong>{decimal(i.grams)} 克</strong></li>;

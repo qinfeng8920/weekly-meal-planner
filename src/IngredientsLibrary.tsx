@@ -1,7 +1,7 @@
 import {Action,CategoryGlyph,Icon,ListRow,PageHeader,SearchField,Segment,Sheet,useCatalogBack,useRemembered} from './design';
 import {useMemo,useState} from 'react';
-import {food,foods,foodState,recipeList,type Food} from './catalog';
-import {foodMicros} from './food-micros';
+import {food,foods,foodState,hasPlanningNutrition,recipeList,type Food} from './catalog';
+import {formatNutrient,nutrientDatum,nutrientGroups,nutrientKeys,nutrientSource,nutrientsList,qualityLabels,type NutrientKey} from './nutrient-catalog';
 import {foodClass,foodGroups,recipeUses} from './catalog-taxonomy';
 import {searchMatches} from './catalog-search';
 import {PurchaseForm} from './InventoryInputs';
@@ -10,15 +10,11 @@ import {priceFor,type PriceBook,type PriceInput} from './prices';
 import {purchaseFood,purchaseIngredientId,type PurchaseOptions} from './purchase-food';
 import {conditionalPair,directRules} from './substitution';
 import {recipeCooking} from './cooking';
-import {macroKeys} from './nutrition';
 import type {Pantry} from './shopping';
 import {foodPreference,foodStates,type FoodState,type PoolSettings} from './ingredient-pool';
 import type {Receipt} from './logistics';
 import {CatalogPaging,decimal,Empty} from './ui';
 
-const unitLabels:Record<string,[string,string]>={kcal:['能量','千卡'],protein:['蛋白质','克'],fat:['脂肪','克'],
-  carbs:['碳水','克'],fiber:['膳食纤维','克'],sodium:['钠','毫克'],potassium:['钾','毫克'],calcium:['钙','毫克'],
-  iron:['铁','毫克'],magnesium:['镁','毫克'],zinc:['锌','毫克'],vitaminC:['维生素 C','毫克'],folate:['总叶酸','微克'],vitaminB12:['维生素 B12','微克']};
 type Props={products?:PurchaseOptions;stock:ReadonlyMap<string,number>;pantry:Pantry;prices:PriceBook;settings:PoolSettings;
   savePrice:(id:string,value?:PriceInput)=>Promise<boolean>;savePurchase:(source:string,receipt?:Receipt)=>Promise<boolean>;
   change:(id:string,state:FoodState)=>void;related:(query:string)=>void;back:()=>void};
@@ -75,16 +71,25 @@ export function IngredientsLibrary(props:Props) {
 function IngredientDetail({id,states,products,prices,pantry,settings,stock,savePrice,savePurchase,change,related}:Props&{id:string;states:Food[]}) {
   const [selected,setSelected]=useState(id),[editor,setEditor]=useState(''),[source,setSource]=useState(()=>crypto.randomUUID());
   const f=food(selected), price=priceFor(id,prices,pantry[id]);
-  const stats={...f.nutrients,...foodMicros[f.id]} as Record<string,number|null>;
   const uses=recipeList.filter(r=>recipeUses(f.id,r));
   const substitute=foods.filter(row=>conditionalPair(f.id,row.id)||directRules.some(rule=>rule.from===f.id&&rule.to===row.id)).map(row=>row.name);
   const conversion=purchaseFood(f.id,products).conversion;
-  const measures=Object.entries(unitLabels).map(([k,[label,unit]])=><div key={k}><dt>{label}</dt>
-    <dd>{stats[k]==null?k==='sodium'&&f.sodiumUpperBound!==undefined?'微量（少于 '+f.sodiumUpperBound+' 毫克）':'未知':decimal(stats[k])+' '+unit}</dd></div>);
+  const measures=(key:NutrientKey,showSource=false)=>{
+    const [label,unit]=nutrientsList[key], datum=nutrientDatum(f.id,key);
+    const amount=datum?.[0],limit=datum?.[4],source=datum&&nutrientSource(datum[1]);
+    return <div key={key}><dt>{label}</dt><dd>{amount!=null?formatNutrient(amount)+' '+unit:
+      limit!=null?datum?.[3]==='trace'?'微量 · 少于 '+formatNutrient(limit)+' '+unit:'样本最高 '+formatNutrient(limit)+' '+unit:
+      datum?qualityLabels[datum[3]]:'未知'}
+      {showSource&&datum&&source&&<small>{amount!=null?qualityLabels[datum[3]]+' · ':''}
+        <a href={source.link} title={source.description+' · '+datum[2]} target="_blank" rel="noreferrer">{source.label} · {source.id}</a></small>}
+    </dd></div>;
+  };
+  const known=nutrientKeys.filter(key=>nutrientDatum(f.id,key)?.[0]!=null).length;
+  const originalSource=f.sourceUrl??(f.fdc===undefined?undefined:nutrientSource('fdc:'+f.fdc).link);
   return <>
     <section className="card ingredient-hero"><div className="ingredient-hero-heading"><CategoryGlyph category={foodClass(f).group}/><div><h3>营养概览</h3><span className="meta">{foodState[f.state]}每 100 克</span></div></div>
       {states.length>1&&<div className="segmented app-segment" role="group" aria-label="称量状态">{states.map(state=><button key={state.id} aria-pressed={selected===state.id} onClick={()=>setSelected(state.id)}>{foodState[state.state]}</button>)}</div>}
-      <dl className="ingredient-nutrients">{measures.slice(0,5)}</dl>
+      <dl className="ingredient-nutrients">{nutrientKeys.slice(0,5).map(key=>measures(key))}</dl>
     </section>
     <section className="card"><h3>库存与价格</h3><p><strong>{decimal(stock.get(id)??0)} 克</strong> <span className="meta">账面库存</span></p>
       <p className="meta">{price?`¥${price.amount.toFixed(2)}/${price.unit} · ${price.basis} · ${price.kind}${price.pack?' · 包装 '+price.pack+' 克':''}`:'价格待补充'}</p>
@@ -102,10 +107,13 @@ function IngredientDetail({id,states,products,prices,pantry,settings,stock,saveP
         <p>{substitute.join('、')}。以完整菜谱重新校验份量和过敏限制。</p></details>}
       {uses.length>0&&<Action icon="book" onClick={()=>related(f.name)}>查看 {uses.length} 道相关菜谱</Action>}
     </section>
-    <section className="card"><h3>详细成分与来源</h3><dl className="micro-list">{measures.slice(5)}</dl>
-      <p className="meta">{f.description} · {f.sourceUrl?.includes('mext.go.jp')?'日本食品标准成分表 · 八订增补 2023 年':f.sourceUrl?'原数据机构食品成分表':'USDA FoodData Central SR Legacy 2018'}
-        {macroKeys.some(k=>f.nutrients[k]===null)?' · 关键营养缺失，暂不参与自动配餐':!uses.length?' · 暂无审核菜谱':''}</p>
-      <a href={f.sourceUrl??`https://fdc.nal.usda.gov/food-details/${f.fdc}/nutrients`} target="_blank" rel="noreferrer">查看营养原始条目</a>
+    <section className="card"><h3>详细成分与来源</h3>
+      <p className="meta">每 100 克{foodState[f.state]} · {known}/{nutrientKeys.length} 项有定量数据。
+        {!hasPlanningNutrition(f)?' 配餐所需成分不完整，暂不进入自动配餐。':!uses.length?' 暂无审核菜谱。':''}</p>
+      {nutrientGroups.map(group=><details className="item-fold nutrient-group" key={group.name}><summary>{group.name}</summary>
+        <dl className="nutrient-evaluation">{group.keys.map(key=>measures(key,true))}</dl></details>)}
+      <p className="meta">{f.description}</p>
+      {originalSource&&<a href={originalSource} target="_blank" rel="noreferrer">查看营养原始条目</a>}
     </section>
     {editor==='库存'&&<Sheet title={'加入库存 · '+food(id).name} close={()=>setEditor('')}><PurchaseForm key={source} id={id} price={price}
       save={async value=>{const ok=await savePurchase('手动|'+source+'|'+id,value);if(ok)setEditor('');return ok;}}/></Sheet>}

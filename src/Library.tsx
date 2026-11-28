@@ -87,7 +87,7 @@ export function Library({favorites,blocked,toggleFavorite,toggleBlocked,profile,
     {tab==='早餐搭配'?<h2>{total} 套早餐搭配</h2>:<p className="meta">找到 {total} 项</p>}
     {!total&&<Empty title="没有找到菜谱"/>}
     {tab==='早餐搭配'?menus.slice(page*perPage,(page+1)*perPage).map(m=><details className="card item-fold" key={m.id}><summary>{menuName(m.recipes)} · {m.style}</summary>
-      {m.recipes.map(id=>{const r=recipeMap.get(id)!;return <details className="item-fold" key={id}><summary>{r.name}</summary><RecipeInfo recipe={r}/></details>;})}
+      {m.recipes.map(id=>{const r=recipeMap.get(id)!;return <details className="item-fold" key={id}><summary>{r.name}</summary><RecipeInfo recipe={r} profile={profile}/></details>;})}
     </details>):<div className="row-stack">{matches.slice(page*perPage,(page+1)*perPage).map(({r,groups,meaning,nutrition})=>{
       const reasons=restrictions.get(r.id)??[];
       const active=open===r.id, variants=variantsOf(r).filter(candidate=>candidate.id!==r.id), preparations=fruitPreparations(r);
@@ -96,7 +96,7 @@ export function Library({favorites,blocked,toggleFavorite,toggleBlocked,profile,
           detail={[...meaning.core.slice(0,3).map(id=>food(id).name),r.tools.join('、')||'无需加热'].join(' · ')}
           aside={Math.round(nutrition.kcal)+' 千卡'} onClick={()=>{setOpen(r.id);setSlot('');}}/>
         {active&&<Sheet title={r.name} subtitle={reasons.length?reasons.join('、'):groups.join('、')} kind="detail" close={()=>setOpen('')}>
-          <RecipeInfo recipe={r} products={products}/><p className="meta">{cost(r)} · {hasStock(r)?'家中库存足够':'按实际食谱计算补购'}</p>
+          <RecipeInfo recipe={r} products={products} profile={profile}/><p className="meta">{cost(r)} · {hasStock(r)?'家中库存足够':'按实际食谱计算补购'}</p>
           {preparations.length>0&&<p className="meta">同水果的其他处理方式 {preparations.map(r=>r.name).join('、')}</p>}
           {variants.length>0&&<p className="meta">已审核配方变体 {variants.map(v=>v.replacements?.map(n=>food(n.to).name).join('＋')).join('、')}</p>}
           <p className="meta">相关菜谱 {index.filter(v=>v.base&&v.r.id!==r.id&&v.meaning.core.some(id=>meaning.core.includes(id))).slice(0,5).map(v=>v.r.name).join('、')||'暂无'}</p>

@@ -515,3 +515,12 @@ html:has(dialog[open]) {overflow:hidden}
 .energy-basis dd {margin:0;color:var(--ink);overflow-wrap:anywhere}
 .profile-list {list-style:none;padding:0}
 .profile-list li {padding:var(--u3) 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+
+.nutrient-facts {min-width:0}
+.nutrient-group,.nutrient-missing {margin-block:8px}
+.nutrient-group summary,.nutrient-missing summary {overflow-wrap:anywhere}
+.nutrient-evaluation {margin:0;display:grid}
+.nutrient-evaluation > div {display:grid;grid-template-columns:minmax(96px,2fr) minmax(0,3fr);gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+.nutrient-evaluation dd {margin:0;overflow-wrap:anywhere}
+.nutrient-evaluation small,.nutrient-note {display:block;margin-top:4px}
+.nutrient-evaluation p {margin:4px 0}

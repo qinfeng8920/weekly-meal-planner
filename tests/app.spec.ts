@@ -171,7 +171,10 @@ test('唯一生成设置保留固定早餐、资料筛选和营养详情',async(
   await expect(breakfast.getByRole('button',{name:'水煮蛋（即食）',exact:true})).toBeVisible();
   await expect(breakfast.getByText('熟重',{exact:true})).toBeVisible();
   await page.getByText('全周日均营养检查',{exact:true}).click();
-  await expect(page.locator('details[open]').filter({has:page.getByText('全周日均营养检查',{exact:true})}).getByText('参考值 800 毫克',{exact:true})).toBeVisible();
+  const weekly=page.locator('.plan-nutrition > details').filter({has:page.getByText('全周日均营养检查',{exact:true})});
+  await weekly.getByText(/^矿物质 ·/).click();
+  const calcium=weekly.locator('dt').filter({hasText:/^钙$/}).locator('..').locator('dd');
+  await expect(calcium.getByText(/推荐摄入量 800 毫克/)).toBeVisible();
   await nav(page,'我的').click();
   await page.getByRole('button',{name:'食谱大全'}).click();
   await page.getByRole('button',{name:'早餐搭配',exact:true}).click();
@@ -989,7 +992,9 @@ test('小屏保留超长菜名、大额库存和缺失微量营养提示',async(
   await expect(dish).toHaveText(name);
   await assertFit(page);
   await page.getByText('每日微量营养与覆盖',{exact:true}).click();
-  await expect(page.getByText('部分食材缺值',{exact:true}).first()).toBeVisible();
+  const vitamins=page.locator('.nutrient-group').filter({has:page.getByText(/^维生素 ·/)});
+  await vitamins.locator(':scope > summary').click();
+  await expect(vitamins.getByText(/^部分食材缺值（/).first()).toBeVisible();
   await dish.click();
   await expect(page.getByRole('dialog',{name,exact:true})).toBeVisible();
   await page.getByRole('button',{name:'关闭',exact:true}).click();
@@ -1284,4 +1289,44 @@ test('旧版损坏数据迁移失败时保留原键及原始备份',async({page}
   expect(contents.legacy).toEqual({version:1,profile:{name:'原始档案缺字段'}});
   expect(contents.directory).toBeUndefined();
   await expect(page.getByRole('button',{name:'导出本机原始数据'})).toBeVisible();
+});
+
+test('每日、全周、菜谱和原材料都能查看营养覆盖与来源',async({page})=>{
+  await setup(page,{...demo,sex:'女',height:'162',weight:'65',age:'34',goal:'维持体重'});
+  await generate(page);
+  const daily=page.locator('.plan-nutrition > details').filter({has:page.getByText('每日微量营养与覆盖',{exact:true})});
+  await daily.locator(':scope > summary').click();
+  await daily.getByText(/^矿物质 ·/).click();
+  const zinc=daily.locator('dt').filter({hasText:/^锌$/}).locator('..').locator('dd');
+  await expect(zinc.getByText(/覆盖/)).toBeVisible();
+  await expect(zinc.getByText(/推荐摄入量 8.5 毫克/)).toBeVisible();
+  const weekly=page.locator('.plan-nutrition > details').filter({has:page.getByText('全周日均营养检查',{exact:true})});
+  await weekly.locator(':scope > summary').click();
+  await weekly.getByText(/^维生素 ·/).click();
+  await expect(weekly.getByText('膳食叶酸当量（DFE）',{exact:true})).toBeVisible();
+  await expect(weekly.getByText('推荐摄入量 400 微克',{exact:false}).first()).toBeVisible();
+  await page.locator('.dish-title').first().click();
+  const recipe=page.getByRole('dialog');
+  await recipe.getByText('本份详细营养与覆盖',{exact:true}).click();
+  await recipe.getByText(/^基础营养 ·/).click();
+  await expect(recipe.getByText('饱和脂肪酸',{exact:true})).toBeVisible();
+  await recipe.getByRole('button',{name:'关闭',exact:true}).click();
+
+  await nav(page,'我的').click();
+  await page.getByRole('button',{name:'原材料大全',exact:true}).click();
+  await page.getByRole('searchbox',{name:'搜索原材料'}).fill('无调味米醋');
+  await page.getByRole('button',{name:/无调味米醋/}).click();
+  const vinegar=page.getByRole('dialog',{name:'无调味米醋'});
+  await expect(vinegar.getByText(/每 100 克成品净重/).last()).toBeVisible();
+  await vinegar.getByText('矿物质',{exact:true}).click();
+  const vinegarZinc=vinegar.locator('dt').filter({hasText:/^锌$/}).locator('..').locator('dd');
+  await expect(vinegarZinc.getByText('0.2 毫克',{exact:false})).toBeVisible();
+  await expect(vinegarZinc.getByRole('link',{name:/17016/})).toBeVisible();
+  await vinegar.getByText('维生素',{exact:true}).click();
+  const vinegarDfe=vinegar.locator('dt').filter({hasText:/^膳食叶酸当量（DFE）$/}).locator('..').locator('dd');
+  await expect(vinegarDfe.getByText('未知',{exact:true})).toBeVisible();
+  for(const width of [320,360,390,430]){
+    await page.setViewportSize({width,height:850});
+    await assertFit(page);
+  }
 });

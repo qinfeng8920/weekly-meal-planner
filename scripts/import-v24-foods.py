@@ -1,4 +1,4 @@
-"""用 USDA SR Legacy CSV 压缩包重建扩展食材与微量营养索引。"""
+"""用 USDA SR Legacy CSV 压缩包重建扩展食材基础数据。"""
 import csv
 import io
 import json
@@ -42,7 +42,6 @@ with ZipFile(sys.argv[1]) as archive:
         values[key] = value
 
 base_keys = list(keys.values())[:9]
-extra_keys = list(keys.values())[9:]
 output = []
 for id_, name, category, fdc, state, allergens, aliases, subcategory in selected:
     values = nutrients[fdc]
@@ -50,9 +49,6 @@ for id_, name, category, fdc, state, allergens, aliases, subcategory in selected
                        state=state, allergens=allergens.split(',') if allergens else [],
                        aliases=aliases.split(',') if aliases else [], subcategory=subcategory,
                        nutrients={k: values.get(k) for k in base_keys}))
-extra = {f['id']: {k: nutrients[str(f['fdc'])].get(k) for k in extra_keys}
-         for f in [*legacy, *output] if not f.get('sourceUrl') and str(f.get('fdc')) in nutrients}
 (root / 'src/foods-v24.json').write_text(json.dumps(output, ensure_ascii=False, indent=2) + '\n')
-(root / 'src/food-micros-v24.json').write_text(json.dumps(extra, ensure_ascii=False, separators=(',', ':')) + '\n')
 print(len(output), '条扩展食材')
 print('缺失核心营养', [f['id'] for f in output if any(f['nutrients'][k] is None for k in base_keys[:5])])

@@ -3,7 +3,7 @@ import {performance} from 'node:perf_hooks';
 import {test} from 'node:test';
 import {addDays} from '../src/batches';
 import {recipeMap,serving} from '../src/catalog';
-import {supplementalReview} from '../src/diet-check';
+import {ingredientNutrition} from '../src/nutrient-report';
 import {planLogistics,receiptKey,repriceSnapshot,type BuyLine} from '../src/logistics';
 import {bmiDeficitRate,energyNeedsReview,nutrition} from '../src/nutrition';
 import {nextPrep,prepProgress,purchaseStatus,weeklyPurchases} from '../src/plan-progress';
@@ -139,8 +139,9 @@ test('备餐推进独立于用餐及营养缺值',()=>{
   assert.equal(prepProgress(quote.prep[0],records).pending,1);
   assert.equal(nextPrep(quote,records)?.date,today);
   assert.equal(nextPrep(quote,{tasks:{[job.key!]:{eaten:true}}}),undefined);
-  const different={meals:[{name:'早餐',dishes:[serving(r,1,[{id:'ricevinegar',grams:50}])]}]};
-  assert.ok(supplementalReview([different]).every(row=>row.value===null&&row.known===0));
+  const details=ingredientNutrition([{id:'ricevinegar',grams:50}],1);
+  assert.equal(details.find(row=>row.key==='zinc')?.known,.1);
+  assert.equal(details.find(row=>row.key==='folate')?.complete,false);
 });
 
 test('V3.2 100 个种子覆盖双向目标、厨具、库存和餐次',()=>{

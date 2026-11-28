@@ -10,7 +10,8 @@ import {algorithmVersion,dayNutrition,executionLocked,type Change,type Plan,type
 import {cookingRule,usesNamedBreakfast} from './cooking-profile';
 import {dateKey,mealPreference,type MealName,type Profile} from './profile';
 import {breakfastMenus,labels} from './meal-catalog';
-import {nutritionReview,supplementalReview} from './diet-check';
+import {NutrientDisclosure} from './NutrientDisclosure';
+import {nutritionReview} from './diet-check';
 
 import {addDays} from './batches';
 import type {PurchaseOptions} from './purchase-food';
@@ -77,10 +78,14 @@ export function PlanPage(props:Props) {
           <p><strong className="unit">{Math.round(n.kcal-plan.targets.kcal)>0?'+':''}{Math.round(n.kcal-plan.targets.kcal)} 千卡</strong><span className="meta"> · 与目标差值</span></p>
           <p className="meta">按食谱用量估算。完成标记和库存取用都不能用来确定实际摄入热量。</p></div></div>
         <NutritionRow value={n} targets={plan.targets}/>
-        {nutritionReview([current]).some(r=>['低于','高于','数据不全'].some(v=>r.status.includes(v)))&&
-          <p className="hint">部分微量营养指标需关注，展开查看。</p>}
-        <details className="item-fold"><summary>每日微量营养与覆盖</summary><NutrientReview days={[current]}/></details>
-        <details className="item-fold"><summary>全周日均营养检查</summary><NutrientReview days={plan.days}/></details>
+        <NutrientDisclosure label="每日微量营养与覆盖" ingredients={dayIngredients([current])}
+          profile={readonly?plan.profile:profile} targets={plan.targets}/>
+        <NutrientDisclosure label="全周日均营养检查" ingredients={dayIngredients(plan.days)} days={plan.days.length}
+          profile={readonly?plan.profile:profile} targets={plan.targets}/>
+        <details className="item-fold"><summary>蔬菜与食用油用量</summary>
+          <ul className="ingredients">{nutritionReview([current]).filter(row=>row.key==='vegetables'||row.key==='oil').map(row=>
+            <li key={row.key}><span>{row.label}</span><strong>{row.value===null?'—':decimal(row.value)+' 克'} · {row.status}</strong></li>)}</ul>
+        </details>
       </section>
       {current.meals.map((meal,mi)=>{
         const name=meal.name as MealName, rule=cookingRule(plan.profile,name,day,plan.cookingOverride);
@@ -100,7 +105,7 @@ export function PlanPage(props:Props) {
             <div><button className="dish-title" aria-expanded={open===key} onClick={()=>{setOpen(open===key?'':key);setAlternative(null);setGrams(null);}}>{s.recipe.name}</button>
               <div className="meta">{Math.round(s.nutrients.kcal)} 千卡{!readonly&&(executed?' · 已执行 · 已锁定':locked?' · 已锁定':'')}</div><p className="meta dish-ingredients">{s.ingredients.map(i=>{const f=foodMap.get(i.id);return <span key={i.id}>{f?.name??i.id} <span className="unit">{decimal(i.grams)} 克</span> <small>{f?foodState[f.state]:''}</small></span>;})}</p></div>
             {!readonlyOrStale&&<button className="small" disabled={cannotSwap} onClick={()=>setAlternative(alternative?.key===key?null:{key,mode:'换食材',recipeId:s.recipe.id})}>换{labels(s.recipe).slot}</button>}</div>
-            {open===key&&<Sheet kind="detail" title={s.recipe.name} subtitle={meal.name+' · 配方与做法'} close={()=>{setOpen('');setGrams(null);}}><RecipeInfo recipe={s.recipe} value={s} products={readonly?undefined:products??{}}/>
+            {open===key&&<Sheet kind="detail" title={s.recipe.name} subtitle={meal.name+' · 配方与做法'} close={()=>{setOpen('');setGrams(null);}}><RecipeInfo recipe={s.recipe} value={s} products={readonly?undefined:products??{}} profile={readonly?plan.profile:profile}/>
               {s.recipe.replacements?.map(row=><p className="meta" key={row.from}>{foodMap.get(row.from)?.name} → {foodMap.get(row.to)?.name} · 已按实际配方计算</p>)}
               {!readonly&&<div className="actions">
                 <button aria-pressed={fav} onClick={()=>favorite(s.recipe.id)}>{fav?'取消收藏':'收藏菜谱'}</button>
@@ -135,13 +140,4 @@ export function PlanPage(props:Props) {
   </>;
 }
 
-function NutrientReview({days}:{days:Plan['days']}) {
-  return <><ul className="ingredients">{nutritionReview(days).map(row=><li key={row.key}>
-    <span>{row.label} <small>{row.max?'参考上限':'参考值'} {row.goal} {row.unit}</small></span>
-    <strong>{row.value===null?(days.length>1?row.missing+' 天数据不全':'部分食材缺值'):`${decimal(row.value)} ${row.unit} · ${row.status}`}</strong>
-  </li>)}
-    {supplementalReview(days).map(row=><li key={row.label}>
-      <span>{row.label} <small>已覆盖 {row.known}/{row.items} 项用料</small></span>
-      <strong>{row.value===null?'部分食材缺值':decimal(row.value)+' '+row.unit}</strong>
-    </li>)}</ul><p className="meta">按食材表估算。全周参考结果需要每天的数据完整。</p></>;
-}
+const dayIngredients=(days:Plan['days'])=>days.flatMap(day=>day.meals.flatMap(meal=>meal.dishes.flatMap(row=>row.ingredients)));

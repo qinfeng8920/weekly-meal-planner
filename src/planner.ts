@@ -8,7 +8,7 @@ import {procurementScore} from './procurement-score';
 import {purchaseCategory} from './purchase-category';
 import {buildWeeklyPool,capOf,counts,effectiveCap,fitsPool,preferenceConflicts,ingredientPools,normalizeIds,poolGroup,poolGroups,recipeFoodIds,weekUsage,type GenerationAction,type PoolCandidate,type PoolSettings,type WeeklyIngredientPool} from './ingredient-pool';
 import {purchaseEligibility,planLogistics,type Logistics,type SupplyState} from './logistics';
-import {catalogVersion, food, foodMap, recipeList, recipeMap, serving, variantsOf, type Recipe, type Serving} from './catalog';
+import {catalogVersion, food, foodMap, hasPlanningNutrition, recipeList, recipeMap, serving, variantsOf, type Recipe, type Serving} from './catalog';
 import {energyNeedsReview,nutrition, sum, type Targets} from './nutrition';
 import {isCalendarDate} from './weight';
 import {dateKey, mealPreference, split, type MealName, type Profile, type Weight} from './profile';
@@ -23,7 +23,7 @@ import {cookingFit,mealComplexity,type MealComplexity} from './cooking';
 import {cookingRule,usesNamedBreakfast,type CookingSelection} from './cooking-profile';
 
 export const algorithmVersion = '3.2.0';
-const compatibleCatalog=(version:string)=>version===catalogVersion||['2026.11-sr3','2026.11-sr4'].includes(version);
+const compatibleCatalog=(version:string)=>version===catalogVersion||['2026.11-sr3','2026.11-sr4','2026.11-sr5'].includes(version);
 export const compatibleVersion=(version:string)=>version===algorithmVersion||version==='3.1.0'||version==='2.4.1'||version==='2.4.0'||version==='2.3.1'||version==='2.3.0'||version==='2.2.0'||version==='2.1.0'||version==='2.0.0'||version==='1.2.0';
 export type Plan = {id:string; name:string; created:string; start:string; seed:string; targets:Targets; days:Day[];
   profile:Profile; weight:number; purchases:Purchase[]; prep:Prep; algorithmVersion:string; catalogVersion:string; favorite:boolean;taskScope?:string;cookingOverride?:CookingSelection;logistics?:Logistics;executionSnapshot?:import('./execution').Execution;pool?:WeeklyIngredientPool};
@@ -68,7 +68,7 @@ export function allowed(r:Recipe,p:Profile,blocked:string[],products?:PurchaseOp
     r.ingredients.every(({id})=>{
       const f = food(id);
       const names = [id,f.name,...f.aliases].map(n=>n.toLowerCase());
-      return (f.nutrients.sodium!==null||f.sodiumUpperBound!==undefined)&&!f.allergens.some(a=>p.allergens.includes(a)) &&
+      return hasPlanningNutrition(f)&&!f.allergens.some(a=>p.allergens.includes(a)) &&
         !exclusions.some(x=>names.some(n=>n===x || n.includes(x) || x.includes(n) && n.length>=2)) &&
         (p.frozen || f.state!=='frozen') &&
         !(f.category==='水果' && (fruitGoal(p)===0 || p.fruit==='优先低糖水果' && !allowedFruit.has(id))) &&
@@ -153,7 +153,7 @@ function limits(p:Profile,t:Targets,day:Day) {
   const veg = dose(dishes,id=>food(id).category==='蔬菜');
   const grams = fruitGoal(p);
   const proteinMax = t.kcal*.35/4;
-  const sodium = total.sodium??sodiumUpperBound(day);
+  const sodium = sodiumUpperBound(day);
   const caloriesOK = total.kcal >= (p.sex==='男' ? 1500 : 1200) && Math.abs(total.kcal-t.kcal)<=t.kcal*.05;
   const knownCalcium=total.calcium??dishes.reduce((sum,row)=>sum+row.ingredients.reduce((small,item)=>{
     const value=food(item.id).nutrients.calcium;

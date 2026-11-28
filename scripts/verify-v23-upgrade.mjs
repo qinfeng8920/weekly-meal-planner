@@ -6,17 +6,18 @@ import {createRequire} from 'node:module';
 import assert from 'node:assert/strict';
 const repo=fileURLToPath(new URL('../',import.meta.url));
 const [oldDist,screenshotDirectory,mode]=process.argv.slice(2);
-const v32=mode==='--v32';
+const v321=mode==='--v321';
+const v32=mode==='--v32'||v321;
 const v31=mode==='--v31'||v32;
 const v3=mode==='--v3'||v31;
 const v241=mode==='--v241';
 const v24=mode==='--v24'||v241||v3;
 const ingredients=mode==='--ingredients'||v24;
-const previousVersion=v32?'3.1.2':v31?'3.0.0':v3?'2.4.1':v241?'2.4.0':v24?'2.3.2':ingredients?'2.3.0':'2.2.1';
-const currentVersion=v32?'3.2.0':v31?'3.1.0':v3?'3.0.0':v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
+const previousVersion=v321?'3.2.0':v32?'3.1.2':v31?'3.0.0':v3?'2.4.1':v241?'2.4.0':v24?'2.3.2':ingredients?'2.3.0':'2.2.1';
+const currentVersion=v321?'3.2.1':v32?'3.2.0':v31?'3.1.0':v3?'3.0.0':v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
 const latestAlgorithm=v32?'3.2.0':v31?'3.1.0':v3?'2.4.1':v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
-const prefix=v32?'v32':v31?'v31':v3?'v3':v241?'v241':v24?'v24':ingredients?'v231':'v23';
-if(!oldDist||!screenshotDirectory)throw Error('用法 node scripts/verify-v23-upgrade.mjs <旧版 dist> <截图目录> [--ingredients|--v24|--v241|--v3|--v31|--v32]');
+const prefix=v321?'v321':v32?'v32':v31?'v31':v3?'v3':v241?'v241':v24?'v24':ingredients?'v231':'v23';
+if(!oldDist||!screenshotDirectory)throw Error('用法 node scripts/verify-v23-upgrade.mjs <旧版 dist> <截图目录> [--ingredients|--v24|--v241|--v3|--v31|--v32|--v321]');
 const output=resolve(screenshotDirectory);
 await mkdir(output,{recursive:true});
 const {chromium,devices,expect}=createRequire(repo+'/package.json')('@playwright/test');
@@ -57,7 +58,7 @@ try {
  await page.getByText('固定搭配与随机种子',{exact:true}).click();
  await page.getByLabel('随机种子（选填）').fill('采购验收');
  await page.getByRole('button',{name:v3?'重新搭配':'按设置生成',exact:true}).click();
- await expect(page.getByText('算法 '+(v32?'3.1.0':v3?'2.4.1':v241?'2.4.0':v24?'2.3.1':ingredients?'2.3.0':'2.2.0'),{exact:false})).toBeVisible();
+ await expect(page.getByText('算法 '+(v321?'3.2.0':v32?'3.1.0':v3?'2.4.1':v241?'2.4.0':v24?'2.3.1':ingredients?'2.3.0':'2.2.0'),{exact:false})).toBeVisible();
 
  await nav('采购').click();
  await page.getByRole('checkbox').first().click();
@@ -98,24 +99,24 @@ try {
      };
    };
  }),directory);
- await page.evaluate(isPrefsUpgrade=>new Promise((resolve,reject)=>{
+ await page.evaluate(({isPrefsUpgrade,directory})=>new Promise((resolve,reject)=>{
    const req=indexedDB.open('tiantianjian',1);
    req.onerror=()=>reject(req.error);
    req.onsuccess=()=>{
-     const db=req.result,tx=db.transaction('app','readwrite'),store=tx.objectStore('app'),r=store.get('data');
+     const db=req.result,tx=db.transaction('app','readwrite'),store=tx.objectStore('app'),key=directory?'profiles-v2':'data',r=store.get(key);
      tx.oncomplete=()=>{db.close();resolve();};
      tx.onerror=()=>reject(tx.error);
      r.onsuccess=()=>{
-       const data=r.result;
+       const data=directory?r.result.profiles.find(p=>p.id===r.result.activeProfileId).data:r.result;
        if(isPrefsUpgrade)data.poolSettings={...data.poolSettings,method:'手动指定',selected:['oats'],locked:['chicken','beef']};
        const day=data.plan.days[0];
        const ids=new Set(day.meals[0].dishes.flatMap(dish=>dish.ingredients.map(item=>item.id)));
        for(const item of ids)data.supply.ledger.events.push({id:'假资料|'+item,item,source:'假资料|'+item,
          kind:'手动补充',date:data.plan.start,quantity:1000,unit:'克',delta:1000});
-       store.put(data,'data');
+       store.put(r.result,key);
      };
    };
- }),v241);
+ }),{isPrefsUpgrade:v241,directory:v321});
  await page.reload();
  await nav('食谱').click();
  page.once('dialog',dialog=>dialog.accept());
@@ -124,7 +125,7 @@ try {
  page.once('dialog',dialog=>dialog.accept('旧版执行快照'));
  await page.getByRole('button',{name:'保存到历史',exact:true}).click();
  await expect(page.getByText('已保存到历史方案。')).toBeVisible();
- const before=await read();
+ const before=await read(v321);
  assert.equal(before.supply.prices.oats.amount,18);
  assert(before.supply.ledger.events.some(e=>e.kind==='实际取用'));
  assert.equal(before.favorites.length,1);
