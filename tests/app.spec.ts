@@ -3,24 +3,26 @@ import {readFileSync} from 'node:fs';
 import type {Data} from '../src/store';
 import {demo} from './fixtures';
 
-async function setup(page:Page) {
+async function setup(page:Page,profile=demo) {
   await page.goto('./');
   await page.getByRole('button',{name:'开始填写档案'}).click();
-  await page.getByLabel('昵称（选填）').fill(demo.name);
-  await page.getByLabel('公式使用的性别').selectOption(demo.sex);
-  await page.getByLabel('年龄（岁）').fill(demo.age);
-  await page.getByLabel('身高（厘米）').fill(demo.height);
-  await page.getByLabel('当前体重（千克）').fill(demo.weight);
-  await page.getByLabel('目标体重（千克）').fill(demo.target);
+  await page.getByLabel('昵称（选填）').fill(profile.name);
+  await page.getByLabel('公式使用的性别').selectOption(profile.sex);
+  await page.getByLabel('年龄（岁）').fill(profile.age);
+  await page.getByLabel('身高（厘米）').fill(profile.height);
+  await page.getByLabel('当前体重（千克）').fill(profile.weight);
+  await page.getByLabel('目标体重（千克）').fill(profile.target);
+  if(profile.deficit)await page.getByLabel('标准热量缺口').selectOption(profile.deficit.mode);
   await page.getByRole('button',{name:'继续',exact:true}).click();
   await page.getByRole('button',{name:'继续',exact:true}).click();
   await page.getByRole('button',{name:'继续',exact:true}).click();
   await expect(page.getByRole('alert')).toContainText('完成并确认');
   await page.getByText('我已核对年龄、孕哺期、进食障碍及医嘱筛查').click();
   await page.getByText('我已核对过敏原与其他强制忌口').click();
+  if(profile.deficit?.normalOptIn)await page.getByText(/我主动选择在正常 BMI 时减脂/).click();
   for(let i=0;i<3;i++) await page.getByRole('button',{name:'继续',exact:true}).click();
   await page.getByRole('button',{name:'保存档案'}).click();
-  await expect(page.getByRole('heading',{name:'你好，测试用户'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'你好，'+profile.name})).toBeVisible();
 }
 async function generate(page:Page) {
   await page.getByRole('button',{name:'生成七天食谱',exact:true}).click();
@@ -971,4 +973,42 @@ test('小屏保留超长菜名、大额库存和缺失微量营养提示',async(
   await page.getByRole('button',{name:'家中库存',exact:true}).click();
   await expect(page.getByText('1,234,567 克',{exact:true})).toBeVisible();
   await assertFit(page);
+});
+
+test('BMI 连续调整、普通称重保留食谱编辑和已锁菜，起点独立',async({page})=>{
+  await setup(page,{...demo,weight:'72',target:'60',height:'173',age:'25',deficit:{mode:'缓慢减脂',normalOptIn:true}});
+  const calories=page.locator('.home-task').filter({hasText:'每日热量目标'}).locator('strong');
+  await expect(calories).toContainText('1,718');
+  await generate(page);
+  await page.locator('.dish-title').first().click();
+  await page.getByRole('dialog').getByRole('button',{name:'锁定这道菜'}).click();
+  await expect(page.getByRole('button',{name:'解除锁定'})).toBeVisible();
+  await page.getByRole('button',{name:'关闭',exact:true}).click();
+  await nav(page,'首页').click();
+  await page.getByRole('button',{name:'记录体重',exact:true}).click();
+  await page.getByLabel('体重（千克）',{exact:true}).fill('71');
+  await page.getByRole('button',{name:'保存体重'}).click();
+  await expect(page.getByText(/71 千克/).first()).toBeVisible();
+  await page.getByLabel('体重（千克）',{exact:true}).fill('70');
+  await page.getByRole('button',{name:'保存体重'}).click();
+  await expect(page.getByRole('alert')).toContainText('已经有称重记录');
+  await page.getByRole('button',{name:'关闭',exact:true}).click();
+  await expect(calories).toContainText('1,721');
+  await page.getByText('查看热量计算依据',{exact:true}).click();
+  await expect(page.getByText('BMI 缺口保留比例',{exact:true})).toBeVisible();
+  await expect(page.getByText(/累计减重 1 千克/)).toBeVisible();
+  await nav(page,'食谱').click();
+  await expect(page.getByText(/当前建议 1721 千卡 · 生成时目标 1718 千卡/)).toBeVisible();
+  await expect(page.locator('.dish').getByRole('button',{name:/^换/}).nth(1)).toBeEnabled();
+  await page.locator('.dish-title').first().click();
+  await expect(page.getByRole('button',{name:'解除锁定'})).toBeVisible();
+  await page.getByRole('button',{name:'关闭',exact:true}).click();
+  for(const width of [360,390,430]){
+    await page.setViewportSize({width,height:850});
+    await assertFit(page);
+  }
+  await nav(page,'我的').click();
+  await page.getByRole('button',{name:'编辑档案'}).click();
+  await expect(page.getByLabel('当前体重（千克）',{exact:true})).toHaveCount(0);
+  await expect(page.getByText(/当前体重由首页称重记录更新/)).toBeVisible();
 });

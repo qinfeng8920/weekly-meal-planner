@@ -11,12 +11,12 @@ import {recipeCooking} from './cooking';
 import type {MealName,Profile} from './profile';
 import type {Day,Pantry} from './shopping';
 
-export type Receipt={gross:number;net:number;paid?:number;paidGross?:number;date?:string;quantity?:number;unit?:PriceUnit;netOnly?:true;storage?:import('./execution').StockInfo};
+export type Receipt={gross:number;net:number;paid?:number;paidGross?:number;referenceCost?:number|null;date?:string;quantity?:number;unit?:PriceUnit;netOnly?:true;storage?:import('./execution').StockInfo};
 export type SupplyState={settings?:SupplySettings;prices?:PriceBook;receipts?:Record<string,Receipt>;execution?:Execution;ledger?:Ledger;products?:PurchaseOptions;startChoice?:import('./planner').StartChoice};
 export type Cost={known:number;missing:number;items:number};
 export type Use={day:number;meal:string;dish:string; grams:number;recipeId?:string;recipeGrams?:number;conversionMissing?:boolean;blocked?:boolean;prepAt:number;method:string;jobKey?:string;sourcing?:{home:number;carry:number;forecast:number;taken:number}};
 export type BuyLine={id:string;uses:Use[];need:number;stock:number;carry:number;buy:number;remaining:number;confirmed:number;netConfirmed:number;
-  leftover:number;receiptDate?:string;receiptQuantity?:number;receiptUnit?:PriceUnit;receiptNetOnly?:true;receiptStorage?:import('./execution').StockInfo;price?:Price;consume:number|null;estimate:number|null;paid:number|null;paidActual?:number;paidGross?:number;paidEstimated:boolean;cost:Cost;bill:Cost;receiptKey:string};
+  quantityPending?:boolean;leftover:number;receiptDate?:string;receiptQuantity?:number;receiptUnit?:PriceUnit;receiptNetOnly?:true;receiptStorage?:import('./execution').StockInfo;price?:Price;consume:number|null;estimate:number|null;paid:number|null;paidActual?:number;paidGross?:number;paidEstimated:boolean;cost:Cost;bill:Cost;receiptKey:string};
 export type BuyBatch={day:number;date:string;lines:BuyLine[];purchase:Cost;consumed:Cost;paid:Cost;remaining:Cost};
 export type PrepJob={key?:string;day:number;at:number;name:string;meal:string;method:string;active:number;waiting:number;reheat?:number;tools:string[];steps:string[];ingredients:{id:string;grams:number}[]};
 export type PrepBatch={range:Range;start:string;end:string;prepDate:string;purchaseDate:string;
@@ -190,7 +190,7 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
       const scheduled=week===start&&dates.includes(+day)?+day:undefined;
       const pricedPaid=old.paid!==undefined?(old.paidGross??old.gross):0;
       const withoutPaid=Math.max(0,round(old.gross-pricedPaid));
-      const partialEstimate=withoutPaid&&old.netOnly?null:amountFor(withoutPaid,price);
+      const partialEstimate=withoutPaid===0?0:old.referenceCost!==undefined?old.referenceCost:old.netOnly?null:amountFor(withoutPaid,price);
       const bill=blank();
       const actualDate=old.date??receiptIdentity(key).date;
       if(actualDate&&actualDate>=start&&actualDate<=scopeEnd) {
@@ -261,6 +261,8 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
       const unknown=row.uses.some(u=>u.conversionMissing), incomplete=unknown||row.uses.some(u=>u.blocked);
       const gross=reload/(rate||1);
       const buy=gross<=0?0:round(pack?Math.ceil((gross-1e-8)/pack)*pack:Math.ceil(gross));
+      row.quantityPending=incomplete||Boolean(buy&&!rate)||
+        Boolean(reload&&price&&['毫升','升','个','盒','袋','瓶'].includes(price.unit)&&!unit);
       row.remaining=buy;row.buy=round(buy+row.confirmed);
       row.leftover=Math.max(0,round(buy*rate-reload));
       forecast=round(forecast+row.leftover);
@@ -271,7 +273,7 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
       if(buy||incomplete)addCost(remaining,row.estimate);
       if(row.uses.length)addCost(consumed,row.consume);
       if(row.cost.items)mergeCost(categoryCosts[purchaseCategory(id)]??=blank(),row.cost);
-      if(row.buy>0){toBuy++;if(!buy)checked++;}
+      if(row.buy>0||row.quantityPending){toBuy++;if(!buy&&!row.quantityPending&&row.confirmed>0)checked++;}
       events.get(day)!.push(row);lines.push(row);
     }
     if(lines.length) {
@@ -284,7 +286,7 @@ export function planLogistics(days:Day[],p:Profile,start:string,pantry:Pantry={}
         demand:total('need'),shortage:total('remaining'),taken:round(uses.reduce((n,use)=>n+(use.sourcing?.taken??0),0))});
       aggregate.push({...lines[0],uses,need:total('need'),stock:total('stock'),carry:total('carry'),buy:total('buy'),remaining:total('remaining'),
         confirmed:total('confirmed'),netConfirmed:total('netConfirmed'),leftover:projected,paidEstimated:lines.some(l=>l.paidEstimated),
-        consume:sum('consume'),estimate:sum('estimate'),paid:sum('paid'),cost,bill,receiptKey:''});
+        quantityPending:lines.some(line=>line.quantityPending),consume:sum('consume'),estimate:sum('estimate'),paid:sum('paid'),cost,bill,receiptKey:''});
     }
   }
 
@@ -357,4 +359,49 @@ export function prepSchedule(batch:PrepBatch,start:string) {
     return [];
   });
   return {concentrated:parallelSessions(advanced,start,false),later:parallelSessions(later,start,false)};
+}
+
+/** 历史重估仅替换计划用量的参考价，保留原交易费用、采购量和备餐。 */
+export function repriceSnapshot(snapshot:Logistics,prices:PriceBook,pantry:Pantry):Logistics {
+  const quote=structuredClone(snapshot);
+  const categories:Record<string,Cost>={};
+  const purchase=blank(),consumed=blank(),remaining=blank();
+  for(const batch of quote.batches) {
+    batch.purchase=blank();batch.consumed=blank();batch.remaining=blank();
+    for(const row of batch.lines) {
+      const rate=edibleRate(row.price);
+      const price=priceFor(row.id,prices,pantry[row.id]);
+      const unresolved=row.quantityPending??row.uses.some(use=>use.blocked||use.conversionMissing);
+      row.price=price;
+      row.estimate=unresolved?null:amountFor(row.remaining,price);
+      row.consume=row.uses.some(use=>use.conversionMissing)||row.need&&!rate?null:amountFor(row.need/(rate||1),price);
+      row.cost={...row.bill};
+      if(row.remaining||unresolved) {
+        addCost(row.cost,row.estimate);
+        addCost(batch.remaining,row.estimate);
+      }
+      if(row.uses.length)addCost(batch.consumed,row.consume);
+      mergeCost(batch.purchase,row.cost);
+      if(row.cost.items)mergeCost(categories[purchaseCategory(row.id)]??=blank(),row.cost);
+    }
+    mergeCost(purchase,batch.purchase);mergeCost(consumed,batch.consumed);mergeCost(remaining,batch.remaining);
+  }
+  for(const batch of quote.actualBatches??[]) {
+    mergeCost(purchase,batch.purchase);
+    for(const row of batch.lines)mergeCost(categories[purchaseCategory(row.id)]??=blank(),row.cost);
+  }
+  const groups=new Map<string,BuyLine[]>();
+  for(const batch of quote.batches)for(const row of batch.lines) {
+    const group=groups.get(row.id)??[];
+    group.push(row);groups.set(row.id,group);
+  }
+  for(const row of quote.lines) {
+    const lines=groups.get(row.id)??[];
+    row.price=lines[0]?.price;
+    row.cost=blank();
+    for(const item of lines)mergeCost(row.cost,item.cost);
+    const sum=(key:'consume'|'estimate')=>lines.some(line=>line[key]===null)?null:round(lines.reduce((total,line)=>total+(line[key]??0),0));
+    row.consume=sum('consume');row.estimate=sum('estimate');
+  }
+  return {...quote,categories,purchase,consumed,remaining};
 }

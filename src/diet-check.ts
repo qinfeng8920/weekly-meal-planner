@@ -1,5 +1,6 @@
 import {sum,type Nutrients} from './nutrition';
 import {food} from './catalog';
+import {foodMicros} from './food-micros';
 import {foodClass} from './catalog-taxonomy';
 import type {Day} from './shopping';
 
@@ -48,4 +49,21 @@ export function nutrientPenalty(n:Nutrients) {
     shortfall(n.potassium,reference.potassium.amount)*.16+
     shortfall(n.vitaminC,reference.vitaminC.amount)*.23+
     shortfall(n.fiber,reference.fiber.amount)*.15;
+}
+
+const supplemental={
+  iron:{label:'铁',unit:'毫克'},folate:{label:'总叶酸',unit:'微克'},
+  vitaminB12:{label:'维生素 B12',unit:'微克'},magnesium:{label:'镁',unit:'毫克'},zinc:{label:'锌',unit:'毫克'},
+} as const;
+export function supplementalReview(days:Day[]) {
+  const ingredients=days.flatMap(day=>day.meals.flatMap(meal=>meal.dishes.flatMap(row=>row.ingredients)));
+  return (Object.keys(supplemental) as (keyof typeof supplemental)[]).map(key=>{
+    let total=0,known=0;
+    for(const {id,grams} of ingredients) {
+      const value=foodMicros[id]?.[key];
+      if(value==null)continue;
+      total+=value*grams/100;known++;
+    }
+    return {...supplemental[key],known,items:ingredients.length,value:known===ingredients.length&&days.length?total/days.length:null};
+  });
 }

@@ -6,15 +6,16 @@ import {createRequire} from 'node:module';
 import assert from 'node:assert/strict';
 const repo=fileURLToPath(new URL('../',import.meta.url));
 const [oldDist,screenshotDirectory,mode]=process.argv.slice(2);
-const v3=mode==='--v3';
+const v31=mode==='--v31';
+const v3=mode==='--v3'||v31;
 const v241=mode==='--v241';
 const v24=mode==='--v24'||v241||v3;
 const ingredients=mode==='--ingredients'||v24;
-const previousVersion=v3?'2.4.1':v241?'2.4.0':v24?'2.3.2':ingredients?'2.3.0':'2.2.1';
-const currentVersion=v3?'3.0.0':v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
-const latestAlgorithm=v3?'2.4.1':v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
-const prefix=v3?'v3':v241?'v241':v24?'v24':ingredients?'v231':'v23';
-if(!oldDist||!screenshotDirectory)throw Error('用法 node scripts/verify-v23-upgrade.mjs <旧版 dist> <截图目录> [--ingredients|--v24|--v241|--v3]');
+const previousVersion=v31?'3.0.0':v3?'2.4.1':v241?'2.4.0':v24?'2.3.2':ingredients?'2.3.0':'2.2.1';
+const currentVersion=v31?'3.1.0':v3?'3.0.0':v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
+const latestAlgorithm=v31?'3.1.0':v3?'2.4.1':v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
+const prefix=v31?'v31':v3?'v3':v241?'v241':v24?'v24':ingredients?'v231':'v23';
+if(!oldDist||!screenshotDirectory)throw Error('用法 node scripts/verify-v23-upgrade.mjs <旧版 dist> <截图目录> [--ingredients|--v24|--v241|--v3|--v31]');
 const output=resolve(screenshotDirectory);
 await mkdir(output,{recursive:true});
 const {chromium,devices,expect}=createRequire(repo+'/package.json')('@playwright/test');
@@ -72,8 +73,13 @@ try {
  await expect(page.getByText('食材价格已保存。')).toBeVisible();
  await nav('我的').click();
  await page.getByRole('button',{name:v241||v3?'食谱大全':'菜谱库与收藏'}).click();
- await page.locator('details.recipe-card summary').first().click();
+ if(v31){
+   await page.getByRole('searchbox',{name:'搜索菜谱'}).fill('燕麦');
+   await page.locator('.recipe-card button').first().click();
+   await expect(page.getByRole('dialog')).toBeVisible();
+ }else await page.locator('details.recipe-card summary').first().click();
  await page.getByRole('button',{name:'收藏菜谱',exact:true}).click();
+ if(v31)await page.getByRole('button',{name:'关闭',exact:true}).click();
  await nav('食谱').click();
  const read=()=>page.evaluate(()=>new Promise((resolve,reject)=>{
    const req=indexedDB.open('tiantianjian',1);

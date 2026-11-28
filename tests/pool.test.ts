@@ -134,7 +134,11 @@ test('分装、制作和撤销使用同一取用记录，旧日期保留账面�
   equal(completed.ledger,prepared.ledger);
   const bigger={...job,ingredients:[{id:'oats',grams:160}]};
   equal(executeJobs(completed.ledger,completed.execution,[bigger],'取用',true,now).ledger,completed.ledger);
-  equal(balances(executeJobs(completed.ledger,completed.execution,[job],'取用',false,now).ledger).get('oats'),500);
+  throws(()=>executeJobs(completed.ledger,completed.execution,[job],'取用',false,now),/先撤销制作/);
+  const unmade=executeJobs(completed.ledger,completed.execution,[job],'制作',false,now);
+  const restored=executeJobs(unmade.ledger,unmade.execution,[job],'取用',false,now);
+  equal(balances(restored.ledger).get('oats'),500);
+  equal(restored.execution.tasks?.[job.key!]?.packed,true);
   throws(()=>executeJobs(completed.ledger,completed.execution,[{...job,key:start+'|1|午餐|quick-oats',ingredients:[{id:'chicken',grams:95}]}],'取用',true,now),/账面库存不足/);
   ok(supplySchema.safeParse({execution:completed.execution,receipts,ledger:completed.ledger}).success);
   const state={...fresh(),supply:{execution:completed.execution,receipts,ledger:completed.ledger}};

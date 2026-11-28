@@ -9,7 +9,8 @@ import {purchaseCategory} from './purchase-category';
 import {buildWeeklyPool,capOf,counts,effectiveCap,fitsPool,preferenceConflicts,ingredientPools,normalizeIds,poolGroup,poolGroups,recipeFoodIds,weekUsage,type GenerationAction,type PoolCandidate,type PoolSettings,type WeeklyIngredientPool} from './ingredient-pool';
 import {purchaseEligibility,planLogistics,type Logistics,type SupplyState} from './logistics';
 import {catalogVersion, food, foodMap, recipeList, recipeMap, serving, variantsOf, type Recipe, type Serving} from './catalog';
-import {nutrition, sum, type Targets} from './nutrition';
+import {energyNeedsReview,nutrition, sum, type Targets} from './nutrition';
+import {isCalendarDate} from './weight';
 import {dateKey, mealPreference, split, type MealName, type Profile, type Weight} from './profile';
 import {purchasesFromLogistics, prepPlan, type Day, type Meal, type Pantry, type Purchase, type Prep} from './shopping';
 
@@ -21,11 +22,11 @@ import {coreSignature,mealConflict,overlapPenalty,recipeMeaning,sameFood} from '
 import {cookingFit,mealComplexity,type MealComplexity} from './cooking';
 import {cookingRule,usesNamedBreakfast,type CookingSelection} from './cooking-profile';
 
-export const algorithmVersion = '2.4.1';
+export const algorithmVersion = '3.1.0';
 const compatibleCatalog=(version:string)=>version===catalogVersion||['2026.11-sr3','2026.11-sr4'].includes(version);
-const compatibleVersion=(version:string)=>version===algorithmVersion||version==='2.4.0'||version==='2.3.1'||version==='2.3.0'||version==='2.2.0'||version==='2.1.0'||version==='2.0.0'||version==='1.2.0';
+export const compatibleVersion=(version:string)=>version===algorithmVersion||version==='2.4.1'||version==='2.4.0'||version==='2.3.1'||version==='2.3.0'||version==='2.2.0'||version==='2.1.0'||version==='2.0.0'||version==='1.2.0';
 export type Plan = {id:string; name:string; created:string; start:string; seed:string; targets:Targets; days:Day[];
-  profile:Profile; weight:number; purchases:Purchase[]; prep:Prep; algorithmVersion:string; catalogVersion:string; favorite:boolean;taskScope?:string;cookingOverride?:CookingSelection;logistics?:Logistics;pool?:WeeklyIngredientPool};
+  profile:Profile; weight:number; purchases:Purchase[]; prep:Prep; algorithmVersion:string; catalogVersion:string; favorite:boolean;taskScope?:string;cookingOverride?:CookingSelection;logistics?:Logistics;executionSnapshot?:import('./execution').Execution;pool?:WeeklyIngredientPool};
 export type Lock = {day:number; meal:number; dish:number; serving:Serving};
 export type Change = {day:number; meal?:number; dish?:number;replacement?:string;swapMode?:'换食材'|'换做法';expandPool?:boolean;weekFruit?:boolean; intent?:'简单一点'|'丰富一点'|'减少一道菜'|'更换同类食材'|'改成一锅料理'};
 export function executionLocked(plan:Plan,execution:Execution|undefined,day:number,meal?:number,dish?:number) {
@@ -319,7 +320,9 @@ function practicalServing(value:Serving) {
 }
 
 function generateCandidate(p:Profile, records:Weight[], pantry:Pantry, blocked:string[], seed:string, old?:Plan, locks:Lock[] = [], change?:Change, temporary?:CookingSelection,supply?:SupplyState, candidate?:PoolCandidate, settings?:PoolSettings, requestedStart?:string, scope?:string|null):Plan {
-  const t=nutrition(p,records);
+  const current=nutrition(p,records);
+  if(change&&old&&energyNeedsReview(old.targets,current))throw Error('安全保护已更新，请先更新未执行食谱。');
+  const t=change&&old?old.targets:current;
   verifyInput(p);
   const choice=change?old?.cookingOverride:temporary;
   const names=mealNames(p);
@@ -661,27 +664,31 @@ function generateCandidate(p:Profile, records:Weight[], pantry:Pantry, blocked:s
   const {purchases,quote}=output;
   validateBudget(p,quote);
   return {id:old?.id??crypto.randomUUID(),name:old?.name??'本周食谱',...(scope?{taskScope:scope}:{}),created:new Date().toISOString(),start,seed,
-    targets:t,days:finalDays,profile:structuredClone(p),weight:[...records].sort((a,b)=>b.date.localeCompare(a.date))[0]?.kg??Number(p.weight),
-    purchases,logistics:quote,prep:prepPlan(finalDays,p,start,choice,quote),algorithmVersion,catalogVersion,favorite:old?.favorite??false,...(choice?{cookingOverride:choice}:{})};
+    targets:t,days:finalDays,profile:structuredClone(change&&old?old.profile:p),weight:change&&old?old.weight:current.energy!.current,
+    purchases,logistics:quote,prep:prepPlan(finalDays,p,start,choice,quote),algorithmVersion:change&&old?old.algorithmVersion:algorithmVersion,catalogVersion,favorite:old?.favorite??false,...(choice?{cookingOverride:choice}:{})};
 }
 
 export const startChoices=['今天','明天','下周一'] as const;
-export type StartChoice=typeof startChoices[number];
+export type StartChoice=typeof startChoices[number]|`${number}-${number}-${number}`;
 export function newPlanStart(choice:StartChoice='明天',today=dateKey()) {
   if(choice==='下周一') {
     const weekday=new Date(today+'T12:00:00').getDay();
     return addDays(today,(8-weekday)%7||7);
   }
-  return choice==='今天'?today:addDays(today,1);
+  if(choice==='今天')return today;
+  if(choice==='明天')return addDays(today,1);
+  if(!isCalendarDate(choice)||choice<today)throw Error('自定义起始日必须是今天或未来的有效日期。');
+  return choice;
 }
-export type GenerationOptions={settings?:PoolSettings;previous?:WeeklyIngredientPool;keep?:boolean;action?:GenerationAction;startChoice?:StartChoice;nextWeek?:boolean};
+export type GenerationOptions={settings?:PoolSettings;previous?:WeeklyIngredientPool;keep?:boolean;action?:GenerationAction;startChoice?:StartChoice;nextWeek?:boolean;updateCurrent?:boolean};
 export function regenerate(p:Profile,records:Weight[],pantry:Pantry,blocked:string[],seed:string,old?:Plan,locks:Lock[]=[],
   change?:Change,temporary?:CookingSelection,supply?:SupplyState,options?:GenerationOptions):Plan {
   if(change){
     assertUnexecuted(old,supply,change);
     if(old&&addDays(old.start,change.day)<dateKey())throw Error('已过的日期保留为原食谱，请选择待执行日期。');
   }
-  const proposed=newPlanStart(options?.startChoice??(options?.nextWeek?'下周一':'明天'));
+  if(options?.updateCurrent&&old&&addDays(old.start,6)<dateKey())throw Error('当前方案已经结束，请重新生成新的一周。');
+  const proposed=(change||options?.updateCurrent)&&old?old.start:newPlanStart(options?.startChoice??(options?.nextWeek?'下周一':'明天'));
   if(old&&!change&&(proposed>addDays(old.start,6)||addDays(proposed,6)<old.start||addDays(old.start,6)<dateKey()))old=undefined;
   if(old&&!change&&mealNames(old.profile).join()!==mealNames(p).join())
     throw Error('本周仍有原方案需保留。若要从新的餐次数开始，请选择本周结束后的起始日。');
@@ -748,7 +755,8 @@ export function regenerate(p:Profile,records:Weight[],pantry:Pantry,blocked:stri
         (settings?.locked??[]).every(id=>!recipeFoodIds(previous.recipe,supply?.products).includes(id)||recipeFoodIds(replacement,supply?.products).includes(id));
       if(!explicitSafe&&!candidates.some(recipe=>recipe.id===replacement.id))throw Error('所选替代做法与当前厨具、偏好或锁定食材冲突。');
       verifyInput(p);
-      const t=nutrition(p,records), days=structuredClone(old.days);
+      if(energyNeedsReview(old.targets,nutrition(p,records)))throw Error('安全保护已更新，请先更新未执行食谱。');
+      const t=old.targets,days=structuredClone(old.days);
       const exact=previous.ingredients.map((ingredient,i)=>({id:replacement.ingredients[i].id,
         grams:labels(previous.recipe).slot==='水果'?ingredient.grams:
           Math.round(ingredient.grams*replacement.ingredients[i].grams/previous.recipe.ingredients[i].grams*100)/100}));
@@ -776,7 +784,7 @@ export function regenerate(p:Profile,records:Weight[],pantry:Pantry,blocked:stri
       const poolSelected=new Set([...(old.pool?.selected??[]),...weekUsage(days,supply?.products).map(item=>item.id)]);
       const chosen=old.pool?.selected.filter(id=>!old.pool!.supplements.some(item=>item.id===id))??[];
       const pool=settings?buildWeeklyPool(start,settings,chosen,poolSelected,days,quote,supply?.products):undefined;
-      return {...old,days,targets:t,purchases,logistics:quote,prep:prepPlan(days,p,start,old.cookingOverride,quote),algorithmVersion,...(pool?{pool}:{})};
+      return {...old,days,targets:t,purchases,logistics:quote,prep:prepPlan(days,p,start,old.cookingOverride,quote),...(pool?{pool}:{})};
     }
   }
   if(!settings)return generateCandidate(p,records,pantry,blocked,seed,old,locks,change,temporary,supply,undefined,undefined,start,scope);
@@ -872,9 +880,11 @@ export function regenerate(p:Profile,records:Weight[],pantry:Pantry,blocked:stri
 }
 
 export function revise(plan:Plan, p:Profile, records:Weight[], pantry:Pantry, blocked:string[], day:number, meal:number,dish:number, grams:number[],supply?:SupplyState) {
-  const t=nutrition(p,records);
+  nutrition(p,records);
+      const t=plan.targets;
   verifyInput(p);
   assertUnexecuted(plan,supply,{day,meal,dish});
+  if(addDays(plan.start,day)<dateKey())throw Error('已过的日期保留为原食谱。');
   const days=structuredClone(plan.days);
   const original = days[day].meals[meal].dishes[dish];
   const current = recipeMap.get(original.recipe.id);
@@ -888,8 +898,7 @@ export function revise(plan:Plan, p:Profile, records:Weight[], pantry:Pantry, bl
   const {purchases,quote}=checkStructure(days,p,t,blocked,pantry,plan.cookingOverride,supply,plan.start,plan.pool?.settings,plan.taskScope??null,(d,i)=>(d!==day||i!==meal)&&executionLocked(plan,supply?.execution,d,i));
   const updatedPool=plan.pool?buildWeeklyPool(plan.start,plan.pool.settings,
     plan.pool.selected.filter(id=>!plan.pool!.supplements.some(s=>s.id===id)),plan.pool.selected,days,quote,supply?.products):undefined;
-  return {...plan,...(updatedPool?{pool:updatedPool}:{}),days,targets:t,weight:[...records].sort((a,b)=>b.date.localeCompare(a.date))[0]?.kg??Number(p.weight),
-    profile:structuredClone(p),purchases,logistics:quote,prep:prepPlan(days,p,plan.start,plan.cookingOverride,quote)};
+  return {...plan,...(updatedPool?{pool:updatedPool}:{}),days,purchases,logistics:quote,prep:prepPlan(days,p,plan.start,plan.cookingOverride,quote)};
 }
 
 export function verifyAgainst(plan:Plan,p:Profile,records:Weight[],pantry:Pantry,blocked:string[],supply?:SupplyState,start=plan.start,settings=plan.pool?.settings) {

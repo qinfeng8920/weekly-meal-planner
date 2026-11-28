@@ -1,7 +1,7 @@
 import {Action,CategoryGlyph,Icon,ListRow,PageHeader,SearchField,Segment,Sheet,useCatalogBack,useRemembered} from './design';
 import {useMemo,useState} from 'react';
 import {food,foods,foodState,recipeList,type Food} from './catalog';
-import micros from './food-micros-v24.json';
+import {foodMicros} from './food-micros';
 import {foodClass,foodGroups,recipeUses} from './catalog-taxonomy';
 import {searchMatches} from './catalog-search';
 import {PurchaseForm} from './InventoryInputs';
@@ -19,11 +19,6 @@ import {CatalogPaging,decimal,Empty} from './ui';
 const unitLabels:Record<string,[string,string]>={kcal:['能量','千卡'],protein:['蛋白质','克'],fat:['脂肪','克'],
   carbs:['碳水','克'],fiber:['膳食纤维','克'],sodium:['钠','毫克'],potassium:['钾','毫克'],calcium:['钙','毫克'],
   iron:['铁','毫克'],magnesium:['镁','毫克'],zinc:['锌','毫克'],vitaminC:['维生素 C','毫克'],folate:['总叶酸','微克'],vitaminB12:['维生素 B12','微克']};
-const extra:Record<string,Record<string,number|null>>={...micros,
-  pitaya:{iron:.3,magnesium:41,zinc:.3,folate:44,vitaminB12:0},
-  bayberry:{iron:.4,magnesium:7,zinc:.1,folate:26,vitaminB12:0},
-  cherrytomato:{iron:.4,magnesium:13,zinc:.2,folate:35,vitaminB12:0},
-};
 type Props={products?:PurchaseOptions;stock:ReadonlyMap<string,number>;pantry:Pantry;prices:PriceBook;settings:PoolSettings;
   savePrice:(id:string,value?:PriceInput)=>Promise<boolean>;savePurchase:(source:string,receipt?:Receipt)=>Promise<boolean>;
   change:(id:string,state:FoodState)=>void;related:(query:string)=>void;back:()=>void};
@@ -80,7 +75,7 @@ export function IngredientsLibrary(props:Props) {
 function IngredientDetail({id,states,products,prices,pantry,settings,stock,savePrice,savePurchase,change,related}:Props&{id:string;states:Food[]}) {
   const [selected,setSelected]=useState(id),[editor,setEditor]=useState(''),[source,setSource]=useState(()=>crypto.randomUUID());
   const f=food(selected), price=priceFor(id,prices,pantry[id]);
-  const stats={...f.nutrients,...extra[f.id]} as Record<string,number|null>;
+  const stats={...f.nutrients,...foodMicros[f.id]} as Record<string,number|null>;
   const uses=recipeList.filter(r=>recipeUses(f.id,r));
   const substitute=foods.filter(row=>conditionalPair(f.id,row.id)||directRules.some(rule=>rule.from===f.id&&rule.to===row.id)).map(row=>row.name);
   const conversion=purchaseFood(f.id,products).conversion;

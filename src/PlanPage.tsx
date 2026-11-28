@@ -10,7 +10,7 @@ import {algorithmVersion,dayNutrition,executionLocked,type Change,type Plan,type
 import {cookingRule,usesNamedBreakfast} from './cooking-profile';
 import {dateKey,mealPreference,type MealName,type Profile} from './profile';
 import {breakfastMenus,labels} from './meal-catalog';
-import {nutritionReview} from './diet-check';
+import {nutritionReview,supplementalReview} from './diet-check';
 
 import {addDays} from './batches';
 import type {PurchaseOptions} from './purchase-food';
@@ -23,7 +23,7 @@ type Props = {plan:Plan|null;profile:Profile|null;busy:boolean;stale:boolean;pro
   change:(pos:Change)=>void; lock:(lock:Lock)=>void; favorite:(id:string)=>void;block:(id:string)=>void;
   revise:(day:number,meal:number,dish:number,grams:number[])=>Promise<boolean>;
   save:()=>void; share:(plan:Plan,share:boolean)=>void; exportText:(plan:Plan)=>void;
-  execution?:Execution;mealJobs?:PrepJob[];completeMeal?:(jobs:PrepJob[])=>Promise<boolean>;undoMeal?:(jobs:PrepJob[])=>Promise<boolean>;openPool?:()=>void;keepPool?:()=>void;readonly?:boolean};
+  updatePlan?:()=>void;currentTargets?:import('./nutrition').Targets|null;targetChanged?:boolean;today?:string;execution?:Execution;mealJobs?:PrepJob[];completeMeal?:(jobs:PrepJob[])=>Promise<boolean>;undoMeal?:(jobs:PrepJob[])=>Promise<boolean>;openPool?:()=>void;keepPool?:()=>void;readonly?:boolean};
 export function PlanPage(props:Props) {
   const {plan,profile,day,setDay,busy,stale,locks,favorites,generate,editProfile,openHistory,change,lock,favorite,block,revise,save,share,exportText,readonly,products}=props;
   const [open,setOpen]=useState('');
@@ -36,7 +36,8 @@ export function PlanPage(props:Props) {
     return current?.meals[meal]?.dishes[dish]?.recipe.id!==alternative.recipeId;})();
   useEffect(()=>{if(edited){setAlternative(null);setOpen('');}},[edited]);
   const readonlyOrStale=readonly||stale;
-  const elapsed=Boolean(plan&&addDays(plan.start,day)<dateKey());
+  const elapsed=Boolean(plan&&addDays(plan.start,day)<(props.today??dateKey()));
+  const hasExecution=Boolean(plan?.days.some((_,i)=>executionLocked(plan,props.execution,i)));
   const dayExecuted=Boolean(plan&&executionLocked(plan,props.execution,day));
   const legacy=plan&&plan.algorithmVersion!==algorithmVersion;
   const selectedBreakfast=breakfastMenus.find(m=>m.id===profile?.fixedBreakfast);
@@ -45,16 +46,21 @@ export function PlanPage(props:Props) {
     <PageHeader title={readonly?plan?.name??'历史食谱':'每周食谱'} subtitle={plan?`${plan.start} 起 · 七天 · 每人用量`:'查看每日餐次与营养。'}>
       {!readonly&&<div className="actions plan-actions"><Action icon="calendar" onClick={openHistory}>历史方案</Action>
         {profile&&props.openPool&&<Action icon="slider" onClick={props.openPool}>生成设置</Action>}
-        <button className={plan?'flat':'primary'} disabled={busy} onClick={profile?generate:editProfile}>
-          {busy?'正在校验…':profile?(plan?(plan.days.some((_,i)=>executionLocked(plan,props.execution,i))?'重生成未执行餐次':'重生成七天'):'生成七天食谱'):'填写档案'}
+        <button className={plan?'flat':'primary'} disabled={busy} onClick={profile?hasExecution?props.updatePlan??generate:generate:editProfile}>
+          {busy?'正在校验…':profile?(plan?(hasExecution?'重生成未执行餐次':'重生成七天'):'生成七天食谱'):'填写档案'}
         </button></div>}
     </PageHeader>
     {!plan&&<Empty title="还没有每周食谱"><p>{profile?'生成后可锁定喜欢的菜、调整份量和查看采购清单。':'先完成档案和健康筛查。'}</p></Empty>}
     {plan&&current&&n&&<>
-      {legacy&&<p className="hint">这是旧版本生成的食谱，原菜谱和历史记录继续保留。</p>}
-      {stale&&!legacy&&<p className="hint" role="status">个人档案、体重或屏蔽设置已更新。当前展示保存时的计划。若要调整，请先生成新方案。</p>}
+      {legacy&&<p className="hint">这是旧版本生成的食谱，保留方案当时的计算目标。</p>}
+      {!readonly&&props.targetChanged&&props.currentTargets&&<div className="hint">
+        当前建议 {props.currentTargets.kcal} 千卡 · 生成时目标 {plan.targets.kcal} 千卡
+        <div><button className="small" disabled={busy} onClick={props.updatePlan??generate}>更新未执行食谱</button></div>
+      </div>}
+      {readonly&&!props.execution&&<p className="meta">此历史方案未保存执行状态。</p>}
+      {stale&&<p className="hint" role="status">个人健康、档案或饮食限制需要重新核对。调整前请更新未执行食谱。</p>}
       <div className="day-tabs" aria-label="选择星期">{dates.map((name,i)=>{
-        const today=addDays(plan.start,i)===dateKey(),jobs=props.mealJobs?.filter(job=>job.day===i)??[];
+        const today=addDays(plan.start,i)===(props.today??dateKey()),jobs=props.mealJobs?.filter(job=>job.day===i)??[];
         const done=jobs.length>0&&jobs.every(job=>job.key&&props.execution?.tasks?.[job.key]?.eaten);
         const status=today?'今天':done?'已完成':addDays(plan.start,i)<dateKey()?'已过':'待执行';
         return <button aria-pressed={day===i} aria-current={today?'date':undefined} aria-label={name} aria-description={status}
@@ -67,9 +73,9 @@ export function PlanPage(props:Props) {
           <svg aria-hidden="true" viewBox="0 0 92 92"><circle cx="46" cy="46" r="39"/><circle cx="46" cy="46" r="39" pathLength="100"
             strokeDasharray={Math.min(100,100*n.kcal/plan.targets.kcal)+' 100'} transform="rotate(-90 46 46)"/></svg>
           <div><b>{Math.round(n.kcal)}</b><small>计划千卡</small></div>
-        </div><div><p className="meta">每日目标 {Math.round(plan.targets.kcal)} 千卡</p>
+        </div><div><p className="meta">生成时目标 {Math.round(plan.targets.kcal)} 千卡</p>
           <p><strong className="unit">{Math.round(n.kcal-plan.targets.kcal)>0?'+':''}{Math.round(n.kcal-plan.targets.kcal)} 千卡</strong><span className="meta"> · 与目标差值</span></p>
-          <p className="meta">按食谱用量估算。用餐状态在各餐单独记录。</p></div></div>
+          <p className="meta">按食谱用量估算。完成标记和库存取用都不能用来确定实际摄入热量。</p></div></div>
         <NutritionRow value={n} targets={plan.targets}/>
         {nutritionReview([current]).some(r=>['低于','高于','数据不全'].some(v=>r.status.includes(v)))&&
           <p className="hint">部分微量营养指标需关注，展开查看。</p>}
@@ -84,7 +90,7 @@ export function PlanPage(props:Props) {
         const eaten=jobs.length>0&&jobs.every(job=>job.key&&props.execution?.tasks?.[job.key]?.eaten);
         return <section className="card meal-card" key={meal.name}>
         <SectionTitle title={meal.name}>{!readonlyOrStale&&<button className="small" disabled={busy||elapsed||fixedMeal||mealExecuted} onClick={()=>change({day,meal:mi})}>换一餐</button>}</SectionTitle>
-        {mealExecuted&&!readonly&&<p><StatusLabel tone={eaten?'positive':'neutral'}>{eaten?'本餐已完成':'已执行的菜品已锁定'}</StatusLabel></p>}
+        {mealExecuted&&<p><StatusLabel tone={eaten?'positive':'neutral'}>{eaten?'本餐已完成':readonly?'有历史执行记录':'已执行的菜品已锁定'}</StatusLabel></p>}
         {fixedMeal&&<p className="meta">已固定搭配</p>}
         {meal.dishes.map((s,di)=>{
           const key=mi+':'+di,locked=locks.some(l=>l.day===day&&l.meal===mi&&l.dish===di),fav=favorites.includes(s.recipe.id);
@@ -133,5 +139,9 @@ function NutrientReview({days}:{days:Plan['days']}) {
   return <><ul className="ingredients">{nutritionReview(days).map(row=><li key={row.key}>
     <span>{row.label} <small>{row.max?'参考上限':'参考值'} {row.goal} {row.unit}</small></span>
     <strong>{row.value===null?(days.length>1?row.missing+' 天数据不全':'部分食材缺值'):`${decimal(row.value)} ${row.unit} · ${row.status}`}</strong>
-  </li>)}</ul><p className="meta">按食材表估算。全周参考结果需要每天的数据完整。</p></>;
+  </li>)}
+    {supplementalReview(days).map(row=><li key={row.label}>
+      <span>{row.label} <small>已覆盖 {row.known}/{row.items} 项用料</small></span>
+      <strong>{row.value===null?'部分食材缺值':decimal(row.value)+' '+row.unit}</strong>
+    </li>)}</ul><p className="meta">按食材表估算。全周参考结果需要每天的数据完整。</p></>;
 }

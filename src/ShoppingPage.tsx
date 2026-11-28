@@ -1,4 +1,5 @@
 import {Action,Icon,PageHeader,Progress,Segment,Sheet,StatusLabel} from './design';
+import {nextPrep,prepProgress,purchaseProgress,purchaseStatus,weeklyPurchases} from './plan-progress';
 import {procurementSummary} from './procurement-score';
 import {useState} from 'react';
 import {food} from './catalog';
@@ -6,8 +7,7 @@ import {addDays} from './batches';
 import {gramsPerPriceUnit,type PriceInput} from './prices';
 import {ingredientLabel,prepSchedule,type BuyLine,type Cost,type Logistics,type PrepJob,type PrepBatch,type Receipt,type SupplyState} from './logistics';
 import type {Plan} from './planner';
-import {dateKey} from './profile';
-import type {TaskAction} from './execution';
+import type {Execution,TaskAction} from './execution';
 import {purchaseCategories,purchaseCategory} from './purchase-category';
 import {needsPortion,prepWork,recipePrepSteps} from './prep-work';
 import {PurchaseForm,WithdrawalControl} from './InventoryInputs';
@@ -27,21 +27,6 @@ export type SupplyActions={
 export const costText=(cost:Cost)=>cost.missing?(cost.items===cost.missing?'价格待补充':yuan(cost.known)+' + 待补充')+
   '（'+(cost.items-cost.missing)+'/'+cost.items+' 项已知）':yuan(cost.known);
 const pendingPrice=(r:BuyLine)=>r.price?`${yuan(r.price.amount)}/${r.price.unit} · ${r.price.basis} · ${r.price.kind}`:'待补充单价';
-function purchaseStatus(row:BuyLine) {
-  if (row.confirmed>0) return row.remaining||row.estimate===null?'已买部分':'已购';
-  if (row.remaining>0) return '待买';
-  return row.estimate===null?'待核对':'无需补购';
-}
-function purchaseProgress(rows:BuyLine[]) {
-  let done=0,total=0;
-  for (const row of rows) {
-    const status=purchaseStatus(row);
-    if (status==='无需补购') continue;
-    total++;
-    if (status==='已购') done++;
-  }
-  return {done,total};
-}
 function PurchaseProgress({progress:{done,total}}:{progress:ReturnType<typeof purchaseProgress>}) {
   const complete=total>0&&done===total;
   return <span className={'purchase-progress'+(complete?' complete':'')}>
@@ -75,7 +60,7 @@ export function purchaseText(purchases:Purchase[]) {
 }
 export function batchPurchaseText(rows:BuyLine[],title:string) {
   return ['天天减 · '+title,...rows.filter(r=>purchaseStatus(r)!=='无需补购').map(r=>
-    `${r.buy&&!r.remaining?'✓':'□'} ${food(r.id).name} · 采购 ${sizeText(r)} · ${pendingPrice(r)} · 小计 ${costText(r.cost)}`)].join('\n');
+    `${purchaseStatus(r)==='已购'?'✓':'□'} ${food(r.id).name} · 采购 ${sizeText(r)} · ${pendingPrice(r)} · 小计 ${costText(r.cost)}`)].join('\n');
 }
 function prepText(batch:PrepBatch,start:string,work:ReturnType<typeof prepWork>) {
   const main=batch.rows.filter(row=>purchaseCategory(row.id)==='主要食材');
@@ -88,20 +73,20 @@ function prepText(batch:PrepBatch,start:string,work:ReturnType<typeof prepWork>)
     '集中制作与称量',...work.map(row=>food(row.id).name+' '+decimal(row.raw)+' 克 · '+row.portions.length+' 份 · '+row.method+' '+row.steps.join(' ')),
     '制作步骤',...batch.jobs.map(j=>addDays(start,j.at)+' '+j.name+' · '+j.method+' · '+recipePrepSteps(j,work).join(' '))].join('\n');
 }
-export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab='采购清单',onSettings,reprice,repriced=false}:{
+export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab='采购清单',historyExecution,onSettings,reprice,repriced=false}:{
   plan:Plan|null;quote?:Logistics;state?:SupplyState;actions?:SupplyActions;
-  copy:(text:string,share?:boolean)=>void;download:(text:string)=>void;initialTab?:SupplyTab;onSettings?:()=>void;reprice?:()=>void;repriced?:boolean;
+  copy:(text:string,share?:boolean)=>void;download:(text:string)=>void;initialTab?:SupplyTab;historyExecution?:Execution;onSettings?:()=>void;reprice?:()=>void;repriced?:boolean;
 }) {
   const [purchase,setPurchase]=useState<{key:string;source:string}|null>(null);
   const [tab,setTab]=useState<SupplyTab>(initialTab),[detail,setDetail]=useState('');
-  const today=dateKey();
-  const prepIndex=quote?.prep.findIndex(b=>b.end>=today&&b.jobs.some(j=>j.key&&!state?.execution?.tasks?.[j.key]?.taken))??-1;
+  const execution=state?.execution??historyExecution;
+  const prepIndex=quote?nextPrep(quote,execution)?.index??-1:-1;
   const shoppingIndex=quote?.batches.findIndex(b=>b.lines.some(l=>l.remaining>0))??-1;
   const stored=quote?.lines.filter(row=>purchaseStatus(row)==='无需补购'&&row.stock+row.carry>0)??[];
   const changed=plan?new Map(plan.days.flatMap(day=>day.meals.flatMap(meal=>meal.dishes.flatMap(dish=>
     dish.recipe.replacements??[]))).map(r=>[r.from+'|'+r.to,r])):new Map();
   const weeklyRows=quote?.batches.flatMap(batch=>batch.lines)??[];
-  const weeklyProgress=purchaseProgress(weeklyRows);
+  const weeklyProgress=quote?weeklyPurchases(quote):purchaseProgress([]);
   const editPrice=actions?.savePrice;
   return <>
     <PageHeader title="采购" subtitle={plan?'按实际库存和采购批次整理':'生成食谱后查看待买食材和备餐安排。'}>
@@ -157,17 +142,15 @@ export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab=
         const selected=i===Math.max(prepIndex,0);
         const main=batch.rows.filter(r=>purchaseCategory(r.id)==='主要食材');
         const seasonings=batch.rows.filter(r=>purchaseCategory(r.id)!=='主要食材');
-        const tasks=state?.execution?.tasks;
+        const tasks=execution?.tasks;
         const schedule=prepSchedule(batch,quote.start);
         const work=state?prepWork(batch,state.products,new Map(quote.inventory.map(row=>[row.id,row.usable??row.home])),state.execution):[];
         const portions=main.filter(row=>row.uses.some(needsPortion));
-        const done=batch.jobs.filter(j=>j.key&&tasks?.[j.key]?.taken).length;
-        const made=batch.jobs.filter(j=>j.key&&tasks?.[j.key]?.made).length;
-        const packed=batch.jobs.filter(j=>j.key&&tasks?.[j.key]?.packed).length;
+        const {taken:done,made,packed,eaten}=prepProgress(batch,execution);
         return <details className="card batch-fold prep-batch" key={batch.start} open={selected?true:undefined}>
           <summary><span>备餐第 {i+1} 批 · {dateLabel(batch.start)} 至 {dateLabel(batch.end)}</span><span className="meta unit">{done}/{batch.jobs.length} 已取用</span></summary>
           <div className="fold-body prep-flow">
-            <div className="prep-status"><StatusLabel>{done} 项已取用</StatusLabel><StatusLabel>{made} 项已制作</StatusLabel><StatusLabel>{packed} 项已分装</StatusLabel></div>
+            <div className="prep-status"><StatusLabel>{done} 项已取用</StatusLabel><StatusLabel>{made} 项已制作</StatusLabel><StatusLabel>{packed} 项已分装</StatusLabel><StatusLabel>{eaten} 项已用餐</StatusLabel></div>
             <Progress value={done} max={batch.jobs.length} label={'第 '+(i+1)+' 批取用进度'}/>
             <p className="meta">准备 {dateLabel(batch.prepDate)} · {batch.tools.join('、')||'无需加热厨具'} · {batch.boxes} 个分装容器</p>
             {schedule.concentrated.map(s=><p className="meta" key={s.date}>{dateLabel(s.date)} 集中备餐估算 · 主动 <span className="unit">{s.active} 分钟</span> · 等待 <span className="unit">{s.waiting} 分钟</span></p>)}
@@ -242,7 +225,8 @@ export function ShoppingPage({plan,quote,state,actions,copy,download,initialTab=
   </>;
 }
 
-function Overview({quote:q,progress:{done,total}}:{quote:Logistics;progress:ReturnType<typeof purchaseProgress>}) {
+function Overview({quote:q,progress}:{quote:Logistics;progress:ReturnType<typeof purchaseProgress>}) {
+  const {done,total}=progress;
   const paidEstimate=[...q.batches,...q.actualBatches??[]].some(batch=>batch.lines.some(row=>row.paidEstimated));
   const avg={...q.consumed,known:q.consumed.known/7};
   const summary=procurementSummary(q);
@@ -251,8 +235,8 @@ function Overview({quote:q,progress:{done,total}}:{quote:Logistics;progress:Retu
     <dl className="purchase-totals"><div><dt>{q.actualPaid?'已实际支付':paidEstimate?'历史付款与估算':'历史实付'}</dt><dd>{paid}</dd></div>
       <div><dt>剩余预计采购费用</dt><dd>{costText(q.remaining)}</dd></div></dl>
     <p className="meta">使用 {summary.used} 种 · 需买 {summary.needed} 种 · {total?`已购 ${done}/${total} 项`:'无需补购'}</p>
-    <Progress value={done} max={total} label="采购完成进度"/>
-    <details><summary>费用明细</summary><dl className="supply-summary">
+    {progress.review>0&&<p className="meta">{progress.review} 项数量待核对</p>}<Progress value={done} max={total} label="采购完成进度"/>
+    <details><summary>费用明细</summary><p className="meta">根据交易日期汇总 {dateLabel(q.start)} 至 {dateLabel(addDays(q.start,6))} 的实际付款。</p><dl className="supply-summary">
       {!!q.unpricedPaid?.items&&<div><dt>已购未填实付（参考）</dt><dd>{costText(q.unpricedPaid)}</dd></div>}
       <div><dt>本周预计总支出</dt><dd>{costText(q.purchase)}</dd></div>
       {purchaseCategories.map(category=><div key={category}><dt>{category==='常备调味料'?'常备调味料补货':category}费用</dt><dd>{q.categories[category]?costText(q.categories[category]):'无需补购'}</dd></div>)}
@@ -282,13 +266,13 @@ function LineList({rows,start,detail,setDetail,receipt,editPrice,purchase,setPur
     const status=purchaseStatus(row);
     const {quantity,packaging}=purchaseSize(row);
     return <li key={k}><div className="purchase-row"><label className="check">
-      {receipt&&row.buy>0&&<input type="checkbox" checked={row.remaining===0} onChange={e=>{
+      {receipt&&row.buy>0&&<input type="checkbox" checked={status==='已购'} onChange={e=>{
         if(e.target.checked) {
           setDetail('');
           setPurchase?.({key:k,source:row.confirmed?'手动|'+crypto.randomUUID()+'|'+row.id:k});
         } else void receipt(k);
       }}/>}<span className="purchase-name">{f.name}{<small className={'purchase-item-status'+(status==='已购'?' complete':status==='已买部分'?' partial':status==='待买'?' pending':'')}>{status}</small>}</span></label>
-      <span className="purchase-quantity"><b>{row.estimate===null&&!row.buy?'待补全':quantity.replace(' ','\u00a0')}</b>
+      <span className="purchase-quantity"><b>{status==='待核对'&&!row.buy?'数量待核对':quantity.replace(' ','\u00a0')}</b>
         {packaging&&<small>{packaging}</small>}</span>
       <button className="small flat" aria-expanded={detail===k} onClick={()=>{setPurchase?.(null);setDetail(detail===k?'':k);}}>{detail===k?'收起':'详情'}</button></div>
       <p className="meta purchase-price">{editPrice?<button className="small flat" onClick={()=>{setPurchase?.(null);setDetail(detail===k?'':k);}} aria-label={'编辑'+f.name+'单价'}>{pendingPrice(row)}</button>:pendingPrice(row)}

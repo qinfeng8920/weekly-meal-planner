@@ -90,7 +90,11 @@ test('整批提交原子完成，重复取用、制作和用餐只扣一次',()=
   const eaten=executeJobs(made.ledger,made.execution,jobs,'用餐',true,week);
   equal(eaten.ledger,taken.ledger);
   ok(jobs.every(j=>eaten.execution.tasks?.[j.key!]?.eaten));
-  const restored=executeJobs(eaten.ledger,eaten.execution,jobs,'取用',false,week);
+  throws(()=>executeJobs(eaten.ledger,eaten.execution,jobs,'取用',false,week),/撤销制作或用餐/);
+  const undoMeal=executeJobs(eaten.ledger,eaten.execution,jobs,'用餐',false,week);
+  ok(jobs.every(j=>undoMeal.execution.tasks?.[j.key!]?.made));
+  const undoCook=executeJobs(undoMeal.ledger,undoMeal.execution,jobs,'制作',false,week);
+  const restored=executeJobs(undoCook.ledger,undoCook.execution,jobs,'取用',false,week);
   equal(balances(restored.ledger).get('chicken'),1000);
   throws(()=>adjustStock(restored.ledger,'chicken',1001,'扣除',week,'调整|x|chicken'),/不足/);
 });

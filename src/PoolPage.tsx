@@ -41,7 +41,8 @@ export function PoolPage({initial,previous,templates,stock,quote,busy,onSave,onG
   const [draft,setDraft]=useState(()=>structuredClone(initial??defaultPool));
   const [pending,setPending]=useState(0),[saveStatus,setSaveStatus]=useState('');
   const [settings,setSettings]=useState(supply);
-  const [people,setPeople]=useState(profile.people),[budget,setBudget]=useState(profile.budget),[start,setStart]=useState(startChoice);
+  const [people,setPeople]=useState(profile.people),[budget,setBudget]=useState(profile.budget),[start,setStart]=useState<string>(startChoice);
+  const isCustom=!startChoices.some(choice=>choice===start);
   const legacyCooking=profile.cooking?.mode;
   const [cooking,setCooking]=useState<CookingSelection>(legacyCooking==='极简'?'简单':legacyCooking==='简单'||legacyCooking==='家常'?legacyCooking:'不限制');
   const [dirty,setDirty]=useState(false),[running,setRunning]=useState(false),[error,setError]=useState('');
@@ -72,18 +73,20 @@ export function PoolPage({initial,previous,templates,stock,quote,busy,onSave,onG
   const requiredCount=counts(mandatoryIds(profile,draft,products));
   const conflictingFruit=locked.filter(id=>poolGroup(id)==='水果'&&id!==draft.fruitId);
   const summary=quote?procurementSummary(quote):undefined;
-  const date=newPlanStart(start);
+  let date='';
+  try {date=newPlanStart(start as StartChoice);} catch { /* 下方表单提示有效日期。 */ }
   const pageSize=15;
   const mark=()=>{setDirty(true);onDirty(true);};
   async function run(action:'保存'|GenerationAction) {
     if(running||busy)return;
     try {
-      splitWeek(settings);shoppingOffsets(settings,profile,date,dateKey());
+      if(!date)throw Error('自定义起始日必须是今天或未来的有效日期。');
+      splitWeek(settings);shoppingOffsets(settings,profile,date||dateKey(),dateKey());
       if(!Number.isInteger(+people)||+people<1||+people>12||budget&&(!Number.isFinite(+budget)||+budget<=0||+budget>1e7))
         throw Error('请检查人数及预算。');
       setRunning(true);setError('');
       if(dirty||action==='保存') {
-        if(!await onSave({settings,people,budget,startChoice:start,cooking}))return;
+        if(!await onSave({settings,people,budget,startChoice:start as StartChoice,cooking}))return;
         setDirty(false);onDirty(false);
       }
       if(action!=='保存'&&conflicts.length)throw Error(conflicts[0]);
@@ -107,7 +110,9 @@ export function PoolPage({initial,previous,templates,stock,quote,busy,onSave,onG
     </PageHeader>
     <section className="card settings-section"><SectionTitle title="基本设置"><Icon name="calendar"/></SectionTitle>
       <div className="fields">
-        <label className="field">食谱从哪天开始<select value={start} onChange={e=>{setStart(e.target.value as StartChoice);mark();}}>{startChoices.map(x=><option key={x}>{x}</option>)}</select></label>
+        <label className="field">食谱从哪天开始<select value={isCustom?'自定义':start} onChange={e=>{setStart(e.target.value==='自定义'?dateKey():e.target.value);mark();}}>
+          {startChoices.map(x=><option key={x}>{x}</option>)}<option>自定义</option></select></label>
+        {isCustom&&<label className="field">起始日期<input type="date" min={dateKey()} value={start} onChange={e=>{setStart(e.target.value);mark();}}/></label>}
         <label className="field">烹饪偏好<select value={cooking} onChange={e=>{setCooking(e.target.value as CookingSelection);mark();}}><option>不限制</option><option>简单</option><option>家常</option></select></label>
         <label className="field">用餐人数<input type="number" min={1} max={12} value={people} onChange={e=>{setPeople(e.target.value);mark();}}/></label>
         <label className="field">全周预算（元，可选）<input type="number" min={.01} step=".01" value={budget} onChange={e=>{setBudget(e.target.value);mark();}}/></label>

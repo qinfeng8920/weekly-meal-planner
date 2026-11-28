@@ -19,7 +19,9 @@ export const initialProfile = {
   fixedBreakfast: '', requiredDish: '', fluidLimit: false,
 };
 
-export type Profile = typeof initialProfile & {mealPreferences?:Partial<Record<MainMeal,MealPreference>>;cooking?:CookingProfile};
+export const deficitModes = ['系统推荐','维持体重','缓慢减脂','适中减脂','自定义'] as const;
+export type DeficitPreference = {mode:typeof deficitModes[number];standard?:number;normalOptIn?:boolean};
+export type Profile = typeof initialProfile & {deficit?:DeficitPreference;mealPreferences?:Partial<Record<MainMeal,MealPreference>>;cooking?:CookingProfile};
 export type Weight = { date: string; kg: number; waist?: number };
 export const split = (value: string) => value.split(/[、,，;；\n]/).map(x => x.trim()).filter(Boolean);
 

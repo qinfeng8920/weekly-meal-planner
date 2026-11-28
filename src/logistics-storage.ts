@@ -28,7 +28,7 @@ const settings=z.strictObject({prep:z.enum(prepPeriods),purchase:z.enum(purchase
 const storage=z.strictObject({expires:date,storage:z.enum(['干燥常温','冷藏','冷冻'])});
 const taskKey=z.string().regex(/^\d{4}-\d\d-\d\d\|[0-6]\|[^|]{1,8}\|[a-z0-9-]{1,80}(?:\|[a-z0-9-]{1,80}\|[0-5]\|[a-z0-9]{1,12})?$/);
 const disposal=z.strictObject({id,source:z.string().max(300).refine(s=>foodMap.has(s.split('|').at(-1)??'')),grams:number.positive(),recipeGrams:number.positive().optional()});
-const execution=z.strictObject({shared:z.record(z.string().max(12000),z.literal(true)).optional(),stock:z.record(id,storage).optional(),tasks:z.record(taskKey,z.strictObject({
+export const executionSchema=z.strictObject({shared:z.record(z.string().max(12000),z.literal(true)).optional(),stock:z.record(id,storage).optional(),tasks:z.record(taskKey,z.strictObject({
   packed:z.literal(true).optional(),made:z.literal(true).optional(),eaten:z.literal(true).optional(),
   ingredients:z.array(z.strictObject({id,grams:number})).optional(),
   taken:z.strictObject({date,allocation:z.array(disposal),confirmed:z.literal(true).optional()}).optional(),
@@ -53,10 +53,10 @@ export function validLedger(ledger:Ledger) {
   return new Set(ledger.review.map(r=>r.id)).size===ledger.review.length;
 }
 export const supplySchema=z.strictObject({settings:settings.optional(),prices:priceBook.optional(),
-  receipts:z.record(safeRecordKey,z.strictObject({gross:number.positive(),net:number,paid:number.optional(),paidGross:number.optional(),date:date.optional(),quantity:number.optional(),unit:z.enum(priceUnits).optional(),netOnly:z.literal(true).optional(),storage:storage.optional()})).optional(),execution:execution.optional(),ledger:ledgerSchema.optional(),startChoice:z.enum(['今天','明天','下周一']).optional(),products:z.strictObject({ready:z.array(convertible).max(5).optional(),yields:z.record(convertible,z.number().min(.1).max(10).nullable()).optional()}).optional()});
+  receipts:z.record(safeRecordKey,z.strictObject({gross:number.positive(),net:number,paid:number.optional(),paidGross:number.optional(),referenceCost:number.nullable().optional(),date:date.optional(),quantity:number.optional(),unit:z.enum(priceUnits).optional(),netOnly:z.literal(true).optional(),storage:storage.optional()})).optional(),execution:executionSchema.optional(),ledger:ledgerSchema.optional(),startChoice:z.union([z.enum(['今天','明天','下周一']),date]).optional(),products:z.strictObject({ready:z.array(convertible).max(5).optional(),yields:z.record(convertible,z.number().min(.1).max(10).nullable()).optional()}).optional()});
 const use=z.strictObject({day,meal:text,dish:text,grams:number,recipeId:id.optional(),recipeGrams:number.optional(),conversionMissing:z.boolean().optional(),blocked:z.boolean().optional(),prepAt:day,method:text,jobKey:taskKey.optional(),sourcing:z.strictObject({home:number,carry:number,forecast:number,taken:number}).optional()});
 const cost=z.strictObject({known:number,missing:z.int().nonnegative(),items:z.int().nonnegative()});
-const buyLine=z.strictObject({id,uses:z.array(use),need:number,stock:number,carry:number,buy:number,remaining:number,confirmed:number,
+const buyLine=z.strictObject({id,quantityPending:z.boolean().optional(),uses:z.array(use),need:number,stock:number,carry:number,buy:number,remaining:number,confirmed:number,
   netConfirmed:number,leftover:number,receiptDate:date.optional(),receiptQuantity:number.optional(),receiptUnit:z.enum(priceUnits).optional(),receiptNetOnly:z.literal(true).optional(),receiptStorage:storage.optional(),price:price.optional(),consume:number.nullable(),estimate:number.nullable(),paid:number.nullable(),
   paidEstimated:z.boolean(),paidActual:number.optional(),paidGross:number.optional(),cost,bill:cost,receiptKey:text});
 const range=z.strictObject({index:z.int().min(0).max(6),from:day,to:day,prepAt:day,purchaseAt:day});

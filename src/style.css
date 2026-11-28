@@ -508,3 +508,6 @@ html:has(dialog[open]) {overflow:hidden}
 .ingredient-hero-heading {display:flex;align-items:center;gap:var(--u2)}
 .ingredient-hero-heading h3 {margin:0}
 .purchase-stock {color:var(--accent);font-size:var(--caption)}
+.energy-basis {margin:0;font-size:var(--caption)}
+.energy-basis > div {display:grid;grid-template-columns:1fr;gap:var(--u1);border-bottom:1px solid var(--line);padding-block:var(--u2)}
+.energy-basis dd {margin:0;color:var(--ink);overflow-wrap:anywhere}

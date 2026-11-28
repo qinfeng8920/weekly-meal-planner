@@ -80,12 +80,13 @@ export function executeJobs(ledger:Ledger,current:Execution,jobs:Pick<PrepJob,'k
     if(action==='制作')entry.made=checked?true:undefined;
     const undo=action==='取用'&&!checked;
     if(undo&&entry.taken) {
+      if(entry.made||entry.eaten)throw Error('请先撤销制作或用餐标记，再撤销取用。');
       const outstanding=new Map<string,number>();
       for(const event of ledger.events)if(event.reference===key&&(event.kind==='实际取用'||event.kind==='撤销')) {
         outstanding.set(event.source,roundGrams((outstanding.get(event.source)??0)-event.delta));
       }
       entries.push(...usageEntries([...outstanding].filter(([,grams])=>grams>0).map(([source,grams])=>({source,grams,id:source.split('|').at(-1)!})),key,date,true));
-      entry.taken=undefined;entry.eaten=undefined;entry.made=undefined;entry.ingredients=undefined;
+      entry.taken=undefined;entry.ingredients=undefined;
     }
     if((action==='取用'||action==='制作'||action==='用餐')&&checked&&!entry.taken) {
       const allocations:Allocation[]=[];
