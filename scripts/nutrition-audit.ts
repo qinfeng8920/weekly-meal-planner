@@ -14,15 +14,15 @@ const limits:Partial<Record<NutrientKey,number>>={
   kcal:900,sodium:40000,potassium:23000,calcium:5000,magnesium:5000,phosphorus:6000,
   iron:200,zinc:250,selenium:4000,copper:100,manganese:150,iodine:3000,
   vitaminA:20000,vitaminB1:30,vitaminB2:30,vitaminB3:200,vitaminB5:30,vitaminB6:30,vitaminB7:400,
-  vitaminB12:200,folate:3000,naturalFolate:3000,folateDfe:5000,vitaminC:3000,vitaminD:150,vitaminE:200,vitaminK:4000,cholesterol:2500,
+  retinol:20000,folicAcid:3000,vitaminB12:200,folate:3000,naturalFolate:3000,folateDfe:5000,vitaminC:3000,vitaminD:150,vitaminE:200,vitaminK:4000,cholesterol:2500,
 };
 const fdcFields=Object.fromEntries(nutrientKeys.map((key,index)=>[key,
-  [1008,1003,1004,1005,1079,2000,1258,1292,1293,1253,1087,1089,1095,1092,1093,1090,1091,1103,1098,1101,1100,1106,1165,1166,1167,1170,1175,1176,1178,1177,1187,1190,1162,1114,1109,1185][index]]));
+  [1008,1003,1004,1005,1079,2000,1258,1292,1293,1253,1087,1089,1095,1092,1093,1090,1091,1103,1098,1101,1100,1106,1165,1166,1167,1170,1175,1176,1178,1177,1187,1190,1162,1114,1109,1185,1105,1186][index]]));
 const raw=[...base,...expansion,...mext];
 const baseline=new Map(raw.map(f=>[f.id,{...f.nutrients,...(oldMicros as Record<string,Record<string,number|null>>)[f.id]}] as const));
 const csvCell=(value:unknown)=>'"'+String(value??'').replaceAll('"','""')+'"';
 const pct=(have:number,total:number)=>(100*have/total).toFixed(1)+'%';
-const sourcePattern=/^(fdc|foundation|cofid|mext|mfat|iodine|asean):[^\s:]+$/;
+const sourcePattern=/^(fdc|foundation|cofid|mext|mfat|iodine|asean|ssass):[^\s:]+$/;
 
 export function validateNutrientCatalog() {
   assert.deepEqual(publishedFields,nutrientKeys,'数据列、顺序和单位词典须一致');
@@ -86,14 +86,14 @@ function report(){
   const summary=count(foods);
   const inactive=foods.filter(f=>!hasPlanningNutrition(f));
   const tables=[
-    '# V3.2.1 全食材营养补全报告','',
+    '# V3.2.2 全食材营养补全报告','',
     '范围覆盖全部可食部称量状态和复合调味料。现行档案 Schema 无自定义食材数据表。自定义价格、采购规格和菜谱调整仍引用原食材 ID。','',
     '定量完整率只统计有数值的字段，低于报告阈值、来源报零但未证实、推定零及未知分别记录。旧版统计按原库可显示的数值计。','',
     '| 指标 | 结果 |','| --- | ---: |',
-    '| 食材记录 | '+foods.length+' → '+foods.length+' |',
+    '| 食材记录 | '+raw.length+' → '+foods.length+' |',
     '| 每条食材审查字段 | 14 → '+nutrientKeys.length+' |',
     '| 可定量字段 | '+summary.before+' → '+summary.after+' / '+summary.total+' |',
-    '| 相同 36 项口径的完整率 | '+pct(summary.before,summary.total)+' → '+pct(summary.after,summary.total)+' |',
+    '| 相同新版字段口径的完整率 | '+pct(summary.before,summary.total)+' → '+pct(summary.after,summary.total)+' |',
     '| 新增定量项 | '+summary.filled+' |',
     '| 修正旧值或取消未经证实的定量 | '+summary.corrected+' |',
     '| 其中更新数值 | '+(summary.corrected-summary.withdrawn)+' |',

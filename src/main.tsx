@@ -47,7 +47,7 @@ type InstallEvent=Event&{prompt:()=>Promise<void>;userChoice:Promise<{outcome:st
 const safetyProfile=(p:Profile)=>JSON.stringify({
   screened:p.screened,allergyChecked:p.allergyChecked,risks:p.risks,conditions:p.conditions,otherHealth:p.otherHealth,
   allergens:p.allergens,avoid:p.avoid,tools:p.tools,meals:p.meals,fruit:p.fruit,fruitGrams:p.fruitGrams,dairy:p.dairy,
-  sex:p.sex,age:p.age,height:p.height,
+  sex:p.sex,age:p.age,height:p.height,lowSodiumSalt:Boolean(p.lowSodiumSalt),
 });
 const planNeedsReview=(plan:Plan,profile:Profile,blocked:string[])=>!compatibleVersion(plan.algorithmVersion)
   ||safetyProfile(profile)!==safetyProfile(plan.profile)||plan.days.some(day=>day.meals.some(meal=>meal.dishes.some(dish=>blocked.includes(dish.recipe.id))));

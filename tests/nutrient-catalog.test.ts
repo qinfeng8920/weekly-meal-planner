@@ -8,10 +8,10 @@ import {allowed,regenerate,verifyAgainst} from '../src/planner';
 import {validateNutrientCatalog} from '../scripts/nutrition-audit';
 import {demo} from './fixtures';
 
-test('全库36项营养的来源、单位、状态、可接受值与配餐准入',()=>{
+test('全库38项营养的来源、单位、状态、可接受值与配餐准入',()=>{
   validateNutrientCatalog();
-  assert.equal(nutrientKeys.length,36);
-  assert.ok(foods.length>=224);
+  assert.equal(nutrientKeys.length,38);
+  assert.ok(foods.length>=225);
   assert.equal(nutrientDatum('ricevinegar','zinc')?.[0],.2);
   assert.equal(nutrientDatum('ricevinegar','vitaminB12')?.[0],.1);
   assert.equal(nutrientDatum('egg','iodine')?.[0],49.2);
@@ -36,14 +36,14 @@ test('报告保留缺项下的已知合计、重量覆盖、阈值和称量状�
   const zinc=a.find(row=>row.key==='zinc')!;
   assert.equal(zinc.known,.1);
   assert.equal(zinc.coverage,.4);
-  assert.deepEqual(zinc.missing,['菜籽油（成品）']);
+  assert.deepEqual(zinc.missing,['菜籽油（成品净重）']);
   assert.equal(zinc.complete,false);
   const trace=ingredientNutrition([{id:'pitaya',grams:200}],1).find(row=>row.key==='sodium')!;
   assert.equal(trace.known,null);
   assert.equal(trace.bounded,1);
   assert.equal(trace.coverage,0);
   const complete=ingredientNutrition([{id:'ricevinegar',grams:100}],1,demo).find(row=>row.key==='zinc')!;
-  assert.equal(complete.status,'低于参考值');
+  assert.equal(complete.status,'摄入不足（低于 EAR）');
   assert.equal(complete.coverage,1);
 });
 
@@ -51,14 +51,14 @@ test('中国成人 DRI 根据年龄及性别，未知合成量时不做总叶酸
   const male=nutrientReferences({...demo,age:'25'});
   const female=nutrientReferences({...demo,age:'25',sex:'女'});
   const older=nutrientReferences({...demo,age:'76',sex:'女'});
-  assert.equal(male.zinc?.goal,12.5);
-  assert.equal(female.zinc?.goal,8.5);
-  assert.equal(female.iron?.goal,18);
-  assert.equal(older.sodium?.upper,1800);
-  assert.equal(older.vitaminD?.goal,15);
-  assert.equal(nutrientReferences({...demo,age:'56',sex:'女'}).iron?.goal,undefined);
-  assert.equal(male.folateDfe?.upper,undefined);
-  assert.equal(male.sugar?.upper,undefined);
+  assert.equal(male.zinc?.rni,12.5);
+  assert.equal(female.zinc?.rni,8.5);
+  assert.equal(female.iron?.rni,18);
+  assert.equal(older.sodium?.pi?.amount,1800);
+  assert.equal(older.vitaminD?.rni,15);
+  assert.equal(nutrientReferences({...demo,age:'56',sex:'女'}).iron?.rni,undefined);
+  assert.equal(male.folateDfe?.ul,undefined);
+  assert.equal(male.sugar?.ul,undefined);
   assert.deepEqual(nutrientReferences({...demo,risks:['怀孕或哺乳期']}),{});
 });
 

@@ -1,0 +1,25 @@
+{
+  "id": "lowsalt75",
+  "name": "低钠盐（75% 氯化钠）",
+  "category": "调味品",
+  "subcategory": "食盐",
+  "state": "ready",
+  "description": "75% 氯化钠 + 25% 氯化钾配方，按元素质量换算",
+  "sourceUrl": "https://pubmed.ncbi.nlm.nih.gov/34459569/",
+  "allergens": [],
+  "aliases": [
+    "75:25 低钠盐",
+    "含钾低钠盐"
+  ],
+  "nutrients": {
+    "kcal": 0,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 0,
+    "fiber": 0,
+    "sodium": 29504.620123,
+    "potassium": 13111.68643,
+    "calcium": null,
+    "vitaminC": null
+  }
+}

@@ -11,6 +11,7 @@ export const nutrientsList={
   vitaminB7:['生物素（B7）','微克'],vitaminB12:['维生素 B12','微克'],folate:['总叶酸','微克'],
   naturalFolate:['天然叶酸','微克'],folateDfe:['膳食叶酸当量（DFE）','微克'],vitaminC:['维生素 C','毫克'],
   vitaminD:['维生素 D（D2+D3）','微克'],vitaminE:['维生素 E（α-生育酚）','毫克'],vitaminK:['维生素 K（主要为 K1）','微克'],
+  retinol:['预成型维生素 A（视黄醇）','微克'],folicAcid:['合成叶酸','微克'],
 } as const;
 export type NutrientKey=keyof typeof nutrientsList;
 export const nutrientKeys=Object.keys(nutrientsList) as NutrientKey[];
@@ -33,6 +34,7 @@ export const referencesSources:Record<string,{label:string;link:string}>={
   mext:{label:'日本食品标准成分表（八订）增补 2023 年',link:'https://www.mext.go.jp/a_menu/syokuhinseibun/mext_00001.html'},
   mfat:{label:'日本食品标准成分表（八订）增补 2023 年脂肪酸表',link:'https://www.mext.go.jp/a_menu/syokuhinseibun/mext_00001.html'},
   iodine:{label:'USDA、FDA、NIH 食品碘数据库 2024',link:'https://www.ars.usda.gov/ARSUserFiles/80400535/Data/Iodine/IODINE_DATABASE_RELEASE_4_PER_100G.pdf'},
+  ssass:{label:'SSaSS 低钠盐配方及元素质量换算',link:'https://pubmed.ncbi.nlm.nih.gov/34459569/'},
   asean:{label:'东盟简明食物成分表 2014',link:'https://inmu.mahidol.ac.th/aseanfoods/doc/OnlineASEAN_FCD_V1_2014.pdf'},
 };
 export function nutrientSource(source:string) {

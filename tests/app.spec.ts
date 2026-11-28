@@ -3,12 +3,12 @@ import {readFileSync} from 'node:fs';
 import type {Data,ProfileEntry} from '../src/store';
 import {demo} from './fixtures';
 
-async function setup(page:Page,profile=demo) {
+async function setup(page:Page,profile=demo,lowSodiumSalt=false) {
   await page.goto('./');
   await page.getByRole('button',{name:'开始填写档案'}).click();
-  await fillProfile(page,profile);
+  await fillProfile(page,profile,lowSodiumSalt);
 }
-async function fillProfile(page:Page,profile=demo) {
+async function fillProfile(page:Page,profile=demo,lowSodiumSalt=false) {
   await page.getByLabel('昵称（选填）').fill(profile.name);
   await page.getByLabel('公式使用的性别').selectOption(profile.sex);
   await page.getByLabel('年龄（岁）').fill(profile.age);
@@ -27,7 +27,9 @@ async function fillProfile(page:Page,profile=demo) {
   if(profile.gainScreen?.reviewed)await page.getByLabel('已核对健康增重筛查').check();
   if(profile.gainScreen?.professionalClearance)await page.getByLabel(/已由医生或注册营养师评估/).check();
   if(profile.deficit?.normalOptIn)await page.getByText(/我主动选择在正常 BMI 时减脂/).click();
-  for(let i=0;i<3;i++) await page.getByRole('button',{name:'继续',exact:true}).click();
+  await page.getByRole('button',{name:'继续',exact:true}).click();
+  if(lowSodiumSalt)await page.getByLabel(/优先使用 75% 氯化钠/).check();
+  for(let i=0;i<2;i++) await page.getByRole('button',{name:'继续',exact:true}).click();
   await page.getByRole('button',{name:'保存档案'}).click();
   await expect(page.getByRole('heading',{name:'你好，'+profile.name})).toBeVisible();
 }
@@ -1292,7 +1294,7 @@ test('旧版损坏数据迁移失败时保留原键及原始备份',async({page}
 });
 
 test('每日、全周、菜谱和原材料都能查看营养覆盖与来源',async({page})=>{
-  await setup(page,{...demo,sex:'女',height:'162',weight:'65',age:'34',goal:'维持体重'});
+  await setup(page,{...demo,sex:'女',height:'162',weight:'65',age:'34',goal:'维持体重'},true);
   await generate(page);
   const daily=page.locator('.plan-nutrition > details').filter({has:page.getByText('每日微量营养与覆盖',{exact:true})});
   await daily.locator(':scope > summary').click();
@@ -1300,8 +1302,16 @@ test('每日、全周、菜谱和原材料都能查看营养覆盖与来源',asy
   const zinc=daily.locator('dt').filter({hasText:/^锌$/}).locator('..').locator('dd');
   await expect(zinc.getByText(/覆盖/)).toBeVisible();
   await expect(zinc.getByText(/推荐摄入量 8.5 毫克/)).toBeVisible();
+  const potassium=daily.locator('dt').filter({hasText:/^钾$/}).locator('..').locator('dd');
+  await expect(potassium.getByText(/适宜摄入量（AI） 2,000 毫克/)).toBeVisible();
+  await expect(potassium.getByText(/PI-NCD.*至少 3,600 毫克/)).toBeVisible();
+  await expect(potassium.getByText(/可耐受最高摄入量/)).toHaveCount(0);
+  const sodium=daily.locator('dt').filter({hasText:/^钠$/}).locator('..').locator('dd');
+  await expect(sodium.getByText(/PI-NCD.*至多 2,000 毫克/)).toBeVisible();
+  await expect(sodium.getByText(/可耐受最高摄入量/)).toHaveCount(0);
   const weekly=page.locator('.plan-nutrition > details').filter({has:page.getByText('全周日均营养检查',{exact:true})});
   await weekly.locator(':scope > summary').click();
+  await expect(weekly.getByText(/^单日异常 · \d+ \/ 7 天$/)).toBeVisible();
   await weekly.getByText(/^维生素 ·/).click();
   await expect(weekly.getByText('膳食叶酸当量（DFE）',{exact:true})).toBeVisible();
   await expect(weekly.getByText('推荐摄入量 400 微克',{exact:false}).first()).toBeVisible();
@@ -1325,6 +1335,13 @@ test('每日、全周、菜谱和原材料都能查看营养覆盖与来源',asy
   await vinegar.getByText('维生素',{exact:true}).click();
   const vinegarDfe=vinegar.locator('dt').filter({hasText:/^膳食叶酸当量（DFE）$/}).locator('..').locator('dd');
   await expect(vinegarDfe.getByText('未知',{exact:true})).toBeVisible();
+  await vinegar.getByRole('button',{name:'关闭',exact:true}).click();
+  await page.getByRole('searchbox',{name:'搜索原材料'}).fill('低钠盐');
+  await page.getByRole('button',{name:/低钠盐/}).first().click();
+  const salt=page.getByRole('dialog',{name:/低钠盐/});
+  await salt.getByText('矿物质',{exact:true}).click();
+  await expect(salt.locator('dt').filter({hasText:/^钠$/}).locator('..').locator('dd')).toContainText('29,505');
+  await expect(salt.locator('dt').filter({hasText:/^钾$/}).locator('..').locator('dd')).toContainText('13,112');
   for(const width of [320,360,390,430]){
     await page.setViewportSize({width,height:850});
     await assertFit(page);

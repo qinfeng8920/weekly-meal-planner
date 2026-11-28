@@ -12,6 +12,7 @@ import {dateKey,mealPreference,type MealName,type Profile} from './profile';
 import {breakfastMenus,labels} from './meal-catalog';
 import {NutrientDisclosure} from './NutrientDisclosure';
 import {nutritionReview} from './diet-check';
+import {recipeIngredients} from './nutrient-report-input';
 
 import {addDays} from './batches';
 import type {PurchaseOptions} from './purchase-food';
@@ -81,6 +82,7 @@ export function PlanPage(props:Props) {
         <NutrientDisclosure label="每日微量营养与覆盖" ingredients={dayIngredients([current])}
           profile={readonly?plan.profile:profile} targets={plan.targets}/>
         <NutrientDisclosure label="全周日均营养检查" ingredients={dayIngredients(plan.days)} days={plan.days.length}
+          perDay={plan.days.map((row,index)=>({label:dates[index],ingredients:dayIngredients([row])}))}
           profile={readonly?plan.profile:profile} targets={plan.targets}/>
         <details className="item-fold"><summary>蔬菜与食用油用量</summary>
           <ul className="ingredients">{nutritionReview([current]).filter(row=>row.key==='vegetables'||row.key==='oil').map(row=>
@@ -140,4 +142,4 @@ export function PlanPage(props:Props) {
   </>;
 }
 
-const dayIngredients=(days:Plan['days'])=>days.flatMap(day=>day.meals.flatMap(meal=>meal.dishes.flatMap(row=>row.ingredients)));
+const dayIngredients=(days:Plan['days'])=>days.flatMap(day=>day.meals.flatMap(meal=>meal.dishes.flatMap(row=>recipeIngredients(row.recipe.id,row.ingredients))));

@@ -30,6 +30,7 @@ const cooking=z.strictObject({mode:cookingMode,weekday:mode,weekend:mode,meals:m
 const profile = z.strictObject({
   ...Object.fromEntries(Object.entries(initialProfile).map(([key,value])=>
     [key,typeof value==='boolean'?z.boolean():Array.isArray(value)?names:string])),
+  lowSodiumSalt:z.boolean().optional(),
   deficit:z.strictObject({mode:z.enum(deficitModes),standard:z.number().min(0).max(400).optional(),normalOptIn:z.boolean().optional(),unit:z.enum(['百分比','千卡']).optional(),curve:z.literal('percent').optional()}).optional(),
   gainScreen:z.strictObject({risks:z.array(z.enum(gainRiskItems)),reviewed:z.boolean(),professionalClearance:z.boolean()}).optional(),
   cooking:cooking.optional(),
@@ -218,7 +219,7 @@ export function exportProfiles(id:string|null) {
   return transact(d=>{
     const profiles=id===null?d.profiles:d.profiles.filter(p=>p.id===id);
     if(id!==null&&!profiles.length)throw new DataConflict();
-    return JSON.stringify({kind:id===null?'天天减全部档案':'天天减单档案',schemaVersion:2,algorithmVersion:'3.2.0',
+    return JSON.stringify({kind:id===null?'天天减全部档案':'天天减单档案',schemaVersion:2,algorithmVersion:'3.2.2',
       activeProfileId:id??d.activeProfileId,theme:d.theme,profiles});
   });
 }

@@ -1,5 +1,9 @@
 # 当前开发状态
 
+## V3.2.2 营养评价
+
+分龄成人参考、钾钠配方核算、经核对的烹调保留率、单日与周日均营养检查已接入计划、替换及成分详情。 [评价与配餐口径](NUTRIENT-EVALUATION.md) · [全食材补全与缺值](NUTRIENT-AUDIT.md)
+
 ## V3.2
 
 [最终需求](PRD-V3.2.md) · [双向热量](NUTRITION.md) · [档案迁移与备份](PROFILE-DATA.md)

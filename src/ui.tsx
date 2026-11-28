@@ -6,6 +6,7 @@ import {addDays} from './batches';
 import {purchaseFood,type PurchaseOptions} from './purchase-food';
 import {type Plan} from './planner';
 import {NutrientDisclosure} from './NutrientDisclosure';
+import {recipeIngredients} from './nutrient-report-input';
 import type {Profile} from './profile';
 
 export const integer = (n:number) => Math.round(n).toLocaleString('zh-CN');
@@ -38,7 +39,7 @@ export function RecipeInfo({recipe,value,products,profile}:{recipe:Recipe;value?
   return <div className="recipe-info">
     <p className="recipe-meta meta"><Icon name="clock" size={16}/>{recipe.cuisine} · {recipe.flavor} · {recipe.skill} · <span className="unit">约 {recipe.prep+recipe.cook+extraMinutes} 分钟</span></p>
     <NutritionRow value={current.nutrients}/>
-    <NutrientDisclosure label="本份详细营养与覆盖" ingredients={current.ingredients} profile={profile} daily={false}/>
+    <NutrientDisclosure label="本份详细营养与覆盖" ingredients={recipeIngredients(recipe.id,current.ingredients)} profile={profile} daily={false}/>
     <h4>单人用量</h4><ul className="ingredients">{current.ingredients.map(i=>{
       const f=foodMap.get(i.id);
       return <li key={i.id}><span>{f?.name??i.id} <small>{f?foodState[f.state]:''}</small></span><strong>{decimal(i.grams)} 克</strong></li>;

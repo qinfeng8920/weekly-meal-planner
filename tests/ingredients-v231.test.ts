@@ -55,7 +55,10 @@ test('全库审核覆盖和真实条件替代保留安全限制',()=>{
   }
   for(const f of foods)ok(substitutionCoverage(f.id));
   equal(substitutionCoverage('ginger'),'暂无直接审核规则');
-  equal(variantsOf(recipeMap.get('pan-chicken')!).length,1);
+  const panChicken=recipeMap.get('pan-chicken')!;
+  deepEqual(variantsOf(panChicken).map(recipe=>recipe.id),['pan-chicken','pan-chicken--lowsalt75']);
+  ok(substitutionOptions(panChicken,demo,'午餐',defaultPool,new Map(),[]).every(recipe=>
+    !recipe.ingredients.some(item=>item.id==='lowsalt75')));
   equal(purchaseIngredientId('cookedchicken'),'chicken');
   equal(purchaseIngredientId('cookedchicken',{ready:['cookedchicken']}),'cookedchicken');
   const kitchen={...demo,tools:['煮锅','蒸锅']};

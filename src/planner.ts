@@ -16,15 +16,17 @@ import {purchasesFromLogistics, prepPlan, type Day, type Meal, type Pantry, type
 
 import {breakfastMenus, labels, pairingOk, type Slot} from './meal-catalog';
 import {fruitMeal, mealNames, mealShapeError, mealTemplates, mealShares, namedIngredients, recipeFitsMeal, repeatIsLimited} from './meal-rules';
-import {calciumCeiling,nutrientPenalty,sodiumUpperBound} from './diet-check';
+import {sodiumUpperBound} from './diet-check';
+import {addLevels,nutritionLoss,plannedLevels,referenceForPlan,upperIssues} from './nutrient-planning';
+import {canUseLowSodiumSalt} from './salt-choice';
 
 import {coreSignature,mealConflict,overlapPenalty,recipeMeaning,sameFood} from './food-semantics';
 import {cookingFit,mealComplexity,type MealComplexity} from './cooking';
 import {cookingRule,usesNamedBreakfast,type CookingSelection} from './cooking-profile';
 
-export const algorithmVersion = '3.2.0';
-const compatibleCatalog=(version:string)=>version===catalogVersion||['2026.11-sr3','2026.11-sr4','2026.11-sr5'].includes(version);
-export const compatibleVersion=(version:string)=>version===algorithmVersion||version==='3.1.0'||version==='2.4.1'||version==='2.4.0'||version==='2.3.1'||version==='2.3.0'||version==='2.2.0'||version==='2.1.0'||version==='2.0.0'||version==='1.2.0';
+export const algorithmVersion = '3.2.2';
+const compatibleCatalog=(version:string)=>version===catalogVersion||['2026.11-sr3','2026.11-sr4','2026.11-sr5','2026.11-nutrients1'].includes(version);
+export const compatibleVersion=(version:string)=>version===algorithmVersion||version==='3.2.0'||version==='3.1.0'||version==='2.4.1'||version==='2.4.0'||version==='2.3.1'||version==='2.3.0'||version==='2.2.0'||version==='2.1.0'||version==='2.0.0'||version==='1.2.0';
 export type Plan = {id:string; name:string; created:string; start:string; seed:string; targets:Targets; days:Day[];
   profile:Profile; weight:number; purchases:Purchase[]; prep:Prep; algorithmVersion:string; catalogVersion:string; favorite:boolean;taskScope?:string;cookingOverride?:CookingSelection;logistics?:Logistics;executionSnapshot?:import('./execution').Execution;pool?:WeeklyIngredientPool};
 export type Lock = {day:number; meal:number; dish:number; serving:Serving};
@@ -68,7 +70,7 @@ export function allowed(r:Recipe,p:Profile,blocked:string[],products?:PurchaseOp
     r.ingredients.every(({id})=>{
       const f = food(id);
       const names = [id,f.name,...f.aliases].map(n=>n.toLowerCase());
-      return hasPlanningNutrition(f)&&!f.allergens.some(a=>p.allergens.includes(a)) &&
+      return hasPlanningNutrition(f)&&(id!=='lowsalt75'||canUseLowSodiumSalt(p))&&!f.allergens.some(a=>p.allergens.includes(a)) &&
         !exclusions.some(x=>names.some(n=>n===x || n.includes(x) || x.includes(n) && n.length>=2)) &&
         (p.frozen || f.state!=='frozen') &&
         !(f.category==='水果' && (fruitGoal(p)===0 || p.fruit==='优先低糖水果' && !allowedFruit.has(id))) &&
@@ -146,7 +148,7 @@ function seeded(seed: string) {
   };
 }
 
-function limits(p:Profile,t:Targets,day:Day) {
+function limits(p:Profile,t:Targets,day:Day,references=referenceForPlan(p,t)) {
   const total = dayNutrition(day);
   const dishes = day.meals.flatMap(m=>m.dishes);
   const fruit = dose(dishes,id=>food(id).category==='水果');
@@ -155,15 +157,13 @@ function limits(p:Profile,t:Targets,day:Day) {
   const proteinMax = t.kcal*.35/4;
   const sodium = sodiumUpperBound(day);
   const caloriesOK = total.kcal >= (p.sex==='男' ? 1500 : 1200) && Math.abs(total.kcal-t.kcal)<=t.kcal*.05;
-  const knownCalcium=total.calcium??dishes.reduce((sum,row)=>sum+row.ingredients.reduce((small,item)=>{
-    const value=food(item.id).nutrients.calcium;
-    return value===null?small:small+value*item.grams/100;
-  },0),0);
-  const calciumOK=knownCalcium<=calciumCeiling;
-  const valid = caloriesOK && calciumOK && total.protein>=t.protein && total.protein<=proteinMax &&
+  const sodiumLimit=references.sodium?.pi?.amount??2000;
+  const valid = caloriesOK && total.protein>=t.protein && total.protein<=proteinMax &&
     total.fat*9>=total.kcal*.2 && total.fat*9<=total.kcal*.35 && total.carbs*4>=total.kcal*.45 &&
-    total.fiber>=t.fiber && sodium<=2000 && veg>=300 &&
+    total.fiber>=t.fiber && sodium<=sodiumLimit && veg>=300 &&
     (grams === 0 ? fruit === 0 : Math.abs(fruit-grams)<=Math.min(25,grams*.18));
+  const levels=valid?plannedLevels(day):null;
+  const over=levels?upperIssues(levels,references):[];
   const names=mealNames(p);
   const shares=mealShares(p);
 
@@ -177,13 +177,15 @@ function limits(p:Profile,t:Targets,day:Day) {
   if (total.fat*9<total.kcal*.2 || total.fat*9>total.kcal*.35) messages.push('脂肪');
   if (total.carbs*4<total.kcal*.45) messages.push('碳水');
   if (total.fiber<t.fiber) messages.push('纤维');
-  if (sodium>2000) messages.push('钠');
-  if (!calciumOK) messages.push('钙超过参考上限');
+  if (sodium>sodiumLimit) messages.push('钠超过分龄 PI-NCD 规划限值');
+  messages.push(...over.map(key=>upperLabel(key)+'超过 UL'));
   if (veg<300) messages.push('蔬菜');
   if (grams===0 ? fruit!==0 : Math.abs(fruit-grams)>Math.min(25,grams*.18)) messages.push('水果份量');
   if (!distributionOK) messages.push('分餐热量');
-  return {valid: valid&&distributionOK,messages};
+  return {valid:valid&&distributionOK&&!over.length,messages,levels};
 }
+
+const upperLabel=(key:string)=>({calcium:'钙',iron:'铁',zinc:'锌',phosphorus:'磷',selenium:'硒',copper:'铜',manganese:'锰',iodine:'碘',retinol:'视黄醇',vitaminC:'维生素 C',vitaminD:'维生素 D',vitaminB6:'维生素 B6',folicAcid:'合成叶酸'}[key]??key);
 
 function verifyInput(p:Profile) {
   if (!Number.isInteger(+p.people) || +p.people<1 || +p.people>12) throw Error('用餐人数请填写 1～12 的整数。');
@@ -343,7 +345,11 @@ function generateCandidate(p:Profile, records:Weight[], pantry:Pantry, blocked:s
   const preferred=new Set(normalizeIds(settings?.preferred??[],products));
   const lockedIds=new Set(normalizeIds(settings?.locked??[],products));
   const existing=new Set(old?.days.flatMap(d=>d.meals.flatMap(m=>m.dishes.map(s=>s.recipe.id))));
-  const pool=recipeList.flatMap(r=>settings||change?variantsOf(r).filter(variant=>!variant.replacements||
+  const lowSalt=canUseLowSodiumSalt(p);
+  const refs=referenceForPlan(p,t),totals:ReturnType<typeof plannedLevels>={};
+  if(change&&old)for(const [index,day] of old.days.entries())if(index!==change.day)addLevels(totals,plannedLevels(day));
+  const pool=recipeList.flatMap(r=>settings||change||lowSalt?variantsOf(r).filter(variant=>!variant.replacements||
+    lowSalt&&variant.replacements.some(note=>note.to==='lowsalt75')||
     existing.has(variant.id)||variant.id===change?.replacement||settings?.strict||settings?.excluded.length||
     variant.replacements.every(note=>!lockedIds.has(note.from)&&(actual[note.to]?.stock||preferred.has(note.to)||lockedIds.has(note.to)))):[r])
     .filter(r=>allowed(r,p,blocked,products)&&fitsFixedFruit(r,settings)&&(!candidate||fitsPool(idsFor(r),candidate.selected)));
@@ -457,7 +463,7 @@ function generateCandidate(p:Profile, records:Weight[], pantry:Pantry, blocked:s
   for (let d=0;d<7;d++) {
     if(change&&old&&d!==change.day) {days.push(old.days[d]);continue;}
     const previous=old?.days[d];
-    if(previous&&names.every((_,i)=>preserved(d,i))) {days.push(previous);mark(previous);continue;}
+    if(previous&&names.every((_,i)=>preserved(d,i))) {days.push(previous);addLevels(totals,plannedLevels(previous));mark(previous);continue;}
     const fixed=usesNamedBreakfast(p,d)?namedIds:[];
     const perMeal=perDay[d], dayRules=rules[d];
     const priorStats=previous&&change?.meal!==undefined?mealComplexity(previous.meals[change.meal].dishes.map(s=>s.recipe)):undefined;
@@ -577,7 +583,7 @@ function generateCandidate(p:Profile, records:Weight[], pantry:Pantry, blocked:s
       }
       const day:Day={meals:active.map(m=>({name:m.name,dishes:m.rows.map(r=>r.retained?r.value:practicalServing(r.value))}))};
       if(change&&previous&&day.meals.every((m,i)=>m.dishes.map(s=>s.recipe.id).join()===previous.meals[i].dishes.map(s=>s.recipe.id).join())) continue;
-      const metrics=limits(p,t,day);
+      const metrics=limits(p,t,day,refs);
       if(!metrics.valid) {
         for(const key of metrics.messages) reasons.set(key,(reasons.get(key)??0)+1);
         continue;
@@ -613,7 +619,8 @@ function generateCandidate(p:Profile, records:Weight[], pantry:Pantry, blocked:s
       const diversityCredit=compact&&d>=3?Math.min(newMain,Math.max(0,13-usedCount))*.16:0;
       const expansion=additions.reduce((n,id)=>n+(stock[id]?.stock ? .012 : compact?.105:.045),0)-diversityCredit;
       const aboveTarget=compact?Math.max(0,usedCount+newMain-17)*.09:0;
-      const score=expansion+aboveTarget+quantityPenalty+Math.abs(n.kcal-t.kcal)/t.kcal+Math.abs(n.fat-t.fat)/t.fat*.08+nutrientPenalty(n)+
+      const score=expansion+aboveTarget+quantityPenalty+Math.abs(n.kcal-t.kcal)/t.kcal+Math.abs(n.fat-t.fat)/t.fat*.08+nutritionLoss(metrics.levels!,refs,{totals,days:change&&old?old.days.length-1:d})-
+        (lowSalt?all.filter(row=>row.value.ingredients.some(item=>item.id==='lowsalt75')).length*.13:0)+
         spread*.55+convenience*.42+clashes+repeat+duplicateMain*.034-
         all.reduce((a,s)=>a+s.candidate.weight,0)*.008-Math.min(dayFoods.size,20)*.002-freshChoices*(produceSeen.size<10?.018:.004)-reuse-usesLocks*.18;
       qualified++;
@@ -627,7 +634,7 @@ function generateCandidate(p:Profile, records:Weight[], pantry:Pantry, blocked:s
       const suggestion=change?'可试试换整餐，或解除相应菜品锁定。':supplyConflict(d);
       throw Error('第 '+(d+1)+' 天已达搜索上限，未找到合格组合。'+(change?.intent?'「'+change.intent+'」无法应用，原方案已保留。':'')+reservationNote+detail+suggestion);
     }
-    days.push(winner);mark(winner);
+    days.push(winner);addLevels(totals,plannedLevels(winner));mark(winner);
   }
   const kept=(d:number,i:number)=>preserved(d,i)||Boolean(old&&!(change?.day===d&&change.meal===i)&&executionLocked(old,supply?.execution,d,i));
   const evaluate=(values:Day[])=>checkStructure(values,p,t,blocked,pantry,choice,supply,start,settings,scope,kept,true);

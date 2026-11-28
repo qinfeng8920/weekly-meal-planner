@@ -21,14 +21,14 @@ FIELDS = {
     'iodine': (1100,'UG'), 'vitaminA': (1106,'UG'), 'vitaminB1': (1165,'MG'), 'vitaminB2': (1166,'MG'),
     'vitaminB3': (1167,'MG'), 'vitaminB5': (1170,'MG'), 'vitaminB6': (1175,'MG'), 'vitaminB7': (1176,'UG'),
     'vitaminB12': (1178,'UG'), 'folate': (1177,'UG'), 'naturalFolate': (1187,'UG'), 'folateDfe': (1190,'UG'),
-    'vitaminC': (1162,'MG'), 'vitaminD': (1114,'UG'), 'vitaminE': (1109,'MG'), 'vitaminK': (1185,'UG'),
+    'vitaminC': (1162,'MG'), 'vitaminD': (1114,'UG'), 'vitaminE': (1109,'MG'), 'vitaminK': (1185,'UG'), 'retinol': (1105,'UG'), 'folicAcid': (1186,'UG'),
 }
 MEXT = {'kcal':'ENERC_KCAL','protein':'PROT-','fat':'FAT-','carbs':'CHOCDF-','fiber':'FIB-',
         'cholesterol':'CHOLE','calcium':'CA','iron':'FE','zinc':'ZN','potassium':'K','sodium':'NA',
         'magnesium':'MG','phosphorus':'P','selenium':'SE','copper':'CU','manganese':'MN','iodine':'ID',
         'vitaminA':'VITA_RAE','vitaminB1':'THIA','vitaminB2':'RIBF','vitaminB3':'NIA','vitaminB5':'PANTAC',
         'vitaminB6':'VITB6A','vitaminB7':'BIOT','vitaminB12':'VITB12','folate':'FOL','vitaminC':'VITC',
-        'vitaminD':'VITD','vitaminE':'TOCPHA','vitaminK':'VITK'}
+        'vitaminD':'VITD','vitaminE':'TOCPHA','vitaminK':'VITK','retinol':'RETOL'}
 MEXT_MINIMUM = {'fat':.1,'fiber':.1,'cholesterol':1,'sodium':1,'potassium':1,'calcium':1,'magnesium':1,
                 'phosphorus':1,'iron':.1,'zinc':.1,'copper':.01,'manganese':.01,'iodine':1,'selenium':1,
                 'vitaminA':1,'vitaminD':.1,'vitaminE':.1,'vitaminK':1,'vitaminB1':.01,'vitaminB2':.01,
@@ -105,6 +105,8 @@ def parse_cofid(raw, key, source, code):
 def import_data(folder, sr_file):
     foods = [f for part in ['foods.json','foods-v24.json','foods-mext-v24.json']
               for f in json.loads((ROOT/'src'/part).read_text())]
+    salt=json.loads((ROOT/'src/low-sodium-salt.json').read_text())
+    foods.append(salt)
     by_fdc = {str(f['fdc']):f for f in foods if 'fdc' in f}
     values = {f['id']:{} for f in foods}
     sources = {}
@@ -268,6 +270,15 @@ def import_data(folder, sr_file):
             for key,pos in positions.items():
                 add(food,key,parse_cofid(row[pos],key,source,codes_[pos] or headers[pos]))
 
+    sodium=round(75000*22.990/(22.990+35.45),6)
+    potassium=round(25000*39.098/(39.098+35.45),6)
+    if (salt['nutrients']['sodium'],salt['nutrients']['potassium'])!=(sodium,potassium):
+        raise ValueError('低钠盐配方元素含量与计算不一致')
+    source=source_key('ssass','75NaCl25KCl')
+    sources[source]='SSaSS 配方，按 CIAAW 元素质量折算'
+    for k,v in salt['nutrients'].items():
+        if v is not None:
+            add(salt['id'],k,record(v,source,k,'estimated' if v else 'structuralZero'))
     for food in foods:
         id_ = food['id']
         if id_ in {'lambleg','pollock'} and values[id_].get('fiber') is None:
@@ -294,6 +305,12 @@ def main():
         sodium_value = sodium[0] if sodium and sodium[0] is not None else sodium[4] if sodium and len(sodium)>4 else None
         core[id_] = {'verified':all(row[key] and row[key][0] is not None for key in macros),'sodium':sodium_value,
                      'additions':{k:row[k][0] for k,v in food['nutrients'].items() if v is None and row[k] and row[k][0] is not None}}
+    # Worker 用数值与可审查上界，不载入来源文字和不参与算法的字段。
+    track=['calcium','iron','zinc','potassium','sodium','magnesium','folateDfe','vitaminC','fiber','phosphorus',
+           'selenium','copper','manganese','iodine','vitaminA','retinol','vitaminD','vitaminB1','vitaminB2',
+           'vitaminB5','vitaminB6','vitaminB7','vitaminB12','folicAcid','saturated']
+    projected={'keys':track,'foods':{f['id']:[values[f['id']][k][0] if values[f['id']][k] else None for k in track] for f in foods}}
+    (ROOT/'src/nutrient-planning-values.json').write_text(json.dumps(projected,ensure_ascii=False,separators=(',',':'))+'\n')
     (ROOT/'src/food-planning-nutrients.json').write_text(json.dumps(core,ensure_ascii=False,separators=(',',':'))+'\n')
     print(len(foods),'条食材记录。数值覆盖',dict(Counter(k for row in values.values() for k,v in row.items() if v and v[0] is not None)))
 

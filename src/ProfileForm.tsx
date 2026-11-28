@@ -5,6 +5,7 @@ import {allergens, conditions, cuisines, equipment, initialProfile,gainRiskItems
 import {foods} from './catalog';
 import {foodClass} from './catalog-taxonomy';
 import {searchMatches} from './catalog-search';
+import {canUseLowSodiumSalt} from './salt-choice';
 import {between,customDeficitLimit,needsEnergyReviewForConditions} from './nutrition';
 
 type TextKey = {[K in keyof Profile]-?:Profile[K] extends string?K:never}[keyof Profile];
@@ -32,6 +33,7 @@ export function ProfileForm({value,recordedWeight,onSave,onDirty,onCancel}:{valu
         if(next.deficit)next.deficit={...next.deficit,normalOptIn:false};
         if(next.gainScreen)next.gainScreen={...next.gainScreen,reviewed:false,professionalClearance:false};
       }
+      if(next.lowSodiumSalt&&!canUseLowSodiumSalt(next))next.lowSodiumSalt=false;
       return next;
     });onDirty?.(true);setError('');
   }
@@ -116,6 +118,10 @@ export function ProfileForm({value,recordedWeight,onSave,onDirty,onCancel}:{valu
       {check('fluidLimit','医生要求限水')}
     </>}
     {step===3&&<>
+      <label className="check"><input type="checkbox" checked={Boolean(p.lowSodiumSalt)}
+        disabled={!canUseLowSodiumSalt({...p,lowSodiumSalt:true})} onChange={event=>patch('lowSodiumSalt',event.target.checked)}/>
+        优先使用 75% 氯化钠、25% 氯化钾的低钠盐</label>
+      <p className="meta">请核对包装比例，并确认没有限钾要求、影响钾排泄的疾病、补钾剂或保钾用药。</p>
       {multi('cuisines','喜欢的菜系',cuisines)}
       <label className="field">搜索偏好食材<input type="search" value={preferenceQuery} onChange={e=>{
         setPreferenceQuery(e.target.value);setPreferenceLimits({});

@@ -39,12 +39,3 @@ export function nutritionReview(days:Day[]) {
   return [...rows,{key:'oil' as const,label:'食用油',amount:30,goal:30,unit:'克',max:true,value:oil,missing:0,
     status:oil===null?'数据不全':oil>30?'高于参考':'未超参考上限'}];
 }
-export function nutrientPenalty(n:Nutrients) {
-  // 优先补齐不足。界面分别标注缺值与真实低值。
-  const shortfall=(value:number|null,goal:number)=>value===null?1:Math.max(0,1-value/goal);
-  return shortfall(n.calcium,reference.calcium.amount)*.63+
-    Math.max(0,((n.calcium??0)-1250)/750)*.08+
-    shortfall(n.potassium,reference.potassium.amount)*.16+
-    shortfall(n.vitaminC,reference.vitaminC.amount)*.23+
-    shortfall(n.fiber,reference.fiber.amount)*.15;
-}
