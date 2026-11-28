@@ -34,6 +34,10 @@ test('BMI 临界例，未舍入的目标计算和连续系数',()=>{
   const below=nutrition({...automatic,weight:String(23.99*1.73**2)});
   const above=nutrition({...automatic,weight:String(24.01*1.73**2)});
   assert.ok(Math.abs(above.kcal-below.kcal)<5);
+  const unconfirmed:Profile={...subject,deficit:{mode:'缓慢减脂'}};
+  const transition=nutrition({...unconfirmed,weight:String(24.01*1.73**2)});
+  assert.ok(transition.energy!.effective<5);
+  assert.equal(nutrition({...unconfirmed,weight:String(23.99*1.73**2)}).energy!.effective,0);
   assert.equal(nutrition({...subject,weight:'71',deficit:undefined}).energy!.effective,0);
   assert.equal(nutrition({...subject,weight:'71',deficit:{mode:'缓慢减脂'}}).energy!.effective,0);
   assert.equal(nutrition({...subject,weight:'71',conditions:['高血压']}).energy!.effective,0);
@@ -84,6 +88,9 @@ test('称重编辑、当地日历与体重阶段的边界',()=>{
   assert.ok(weightProgress(subject,[at(0,73)],{kg:72}).percent!<0);
   assert.ok(weightProgress(subject,[at(0,59)],{kg:72}).percent!>100);
   assert.equal(weightProgress(subject,[],{kg:60}).percent,null);
+  assert.equal(weightProgress({...subject,weight:'超出范围'},[],{kg:60}).distance,null);
+  assert.equal(weightProgress({...subject,weight:'超出范围'},[],{kg:72}).percent,null);
+  assert.throws(()=>nutrition({...subject,height:'180',weight:'61',target:'60'},[at(6,61),at(3,61),at(0,59.8)],today),/适用范围/);
   assert.equal(weightProgress({...subject,goal:'维持体重'},[],{kg:72}).percent,null);
   assert.equal(newPlanStart('下周一','2026-12-31'),'2027-01-04');
   assert.equal(newPlanStart('2027-01-01','2026-12-31'),'2027-01-01');

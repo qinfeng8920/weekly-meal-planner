@@ -61,6 +61,7 @@ export function nutrition(p:Profile,records:Weight[]=[],today=dateKey()):Targets
   if(intent==='自定义'&&(p.deficit?.standard===undefined||!between(p.deficit.standard,0,customDeficitLimit)))
     throw Error('自定义标准缺口应为 0～400 千卡。');
   const normal=Math.min(bmi,actualBmi)<24-1e-9;
+  const normalEligible=Boolean(p.deficit?.normalOptIn)&&p.conditions.length===0;
   const autoRamp=Math.max(0,Math.min(1,Math.min(bmi,actualBmi)-24));
   const requested=intent==='维持体重'?0:intent==='自定义'?p.deficit!.standard!:
     intent==='适中减脂'?400:intent==='缓慢减脂'?300:(p.pace==='适中'&&!p.deficit?400:300)*autoRamp;
@@ -71,14 +72,15 @@ export function nutrition(p:Profile,records:Weight[]=[],today=dateKey()):Targets
     age>=65?'65 岁起采用保守维持':
     abrupt?'近期称重变化异常，请复测并核对，先按维持估算':
     normal&&intent==='系统推荐'?'正常 BMI 的默认推荐为维持':
-    normal&&(!p.deficit?.normalOptIn||p.conditions.length>0)?'正常 BMI 下未确认适用，或健康标签需先核对，当前按维持估算':'';
-  const safetyCap=stopped?0:Math.max(0,Math.min(tdee-floor,scaled-(rapid?150:0)));
+    normal&&!normalEligible?'正常 BMI 下未确认适用，或健康标签需先核对，当前按维持估算':'';
+  const transitionCap=intent!=='系统推荐'&&!normalEligible?scaled*autoRamp:scaled;
+  const safetyCap=stopped?0:Math.max(0,Math.min(tdee-floor,transitionCap-(rapid?150:0)));
   const effective=Math.min(scaled,safetyCap);
   const kcal=Math.max(floor,Math.round(tdee-effective));
   const mode=effective>0?'减脂':'维持体重';
   const adjustment=stopped||[rapid?'近期均值下降较快，收窄缺口':'',distanceCap<standard?'接近目标，缩小缺口':'',
     bmiFactor<1?'按 BMI 连续缩减缺口':'',intent==='系统推荐'&&autoRamp>0&&autoRamp<1?'系统建议在 BMI 24～25 之间逐渐启用缺口':'',tdee*.15<requested?'限制在估算总消耗的 15% 内':'',
-    tdee-floor<scaled?'保留最低能量':''].filter(Boolean).join('，')||(requested===0?'标准缺口为 0':'按标准缺口估算');
+    transitionCap<scaled?'尚未确认正常 BMI 减脂适用性，接近 BMI 24 时提前收窄':'',tdee-floor<scaled?'保留最低能量':''].filter(Boolean).join('，')||(requested===0?'标准缺口为 0':'按标准缺口估算');
   const protein=Math.round(Math.min(kcal*.23/4,Math.min(kg,28*square)*(effective>0?1.2:1)));
   const fat=Math.round(kcal*.28/9);
   return {bmi,bmr,tdee,kcal,protein,carbs:Math.round((kcal-protein*4-fat*9)/4),fat,fiber:25,

@@ -36,8 +36,8 @@ export function weightProgress(profile:Profile,records:Weight[],phase?:{kg:numbe
   const {current,latest}=weightTrend(profile,records);
   const initial=phase?.kg??Number(profile.weight);
   const target=profile.goal==='减脂'&&weightInRange(Number(profile.target))?Number(profile.target):null;
-  const lost=weightInRange(initial)?initial-current:null;
-  const distance=target===null?null:current-target;
+  const lost=weightInRange(initial)&&weightInRange(current)?initial-current:null;
+  const distance=target===null||!weightInRange(current)?null:current-target;
   const percent=target!==null&&lost!==null&&initial>target?lost*100/(initial-target):null;
   return {current,latest,initial,target,lost,distance,percent};
 }

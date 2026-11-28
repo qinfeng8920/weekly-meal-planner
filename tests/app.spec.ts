@@ -396,6 +396,17 @@ test('整批取用和食谱完成餐次联动，同一餐只扣一次',async({pa
   await finished.locator('.dish-title').first().click();
   await expect(page.getByRole('dialog').getByRole('button',{name:'调整克数'})).toBeDisabled();
   expect(await ledger()).toEqual(before);
+  await page.getByRole('button',{name:'关闭',exact:true}).click();
+  page.once('dialog',dialog=>dialog.accept('执行状态快照'));
+  await page.getByRole('button',{name:'保存到历史'}).click();
+  await expect(page.getByText('已保存到历史方案。')).toBeVisible();
+  page.once('dialog',dialog=>dialog.accept());
+  await finished.getByRole('button',{name:'撤销完成标记'}).click();
+  await expect(page.getByText('本餐已完成',{exact:true})).toHaveCount(0);
+  expect(await ledger()).toEqual(before);
+  await page.getByRole('button',{name:'历史方案',exact:true}).click();
+  await page.locator('.history-item').filter({hasText:'执行状态快照'}).getByRole('button',{name:'查看',exact:true}).click();
+  await expect(page.getByText('本餐已完成',{exact:true})).toBeVisible();
 });
 
 test('采购勾选实时显示单项、折叠批次、分类和全周进度',async({page})=>{
@@ -1000,6 +1011,11 @@ test('BMI 连续调整、普通称重保留食谱编辑和已锁菜，起点独�
   await nav(page,'食谱').click();
   await expect(page.getByText(/当前建议 1721 千卡 · 生成时目标 1718 千卡/)).toBeVisible();
   await expect(page.locator('.dish').getByRole('button',{name:/^换/}).nth(1)).toBeEnabled();
+  const lockedName=await page.locator('.dish-title').first().innerText();
+  await page.getByRole('button',{name:'更新未执行食谱'}).click();
+  await expect(page.getByText('七天食谱已生成。')).toBeVisible({timeout:12000});
+  await expect(page.getByText('生成时目标 1721 千卡',{exact:true})).toBeVisible();
+  await expect(page.locator('.dish-title').first()).toHaveText(lockedName);
   await page.locator('.dish-title').first().click();
   await expect(page.getByRole('button',{name:'解除锁定'})).toBeVisible();
   await page.getByRole('button',{name:'关闭',exact:true}).click();

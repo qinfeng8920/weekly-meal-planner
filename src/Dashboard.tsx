@@ -5,7 +5,7 @@ import {dateKey,type Profile,type Weight} from './profile';
 import {type Targets} from './nutrition';
 import {type Plan} from './planner';
 import {decimal,Empty,integer,SectionTitle} from './ui';
-import {calendarAge,meanWeight,updateWeight,validWeights,weightProgress} from './weight';
+import {calendarAge,meanWeight,updateWeight,validWeights,weightInRange,weightProgress} from './weight';
 import {addDays} from './batches';
 import {displayPoolMode,type PoolSettings} from './ingredient-pool';
 import type {SupplySettings,ShoppingSchedule} from './batches';
@@ -35,10 +35,10 @@ export function Dashboard({profile,t,reason,weights,phase,plan,stale,targetChang
       <section className="card weight-card">
         <div className="weight-header"><span><Icon name="scale" size={17}/> 体重与目标</span>
           <Action icon="plus" className="weight-record" onClick={()=>setShow(true)}>记录体重</Action></div>
-        <div className="weight-values"><div><span>当前体重</span><strong>{progress?decimal(progress.current):'—'} <small>千克</small></strong></div>
+        <div className="weight-values"><div><span>当前体重</span><strong>{progress&&weightInRange(progress.current)?decimal(progress.current):'—'} <small>千克</small></strong></div>
           <div><span>目标体重</span><b>{progress?.target==null?'—':decimal(progress.target)} <small>千克</small></b></div></div>
         {progress?.percent!=null&&<Progress value={progress.percent} max={100} label="体重目标进度"/>}
-        {progress&&<p className="weight-note">起点 {decimal(progress.initial)} 千克{phase?.date?' · '+phase.date:''}
+        {progress&&weightInRange(progress.initial)&&<p className="weight-note">起点 {decimal(progress.initial)} 千克{phase?.date?' · '+phase.date:''}
           {progress.lost!==null?' · '+(progress.lost<0?'较起点增加 '+decimal(-progress.lost):'累计减重 '+decimal(progress.lost))+' 千克':''}
           {progress.distance!==null?' · '+(progress.distance>0?'距目标 '+decimal(progress.distance)+' 千克':'已达到目标'):''}
           {progress.percent!==null&&<strong>{Math.round(progress.percent)}%</strong>}</p>}
@@ -85,7 +85,7 @@ export function Dashboard({profile,t,reason,weights,phase,plan,stale,targetChang
 function EnergyDetails({targets,plan}:{targets:Targets;plan:Plan|null}) {
   const e=targets.energy!;
   const fields=[
-    ['最新体重',decimal(e.current)+' 千克'],['计算体重',decimal(e.calculation)+' 千克'],['体重依据',e.weightReason],
+    ['最新体重',decimal(e.current)+' 千克'],['最近称重日',e.latestDate??'暂无称重记录'],['计算体重',decimal(e.calculation)+' 千克'],['体重依据',e.weightReason],
     ['有效样本',e.recentCount+' 条（近 7 天，含今天） · '+e.earlierCount+' 条（距今 14～28 天）'],
     ['计算 BMI / 最新 BMI',targets.bmi.toFixed(2)+' / '+e.actualBmi.toFixed(2)],
     ['静息能耗（BMR）',decimal(targets.bmr)+' 千卡'],['日常活动系数',String(e.activity)],['总消耗（TDEE）',decimal(targets.tdee)+' 千卡'],
