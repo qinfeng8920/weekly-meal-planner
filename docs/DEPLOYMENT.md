@@ -73,3 +73,9 @@
 最终发布提交为 `f973a98`。GitHub Actions 通过 76 项模块测试、35 项 Chromium 端到端测试和生产构建，并部署至原地址。另以 WebKit 的 iPhone 13 配置通过 3 项增重及多档案验证。 [正式发布工作流](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/46125065404)
 
 正式站匿名 HTTPS 返回 200。独立 Chromium 确认 V3.2.0、72 千克虚构档案的 1815 千卡目标及断网刷新。线上 Service Worker 与本地生产文件的 SHA-256 均为 `2a8f8d62f6068cb09265a7a37f0576d91f1a0cbf4b7755dd0c87bef8159d43b1`，缓存标识为 `d72ef9efab6e`。另在原网址用同一虚构浏览器档案从 V3.1.2 升级，档案、称重、库存、实际购买、收藏、历史和执行数据逐字段一致，断网更新未执行食谱后已执行餐次和流水仍保留。实体手机安装未实测。 [正式站](https://qinfeng8920.github.io/weekly-meal-planner/)
+
+## V3.2.1 正式验收
+
+生产代码提交 `883279e`。GitHub Actions 通过 224 条食材的 36 项全库校验、80 项模块测试、100/100 个专项配餐种子、生产构建和 36 项 Chromium 端到端测试。另在 iPhone 设备配置的 WebKit 验证每日、周日均、菜谱和食材营养详情。 [正式工作流](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/46128279245)
+
+正式站 HTTPS 200，页面显示 V3.2.1，Service Worker 的 SHA-256 与本地生产文件一致，为 `1eefce43f043ddb40e560271c13723e4a4d5870df9cabcf77438b26b845263f5`，缓存标识 `0b9f902421e0`。匿名独立 Chromium 在断网后首次加载详细成分和来源，并成功配餐。在原网址跨发布更新虚构的 V3.2.0 档案，旧数据逐字段保留，断网后重生成继续保留已执行餐次、历史、取用和库存。实体手机安装未实测。 [正式站](https://qinfeng8920.github.io/weekly-meal-planner/)
