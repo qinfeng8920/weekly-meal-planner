@@ -3,7 +3,7 @@ import {Action,CategoryGlyph,Icon,PageHeader,Progress,Sheet,StatusLabel} from '.
 import {nextPrep,weeklyPurchases} from './plan-progress';
 import {useState} from 'react';
 import {dateKey,type DeficitPreference,type Profile,type Weight} from './profile';
-import {nutrition,type Targets} from './nutrition';
+import {bmiCategory,bodyMetrics,needsEnergyReviewForConditions,nutrition,type Targets} from './nutrition';
 import {type Plan} from './planner';
 import {decimal,Empty,integer,SectionTitle} from './ui';
 import {calendarAge,meanWeight,updateWeight,validWeights,weightInRange,weightProgress} from './weight';
@@ -13,7 +13,7 @@ import type {SupplySettings,ShoppingSchedule} from './batches';
 import type {Execution} from './execution';
 import type {Logistics} from './logistics';
 
-const slowLoss:DeficitPreference={mode:'缓慢减脂',normalOptIn:true};
+const slowLoss:DeficitPreference={mode:'缓慢减脂',normalOptIn:true,curve:'percent'};
 
 type DashboardProps={profile:Profile|null;t:Targets|null;reason:string;weights:Weight[];plan:Plan|null;stale:boolean;targetChanged:boolean;today:string;phase?:{kg:number;date?:string};resetPhase:(kg:number)=>Promise<boolean>;saveDeficit:(value:DeficitPreference)=>Promise<boolean>;
   quote?:Logistics;poolCount:number;poolMode:PoolSettings['mode'];schedule?:ShoppingSchedule['count'];prep:SupplySettings['prep'];execution?:Execution;generate:()=>void;updatePlan:()=>void;busy:boolean;go:(page:string)=>void;edit:()=>void;write:(weights:Weight[])=>Promise<boolean>};
@@ -27,6 +27,7 @@ export function Dashboard({profile,t,reason,weights,phase,plan,stale,targetChang
     const candidate=nutrition({...profile,deficit:slowLoss},ordered,today);
     if(candidate.energy?.mode==='减脂')slowPreview=candidate;
   }
+  const metrics=profile&&!t?bodyMetrics(profile,ordered,today):null;
   const progress=profile?weightProgress(profile,ordered,phase):null;
   const next=quote?nextPrep(quote,execution):undefined;
   const purchases=quote?weeklyPurchases(quote):undefined;
@@ -46,12 +47,15 @@ export function Dashboard({profile,t,reason,weights,phase,plan,stale,targetChang
         <div className="weight-header"><span><Icon name="scale" size={17}/> 体重与目标</span>
           <Action icon="plus" className="weight-record" onClick={()=>setShow(true)}>记录体重</Action></div>
         <div className="weight-values"><div><span>当前体重</span><strong>{progress&&weightInRange(progress.current)?decimal(progress.current):'—'} <small>千克</small></strong></div>
-          <div><span>目标体重</span><b>{progress?.target==null?'—':decimal(progress.target)} <small>千克</small></b></div></div>
+          <div><span>{progress?.maintain?'参考体重':'目标体重'}</span><b>{progress?.maintain&&weightInRange(progress.initial)?decimal(progress.initial):progress?.target==null?'—':decimal(progress.target)} <small>千克</small></b></div></div>
         {progress?.percent!=null&&<Progress value={progress.percent} max={100} label="体重目标进度"/>}
         {progress&&weightInRange(progress.initial)&&<p className="weight-note"><span className="weight-note-parts">
-          <span>起点 {decimal(progress.initial)} 千克{phase?.date?' · '+phase.date:''}</span>
-          {progress.lost!==null&&<span>{progress.lost<0?'较起点增加 '+decimal(-progress.lost):'累计减重 '+decimal(progress.lost)} 千克</span>}
-          {progress.distance!==null&&<span>{progress.distance>0?'距目标 '+decimal(progress.distance)+' 千克':'已达到目标'}</span>}
+          {!progress.maintain&&<span>起点 {decimal(progress.initial)} 千克{phase?.date?' · '+phase.date:''}</span>}
+          {progress.lost!==null&&<span>{progress.maintain?
+            '较参考 '+(progress.current>=progress.initial?'+':'')+decimal(progress.current-progress.initial):
+            progress.lost<0?(progress.gain?'较起点减少 ':'较起点增加 ')+decimal(-progress.lost):
+            (progress.gain?'累计增重 ':'累计减重 ')+decimal(progress.lost)} 千克</span>}
+          {progress.distance!==null&&<span>{progress.distance>0?'距目标 '+decimal(progress.distance)+' 千克':progress.distance<0?'已超过目标 '+decimal(-progress.distance)+' 千克':'已达到目标'}</span>}
           </span>{progress.percent!==null&&<strong>{Math.round(progress.percent)}%</strong>}</p>}
       </section>
       <section className="card trend-card"><SectionTitle title="体重趋势"/>
@@ -60,10 +64,16 @@ export function Dashboard({profile,t,reason,weights,phase,plan,stale,targetChang
       </section>
       <div className="home-task-grid">
         <section className="card home-task"><Icon name="bars"/><h2>每日热量目标</h2><strong>{t?integer(t.kcal):'—'} <small>千卡</small></strong>
-          {reason&&<p className="meta">{reason}</p>}{t?.energy&&<><p className="meta">实际模式 · {t.energy.mode}</p>
-            {t.energy.mode==='维持体重'&&profile.goal==='减脂'&&<p className="meta">{t.energy.adjustment}</p>}
+          {reason&&<p className="meta">{reason}</p>}
+          {metrics&&<dl className="energy-basis">
+            <div><dt>实际 BMI</dt><dd>{metrics.actualBmi===null?'待填写':metrics.actualBmi.toFixed(2)+' · '+bmiCategory(metrics.actualBmi)}</dd></div>
+            <div><dt>BMR 估算</dt><dd>{metrics.bmr===null?'待填写':integer(metrics.bmr)+' 千卡'}</dd></div>
+            <div><dt>TDEE 估算</dt><dd>{metrics.tdee===null?'待填写':integer(metrics.tdee)+' 千卡'}</dd></div>
+          </dl>}{t?.energy&&<><p className="meta">实际模式 · {t.energy.mode}</p>
+            {t.energy.mode==='维持体重'&&profile.goal!=='维持体重'&&<p className="meta">{t.energy.adjustment}</p>}
             {slowPreview&&<button className="primary small" onClick={()=>setDeficitSheet('slow')}>选择缓慢减脂</button>}
-            {profile.goal==='减脂'&&<button className="flat small" onClick={()=>setDeficitSheet('settings')}>设置热量缺口</button>}
+            {t.energy.mode!=='维持体重'&&<p className="meta">实际{t.energy.mode==='健康增重'?'盈余':'缺口'} {integer(t.energy.effective)} 千卡</p>}
+            {profile.goal!=='维持体重'&&<button className="flat small" onClick={()=>setDeficitSheet('settings')}>{profile.goal==='健康增重'?'设置热量盈余':'设置热量缺口'}</button>}
             <EnergyDetails targets={t} plan={plan}/></>}</section>
         <section className="card home-task"><Icon name="basket"/><h2>采购进度</h2><strong>{purchases?.total?purchases.done+' / '+purchases.total:quote?'无需采购':'—'}
           {purchases?.total?<small> 项</small>:null}</strong>
@@ -91,7 +101,7 @@ export function Dashboard({profile,t,reason,weights,phase,plan,stale,targetChang
       </section>
       {plan&&<div className="home-secondary"><button className="flat small" aria-label="生成七天食谱" disabled={busy} onClick={generate}>{busy?'正在搭配食谱…':'重新生成食谱'}</button></div>}
     </div>}
-    {deficitSheet==='settings'&&profile&&t&&<Sheet title="设置热量缺口" close={()=>setDeficitSheet(null)}>
+    {deficitSheet==='settings'&&profile&&t&&<Sheet title={profile.goal==='健康增重'?'设置热量盈余':'设置热量缺口'} close={()=>setDeficitSheet(null)}>
       <QuickDeficit profile={profile} weights={ordered} today={today}
         save={async value=>{if(await saveDeficit(value))setDeficitSheet(null);}}/>
     </Sheet>}
@@ -109,7 +119,7 @@ function ConfirmSlowDeficit({preview,cancel,save}:{preview:Targets;cancel:()=>vo
   return <>
     <div className="hint">
       <p>启用后预计每日目标 <strong>{integer(preview.kcal)} 千卡</strong></p>
-      <p className="meta">标准缺口 300 千卡，按档案计算后约 {integer(preview.energy!.effective)} 千卡。</p>
+      <p className="meta">按你的档案计算，实际缺口约 {integer(preview.energy!.effective)} 千卡。</p>
     </div>
     <p>请先核对健康情况和用药。仅在你主动选择减脂，且没有需要先由专业人员评估的情况时确认。</p>
     <button className="primary" disabled={saving} onClick={async()=>{
@@ -126,7 +136,9 @@ function QuickDeficit({profile,weights,today,save}:{profile:Profile;weights:Weig
   let preview:Targets|undefined,error='';
   try {preview=nutrition({...profile,deficit:value},weights,today);}
   catch(e){error=e instanceof Error?e.message:'请核对热量设置。';}
-  const needsConsent=preview?.energy&&Math.min(preview.bmi,preview.energy.actualBmi)<24&&profile.conditions.length===0
+  const gain=profile.goal==='健康增重';
+  const mayConfirm=!gain&&!needsEnergyReviewForConditions(profile);
+  const needsConsent=mayConfirm&&preview?.energy&&Math.min(preview.bmi,preview.energy.actualBmi)<24
     &&usesExplicitDeficit(value)&&!value.normalOptIn;
   return <form onSubmit={async e=>{
     e.preventDefault();
@@ -134,9 +146,9 @@ function QuickDeficit({profile,weights,today,save}:{profile:Profile;weights:Weig
     setSaving(true);
     try {await save(value);} finally {setSaving(false);}
   }}>
-    <p className="meta">这里会按你现有的档案和称重预览。正常 BMI 默认维持，主动确认适用后可以选择温和缺口。</p>
-    <DeficitChoice value={value} onChange={setValue}/>
-    {usesExplicitDeficit(value)&&profile.conditions.length===0&&
+    <p className="meta">{gain?'按已通过的增重筛查、现有档案和称重预览。':'按现有档案和称重预览。正常 BMI 默认维持，主动确认适用后可选择温和缺口。'}</p>
+    <DeficitChoice value={value} gain={gain} onChange={setValue}/>
+    {mayConfirm&&
       <NormalDeficitConsent checked={Boolean(value.normalOptIn)} onChange={normalOptIn=>setValue({...value,normalOptIn})}/>}
     {preview&&<div className="hint" aria-live="polite">
       <p>预计每日目标 <strong>{integer(preview.kcal)} 千卡</strong></p>
@@ -149,14 +161,15 @@ function QuickDeficit({profile,weights,today,save}:{profile:Profile;weights:Weig
 
 function EnergyDetails({targets,plan}:{targets:Targets;plan:Plan|null}) {
   const e=targets.energy!;
+  const direction=e.goal==='健康增重'?'盈余':'缺口';
   const fields=[
     ['最新体重',decimal(e.current)+' 千克'],['最近称重日',e.latestDate??'暂无称重记录'],['计算体重',decimal(e.calculation)+' 千克'],['体重依据',e.weightReason],
     ['有效样本',e.recentCount+' 条（近 7 天，含今天） · '+e.earlierCount+' 条（距今 14～28 天）'],
-    ['计算 BMI / 最新 BMI',targets.bmi.toFixed(2)+' / '+e.actualBmi.toFixed(2)],
+    ['计算 BMI / 最新 BMI',targets.bmi.toFixed(2)+' / '+e.actualBmi.toFixed(2)+' · '+bmiCategory(e.actualBmi)],
     ['静息能耗（BMR）',decimal(targets.bmr)+' 千卡'],['日常活动系数',String(e.activity)],['总消耗（TDEE）',decimal(targets.tdee)+' 千卡'],
-    ['选择的模式',e.intent],['标准缺口',decimal(e.requested)+' 千卡'],['限制后的标准缺口',decimal(e.standard)+' 千卡'],
-    ['BMI 缺口保留比例',decimal(e.bmiFactor*100)+'%'],['距目标限制',decimal(e.distanceCap)+' 千卡'],
-    ['安全允许上限',decimal(e.safetyCap)+' 千卡'],['最低能量',integer(e.floor)+' 千卡'],['实际计算缺口',decimal(e.effective)+' 千卡'],
+    ['选择的模式',e.intent],['候选'+direction,decimal(e.requested)+' 千卡'],['比例限额内的'+direction,decimal(e.standard)+' 千卡'],
+    ['候选调整比例',decimal((e.candidateRate??0)*100)+'%'],['距目标限制',decimal(e.distanceCap)+' 千卡'],
+    ['安全允许上限',decimal(e.safetyCap)+' 千卡'],['最低能量',integer(e.floor)+' 千卡'],['实际调整量',decimal(e.actualAdjustment??-e.effective)+' 千卡'],['目标和速度',(e.goal??e.mode)+' · '+(e.pace??'—')],['算法版本','3.2.0'],
     ['每日建议',integer(targets.kcal)+' 千卡'],['本次计算日期',e.calculatedOn],['计算与安全修正',e.adjustment],
     ...(plan?[['方案最近计算时间',new Date(plan.created).toLocaleString('zh-CN')]]:[]),
   ];

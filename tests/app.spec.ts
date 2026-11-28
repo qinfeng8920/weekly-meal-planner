@@ -1,24 +1,31 @@
 import {expect,test,type Page} from '@playwright/test';
 import {readFileSync} from 'node:fs';
-import type {Data} from '../src/store';
+import type {Data,ProfileEntry} from '../src/store';
 import {demo} from './fixtures';
 
 async function setup(page:Page,profile=demo) {
   await page.goto('./');
   await page.getByRole('button',{name:'开始填写档案'}).click();
+  await fillProfile(page,profile);
+}
+async function fillProfile(page:Page,profile=demo) {
   await page.getByLabel('昵称（选填）').fill(profile.name);
   await page.getByLabel('公式使用的性别').selectOption(profile.sex);
   await page.getByLabel('年龄（岁）').fill(profile.age);
   await page.getByLabel('身高（厘米）').fill(profile.height);
   await page.getByLabel('当前体重（千克）').fill(profile.weight);
-  await page.getByLabel('目标体重（千克）').fill(profile.target);
-  if(profile.deficit)await page.getByLabel('标准热量缺口').selectOption(profile.deficit.mode);
+  await page.getByRole('combobox',{name:'目标',exact:true}).selectOption(profile.goal);
+  if(profile.goal!=='维持体重')await page.getByLabel('目标体重（千克）').fill(profile.target);
+  if(profile.deficit)await page.getByLabel(profile.goal==='健康增重'?'热量盈余设置':'标准热量缺口').selectOption(profile.deficit.mode);
   await page.getByRole('button',{name:'继续',exact:true}).click();
+  await page.getByLabel('日常活动量').selectOption(profile.activity);
   await page.getByRole('button',{name:'继续',exact:true}).click();
   await page.getByRole('button',{name:'继续',exact:true}).click();
   await expect(page.getByRole('alert')).toContainText('完成并确认');
   await page.getByText('我已核对年龄、孕哺期、进食障碍及医嘱筛查').click();
   await page.getByText('我已核对过敏原与其他强制忌口').click();
+  if(profile.gainScreen?.reviewed)await page.getByLabel('已核对健康增重筛查').check();
+  if(profile.gainScreen?.professionalClearance)await page.getByLabel(/已由医生或注册营养师评估/).check();
   if(profile.deficit?.normalOptIn)await page.getByText(/我主动选择在正常 BMI 时减脂/).click();
   for(let i=0;i<3;i++) await page.getByRole('button',{name:'继续',exact:true}).click();
   await page.getByRole('button',{name:'保存档案'}).click();
@@ -92,10 +99,14 @@ test('备份往返、分享净化、深色及 320 像素布局',async({page})=>{
   await page.getByRole('button',{name:'导出个人备份'}).click();
   const path=await (await backup).path();
   await page.getByRole('button',{name:'删除全部数据'}).click();
+  page.once('dialog',d=>d.accept());
   await page.getByRole('button',{name:'确认删除'}).click();
   await expect(page.getByText('本机个人数据已清除。')).toBeVisible();
-  page.once('dialog',d=>d.accept());
-  await page.getByLabel('导入并恢复').setInputFiles(path!);
+  await nav(page,'我的').click();
+  await page.getByText('本机数据与备份',{exact:true}).click();
+  await page.getByRole('button',{name:'导入并恢复'}).click();
+  await page.getByLabel('选择备份文件').setInputFiles(path!);
+  await page.getByRole('button',{name:'恢复为新档案'}).click();
   await expect(page.getByText('备份已恢复。')).toBeVisible();
   await page.setViewportSize({width:320,height:640});
   for(const name of ['首页','食谱','采购','我的']){await nav(page,name).click();await assertFit(page);}
@@ -352,13 +363,14 @@ test('整批取用和食谱完成餐次联动，同一餐只扣一次',async({pa
       const request=indexedDB.open('tiantianjian',1);
       request.onsuccess=()=>{
         const db=request.result, tx=db.transaction('app','readwrite'),store=tx.objectStore('app');
-        const existing=store.get('data');
+        const existing=store.get('profiles-v2');
         existing.onsuccess=()=>{
-          const data=existing.result;
+          const directory=existing.result as {profiles:ProfileEntry[];activeProfileId:string};
+          const data=directory.profiles.find(p=>p.id===directory.activeProfileId)!.data;
           data.supply={ledger:{version:1,review:[],events:ids.map(item=>({
             id:'测试|'+item,item,source:'测试|'+item,kind:'手动补充',quantity:5000,unit:'克',delta:5000,
           }))}};
-          store.put(data,'data');
+          store.put(directory,'profiles-v2');
         };
         tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);
       };
@@ -381,8 +393,8 @@ test('整批取用和食谱完成餐次联动，同一餐只扣一次',async({pa
   const ledger=()=>page.evaluate(()=>new Promise(resolve=>{
     const open=indexedDB.open('tiantianjian',1);
     open.onsuccess=()=>{
-      const db=open.result,r=db.transaction('app').objectStore('app').get('data');
-      r.onsuccess=()=>{db.close();resolve((r.result as Data).supply?.ledger);};
+      const db=open.result,r=db.transaction('app').objectStore('app').get('profiles-v2');
+      r.onsuccess=()=>{db.close();resolve((r.result.profiles as ProfileEntry[]).find(p=>p.id===r.result.activeProfileId)!.data.supply?.ledger);};
     };
   }));
   const before=await ledger();
@@ -600,8 +612,8 @@ test('菜谱详情手动选库存中的替代油后同步实际配方和采购',
     request.onerror=()=>reject(request.error);
     request.onsuccess=()=>{
       const db=request.result;
-      const read=db.transaction('app').objectStore('app').get('data');
-      read.onsuccess=()=>{resolve(read.result);db.close();};
+      const read=db.transaction('app').objectStore('app').get('profiles-v2');
+      read.onsuccess=()=>{resolve((read.result.profiles as ProfileEntry[]).find(p=>p.id===read.result.activeProfileId)!.data);db.close();};
       read.onerror=()=>{reject(read.error);db.close();};
     };
   }));
@@ -951,17 +963,18 @@ test('小屏保留超长菜名、大额库存和缺失微量营养提示',async(
     request.onerror=()=>reject(request.error);
     request.onsuccess=()=>{
       const db=request.result,tx=db.transaction('app','readwrite'),store=tx.objectStore('app');
-      const entry=store.get('data');
+      const entry=store.get('profiles-v2');
       entry.onsuccess=()=>{
-        const data=entry.result;
-        const dish=data.plan.days[0].meals[0].dishes[0];
+        const directory=entry.result as {profiles:ProfileEntry[];activeProfileId:string};
+        const data=directory.profiles.find(p=>p.id===directory.activeProfileId)!.data;
+        const dish=data.plan!.days[0].meals[0].dishes[0];
         dish.recipe.name=name;
         dish.nutrients.calcium=null;
         data.supply??={};
         data.supply.ledger??={version:1,review:[],events:[]};
         data.supply.ledger.events.push({id:'large-stock-v3',item:'chicken',source:'large-stock-v3|chicken',
           kind:'手动补充',quantity:1_234_567,unit:'克',delta:1_234_567});
-        store.put(data,'data');
+        store.put(directory,'profiles-v2');
       };
       tx.oncomplete=()=>{db.close();resolve();};
       tx.onerror=()=>reject(tx.error);
@@ -989,7 +1002,7 @@ test('小屏保留超长菜名、大额库存和缺失微量营养提示',async(
 test('BMI 连续调整、普通称重保留食谱编辑和已锁菜，起点独立',async({page})=>{
   await setup(page,{...demo,weight:'72',target:'60',height:'173',age:'25',deficit:{mode:'缓慢减脂',normalOptIn:true}});
   const calories=page.locator('.home-task').filter({hasText:'每日热量目标'}).locator('strong');
-  await expect(calories).toContainText('1,718');
+  await expect(calories).toContainText('1,815');
   await generate(page);
   await page.locator('.dish-title').first().click();
   await page.getByRole('dialog').getByRole('button',{name:'锁定这道菜'}).click();
@@ -1004,17 +1017,17 @@ test('BMI 连续调整、普通称重保留食谱编辑和已锁菜，起点独�
   await page.getByRole('button',{name:'保存体重'}).click();
   await expect(page.getByRole('alert')).toContainText('已经有称重记录');
   await page.getByRole('button',{name:'关闭',exact:true}).click();
-  await expect(calories).toContainText('1,721');
+  await expect(calories).toContainText('1,815');
   await page.getByText('查看热量计算依据',{exact:true}).click();
-  await expect(page.getByText('BMI 缺口保留比例',{exact:true})).toBeVisible();
+  await expect(page.getByText('候选调整比例',{exact:true})).toBeVisible();
   await expect(page.getByText(/累计减重 1 千克/)).toBeVisible();
   await nav(page,'食谱').click();
-  await expect(page.getByText(/当前建议 1721 千卡 · 生成时目标 1718 千卡/)).toBeVisible();
+  await expect(page.getByText(/当前建议 1815 千卡 · 生成时目标 1815 千卡/)).toBeVisible();
   await expect(page.locator('.dish').getByRole('button',{name:/^换/}).nth(1)).toBeEnabled();
   const lockedName=await page.locator('.dish-title').first().innerText();
   await page.getByRole('button',{name:'更新未执行食谱'}).click();
   await expect(page.getByText('七天食谱已生成。')).toBeVisible({timeout:12000});
-  await expect(page.getByText('生成时目标 1721 千卡',{exact:true})).toBeVisible();
+  await expect(page.getByText('生成时目标 1815 千卡',{exact:true})).toBeVisible();
   await expect(page.locator('.dish-title').first()).toHaveText(lockedName);
   await page.locator('.dish-title').first().click();
   await expect(page.getByRole('button',{name:'解除锁定'})).toBeVisible();
@@ -1037,7 +1050,7 @@ test('旧档案在首页确认减脂缺口，称重与百分比显示保持正�
   await page.getByRole('button',{name:'关闭',exact:true}).click();
   const card=page.locator('.home-task').filter({hasText:'每日热量目标'});
   await expect(card).toContainText('2,006');
-  await expect(card).toContainText('正常 BMI 的默认推荐为维持');
+  await expect(card).toContainText('正常 BMI 默认维持');
   for(const width of [320,360,390,430]){
     await page.setViewportSize({width,height:850});
     await page.evaluate(()=>{document.documentElement.style.fontSize='22px';});
@@ -1054,15 +1067,15 @@ test('旧档案在首页确认减脂缺口，称重与百分比显示保持正�
   await card.getByRole('button',{name:'设置热量缺口',exact:true}).click();
   const sheet=page.getByRole('dialog',{name:'设置热量缺口'});
   await sheet.getByLabel('标准热量缺口').selectOption('缓慢减脂');
-  await expect(sheet).toContainText('尚未确认正常 BMI 下适合减脂');
+  await expect(sheet).toContainText('正常 BMI 默认维持');
   await expect(sheet.getByRole('button',{name:'保存热量设置'})).toBeDisabled();
   await sheet.getByRole('checkbox',{name:/我主动选择在正常 BMI 时减脂/}).check();
-  await expect(sheet).toContainText('1,721 千卡');
+  await expect(sheet).toContainText('1,815 千卡');
   await sheet.getByRole('button',{name:'保存热量设置'}).click();
-  await expect(card).toContainText('1,721');
+  await expect(card).toContainText('1,815');
   await expect(card).toContainText('实际模式 · 减脂');
   await page.reload();
-  await expect(card).toContainText('1,721');
+  await expect(card).toContainText('1,815');
   await expect(page.locator('.weight-note')).toContainText('起点 72 千克');
   await expect(page.locator('.weight-values')).toContainText('71');
 });
@@ -1075,17 +1088,17 @@ test('档案体重 71 千克可直接预览缓慢减脂，取消或确认各自�
   await expect(card).toContainText('2,006');
   await choose.click();
   const sheet=page.getByRole('dialog',{name:'选择缓慢减脂'});
-  await expect(sheet).toContainText('1,721 千卡');
+  await expect(sheet).toContainText('1,815 千卡');
   await sheet.getByRole('button',{name:'继续维持体重'}).click();
   await expect(card).toContainText('2,006');
   await choose.click();
   await sheet.getByRole('button',{name:'确认适用并启用'}).click();
-  await expect(card).toContainText('1,721');
+  await expect(card).toContainText('1,815');
   await expect(card).toContainText('实际模式 · 减脂');
   await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
   await context.setOffline(true);
   await page.reload();
-  await expect(card).toContainText('1,721');
+  await expect(card).toContainText('1,815');
   await expect(choose).toHaveCount(0);
 });
 
@@ -1094,4 +1107,176 @@ test('低体重保护边界不出现缓慢减脂快捷选项',async({page})=>{
   const card=page.locator('.home-task').filter({hasText:'每日热量目标'});
   await expect(card).toContainText('已达到目标或低体重保护边界');
   await expect(card.getByRole('button',{name:'选择缓慢减脂'})).toHaveCount(0);
+});
+
+test('新的增重目标必须高于当前体重并处于适用范围',async({page})=>{
+  await page.goto('./');
+  await page.getByRole('button',{name:'开始填写档案'}).click();
+  await page.getByLabel('公式使用的性别').selectOption('女');
+  await page.getByLabel('年龄（岁）').fill('34');
+  await page.getByLabel('身高（厘米）').fill('162');
+  await page.getByLabel('当前体重（千克）').fill('48');
+  await page.getByRole('combobox',{name:'目标',exact:true}).selectOption('健康增重');
+  const target=page.getByLabel('目标体重（千克）');
+  for(const invalid of ['47','48','64']){
+    await target.fill(invalid);
+    await page.getByRole('button',{name:'继续',exact:true}).click();
+    await expect(page.getByRole('alert')).toContainText('目标体重应高于当前体重');
+  }
+  await target.fill('52');
+  await page.getByRole('button',{name:'继续',exact:true}).click();
+  await expect(page.getByLabel('日常活动量')).toBeVisible();
+});
+
+test('五个本地档案切换和删除，增重食谱及账本独立',async({page,context})=>{
+  await setup(page,{...demo,name:'甲档案'});
+  await generate(page);
+  page.once('dialog',dialog=>dialog.accept('甲的历史'));
+  await page.getByRole('button',{name:'保存到历史'}).click();
+  await expect(page.getByText('已保存到历史方案。')).toBeVisible();
+  await nav(page,'采购').click();
+  await page.getByRole('checkbox').first().click();
+  await page.getByLabel('实际支付（元，可选）').fill('12');
+  await page.getByRole('button',{name:'保存实际购买'}).click();
+  await expect(page.getByText('采购记录已更新。')).toBeVisible();
+  const open=()=>page.getByRole('button',{name:'我的档案与设置'}).click();
+  const create=async(profile:typeof demo)=>{
+    await open();
+    await page.getByRole('dialog',{name:'档案管理'}).getByRole('button',{name:'新建档案'}).click();
+    await fillProfile(page,profile);
+  };
+  await create({...demo,name:'乙档案',goal:'健康增重',weight:'53',height:'173',target:'60',activity:'正常通勤',
+    gainScreen:{risks:[],reviewed:true,professionalClearance:true}});
+  await expect(page.getByText('实际模式 · 健康增重')).toBeVisible();
+  await nav(page,'我的').click();
+  await expect(page.getByRole('button',{name:'历史方案 · 0'})).toBeVisible();
+  await page.getByRole('button',{name:'家中库存',exact:true}).click();
+  await expect(page.getByText(/还没有账面库存/)).toBeVisible();
+  await nav(page,'首页').click();
+  await generate(page);
+  await expect(page.getByText(/生成时目标 2187 千卡/)).toBeVisible();
+  await create({...demo,name:'同名',goal:'维持体重',sex:'女',weight:'65',height:'162'});
+  await create({...demo,name:'同名',goal:'维持体重',weight:'74'});
+  await create({...demo,name:'待评估',goal:'健康增重',weight:'42',height:'173',target:'60'});
+  await expect(page.getByText('实际 BMI',{exact:true})).toBeVisible();
+  await open();
+  const manager=page.getByRole('dialog',{name:'档案管理'});
+  await expect(manager.locator('li')).toHaveCount(5);
+  await manager.getByRole('button',{name:'切换到同名',exact:true}).first().click();
+  await expect(page.locator('.weight-values')).toContainText('65');
+  await page.reload();
+  await expect(page.locator('.weight-values')).toContainText('65');
+  await open();
+  await manager.getByRole('button',{name:'删除乙档案',exact:true}).click();
+  await page.getByRole('button',{name:'确认删除档案'}).click();
+  await expect(page.locator('.weight-values')).toContainText('65');
+  await generate(page);
+  await expect(page.getByText(/生成时目标 1598 千卡/)).toBeVisible();
+  await open();
+  await manager.getByRole('button',{name:'切换到甲档案',exact:true}).click();
+  await nav(page,'我的').click();
+  await expect(page.getByRole('button',{name:'历史方案 · 1'})).toBeVisible();
+  await nav(page,'采购').click();
+  await expect(page.getByText('¥12.00').first()).toBeVisible();
+  await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByRole('heading',{name:'你好，甲档案'})).toBeVisible();
+  for(const width of [320,360,375,390,430]){
+    await page.setViewportSize({width,height:850});
+    await assertFit(page);
+  }
+});
+
+test('全档案备份合并去重和替换，切换取消上一档案的食谱任务',async({page})=>{
+  await setup(page,{...demo,name:'配餐者'});
+  const manage=()=>page.getByRole('button',{name:'我的档案与设置'}).click();
+  await manage();
+  await page.getByRole('dialog',{name:'档案管理'}).getByRole('button',{name:'新建档案'}).click();
+  await page.getByLabel('昵称（选填）').fill('仅存草稿');
+  await page.getByRole('button',{name:'保存草稿'}).click();
+  await expect(page.getByRole('heading',{name:'你好，仅存草稿'})).toBeVisible();
+  await manage();
+  await page.getByRole('button',{name:'切换到配餐者'}).click();
+  await expect(page.getByRole('heading',{name:'你好，配餐者'})).toBeVisible();
+  await page.evaluate(()=>{
+    const post=Worker.prototype.postMessage;
+    Worker.prototype.postMessage=function(message:unknown){setTimeout(()=>post.call(this,message),2000);};
+  });
+  await page.getByRole('button',{name:'生成七天食谱',exact:true}).click();
+  await expect(page.getByRole('button',{name:'取消生成'})).toBeVisible();
+  await manage();
+  await page.getByRole('button',{name:'切换到仅存草稿'}).click();
+  await expect(page.getByRole('heading',{name:'你好，仅存草稿'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'取消生成'})).toHaveCount(0);
+  await nav(page,'我的').click();
+  await page.getByText('本机数据与备份',{exact:true}).click();
+  const download=page.waitForEvent('download');
+  await page.getByRole('button',{name:'导出全部档案'}).click();
+  const path=await (await download).path();
+  await page.getByRole('button',{name:'导入并恢复'}).click();
+  const input=page.getByLabel('选择备份文件');
+  await input.setInputFiles({name:'坏文件.json',mimeType:'application/json',buffer:Buffer.from('{')});
+  await expect(page.getByRole('alert')).toContainText('不是有效的 JSON');
+  await input.setInputFiles(path!);
+  await expect(page.getByText('已检查 2 个档案。')).toBeVisible();
+  await page.getByRole('button',{name:'合并档案'}).click();
+  await expect(page.getByText('备份已恢复。')).toBeVisible();
+  await manage();
+  await expect(page.getByRole('dialog',{name:'档案管理'}).locator('li')).toHaveCount(2);
+  await page.getByRole('dialog',{name:'档案管理'}).getByRole('button',{name:'关闭',exact:true}).click();
+  await page.getByRole('button',{name:'导入并恢复'}).click();
+  await input.setInputFiles(path!);
+  page.once('dialog',dialog=>dialog.accept());
+  await page.getByRole('button',{name:'替换全部档案'}).click();
+  await expect(page.getByRole('heading',{name:'你好，仅存草稿'})).toBeVisible();
+});
+
+test('单独删除当前档案会切换，删除最后一个进入空状态',async({page})=>{
+  await setup(page,{...demo,name:'保留档案'});
+  const open=()=>page.getByRole('button',{name:'我的档案与设置'}).click();
+  const manager=page.getByRole('dialog',{name:'档案管理'});
+  await open();
+  await manager.getByRole('button',{name:'新建档案'}).click();
+  await page.getByLabel('昵称（选填）').fill('待删除档案');
+  await page.getByRole('button',{name:'保存草稿'}).click();
+  await open();
+  await manager.getByRole('button',{name:'删除待删除档案',exact:true}).click();
+  await page.getByRole('button',{name:'确认删除档案'}).click();
+  await expect(page.getByRole('heading',{name:'你好，保留档案'})).toBeVisible();
+  await open();
+  await manager.getByRole('button',{name:'删除保留档案',exact:true}).click();
+  await page.getByRole('button',{name:'确认删除档案'}).click();
+  await expect(page.getByRole('button',{name:'开始填写档案'})).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button',{name:'开始填写档案'})).toBeVisible();
+});
+
+test('旧版损坏数据迁移失败时保留原键及原始备份',async({page})=>{
+  await page.route('**/legacy-seed',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><title>迁移测试</title>'}));
+  await page.goto('./legacy-seed');
+  await page.evaluate(()=>new Promise<void>((resolve,reject)=>{
+    const request=indexedDB.open('tiantianjian',1);
+    request.onupgradeneeded=()=>request.result.createObjectStore('app');
+    request.onerror=()=>reject(request.error);
+    request.onsuccess=()=>{
+      const db=request.result,tx=db.transaction('app','readwrite');
+      tx.objectStore('app').put({version:1,profile:{name:'原始档案缺字段'}},'data');
+      tx.oncomplete=()=>{db.close();resolve();};
+      tx.onerror=()=>reject(tx.error);
+    };
+  }));
+  await page.goto('./');
+  await expect(page.getByRole('heading',{name:'读取本机数据失败'})).toBeVisible();
+  const contents=await page.evaluate(()=>new Promise<{legacy:unknown;directory:unknown}>(resolve=>{
+    const request=indexedDB.open('tiantianjian',1);
+    request.onsuccess=()=>{
+      const db=request.result,store=db.transaction('app').objectStore('app');
+      const legacy=store.get('data'),directory=store.get('profiles-v2');
+      directory.onsuccess=()=>{db.close();resolve({legacy:legacy.result,directory:directory.result});};
+    };
+  }));
+  expect(contents.legacy).toEqual({version:1,profile:{name:'原始档案缺字段'}});
+  expect(contents.directory).toBeUndefined();
+  await expect(page.getByRole('button',{name:'导出本机原始数据'})).toBeVisible();
 });

@@ -1,11 +1,11 @@
 import {Action,CategoryGlyph,Icon,Progress} from './design';
 import {DeficitChoice,NormalDeficitConsent,usesExplicitDeficit} from './DeficitFields';
 import {useState, type ReactNode} from 'react';
-import {allergens, conditions, cuisines, equipment, initialProfile, screening, type Profile} from './profile';
+import {allergens, conditions, cuisines, equipment, initialProfile,gainRiskItems, screening, type Profile} from './profile';
 import {foods} from './catalog';
 import {foodClass} from './catalog-taxonomy';
 import {searchMatches} from './catalog-search';
-import {between,customDeficitLimit} from './nutrition';
+import {between,customDeficitLimit,needsEnergyReviewForConditions} from './nutrition';
 
 type TextKey = {[K in keyof Profile]-?:Profile[K] extends string?K:never}[keyof Profile];
 type ArrayKey = {[K in keyof Profile]-?:Profile[K] extends string[]?K:never}[keyof Profile];
@@ -18,13 +18,23 @@ const preferences: [ArrayKey,string,string[]][] = [
     .map(([key,label,category]): [ArrayKey,string,string[]]=>[key,label,foods.filter(f=>
       f.category===category&&(key!=='vegetables'||foodClass(f).group!=='调味料')).map(f=>f.name)]),
 ];
-export function ProfileForm({value,hasWeightLog,onSave,onCancel}:{value:Profile|null;hasWeightLog?:boolean;onSave:(p:Profile)=>Promise<boolean>;onCancel:()=>void}) {
+export function ProfileForm({value,recordedWeight,onSave,onDirty,onCancel}:{value:Profile|null;recordedWeight?:number;onSave:(p:Profile)=>Promise<boolean>;onCancel:()=>void;onDirty?: (dirty:boolean)=>void}) {
   const [p,set]=useState<Profile>(()=>structuredClone(value??initialProfile));
   const [step,setStep]=useState(0);
   const [error,setError]=useState('');
   const [saving,setSaving]=useState(false);
   const [preferenceQuery,setPreferenceQuery]=useState(''),[preferenceLimits,setPreferenceLimits]=useState<Record<string,number>>({});
-  function patch<K extends keyof Profile>(key:K,value:Profile[K]) {set(before=>({...before,[key]:value}));setError('');}
+  function patch<K extends keyof Profile>(key:K,value:Profile[K]) {
+    set(before=>{
+      const next={...before,[key]:value};
+      if(key==='goal'&&value!==before.goal)next.deficit={...before.deficit,mode:'系统推荐'};
+      if(['risks','conditions','otherHealth','age','sex','height'].includes(key)) {
+        if(next.deficit)next.deficit={...next.deficit,normalOptIn:false};
+        if(next.gainScreen)next.gainScreen={...next.gainScreen,reviewed:false,professionalClearance:false};
+      }
+      return next;
+    });onDirty?.(true);setError('');
+  }
   const text=(key:TextKey,label:string,type='text',placeholder='')=><label className="field" key={key}>{label}<input
     type={type} inputMode={type==='number'?'decimal':undefined} step={type==='number'?'any':undefined}
     value={p[key]} placeholder={placeholder} maxLength={200} onChange={e=>patch(key,e.target.value)}/></label>;
@@ -34,18 +44,25 @@ export function ProfileForm({value,hasWeightLog,onSave,onCancel}:{value:Profile|
   const multi=(key:ArrayKey,label:string,options:string[])=><fieldset className="choices"><legend>{label}</legend><div className="chips">{options.map(option=><label key={option} className={'chip '+(p[key].includes(option)?'selected':'')}>
     <input type="checkbox" checked={p[key].includes(option)} onChange={e=>patch(key,e.target.checked?[...p[key],option]:p[key].filter(s=>s!==option))}/>{option}</label>)}</div></fieldset>;
   const deficit=p.deficit??{mode:'系统推荐' as const};
+  const gain=p.goal==='健康增重',adjust=p.goal!=='维持体重';
+  const gainScreen=p.gainScreen??{risks:[],reviewed:false,professionalClearance:false};
   const grids=(...fields:ReactNode[])=><div className="fields">{fields}</div>;
   function advance() {
     const age=Number(p.age);
     if (step===0 && (!p.sex || !Number.isInteger(age) || !between(age,1,120) || !between(+p.height,80,250) ||
-      !between(+p.weight,15,350) || p.goal==='减脂' && !between(+p.target,15,350) ||
+      !between(+p.weight,15,350) || adjust && !between(+p.target,15,350) ||
       p.waist && !between(+p.waist,35,250) || p.fat && !between(+p.fat,2,80))) {
       setError('请填全必填项，检查年龄、身高、体重和选填数据。');return;
     }
-    if(step===0&&p.goal==='减脂') {
-      if(+p.target/(+p.height/100)**2<18.5-1e-9){setError('目标体重对应的 BMI 不能低于 18.5。');return;}
-      if(deficit.mode==='自定义'&&(p.deficit?.standard===undefined||!between(p.deficit.standard,0,customDeficitLimit))){
-        setError('请输入 0～400 千卡的自定义标准缺口。');return;
+    if(step===0&&adjust) {
+      const targetBmi=+p.target/(+p.height/100)**2;
+      if(!gain&&targetBmi<18.5-1e-9){setError('目标体重对应的 BMI 不能低于 18.5。');return;}
+      const changedGoal=value?.goal!==p.goal||Number(value?.target)!==Number(p.target);
+      if(gain&&changedGoal&&(targetBmi>=24-1e-9||+p.target<=(recordedWeight??+p.weight))) {
+        setError('设置新的增重目标时，目标体重应高于当前体重，且目标 BMI 应低于 24。');return;
+      }
+      if(deficit.mode==='自定义'&&(p.deficit?.standard===undefined||!between(p.deficit.standard,0,p.deficit.unit==='百分比'?15:customDeficitLimit))){
+        setError('请输入 0～15% 或 0～400 千卡的自定义调整。');return;
       }
     }
     if (step===2 && (!p.screened||!p.allergyChecked)) {setError('完成并确认两项安全筛查后可继续。');return;}
@@ -66,8 +83,10 @@ export function ProfileForm({value,hasWeightLog,onSave,onCancel}:{value:Profile|
     </div>
     <Progress value={step+1} max={titles.length} label="档案填写进度"/>
     {step===0&&<>{grids(text('name','昵称（选填）','text','怎么称呼你'),select('sex','公式使用的性别',['','女','男'],['请选择','女','男']),
-      text('age','年龄（岁）','number'),text('height','身高（厘米）','number'),hasWeightLog?<p className="meta">当前体重由首页称重记录更新。档案仅保留首次输入的备用值。</p>:text('weight','当前体重（千克）','number'),
-      select('goal','目标',['减脂','维持体重']),p.goal==='减脂'?text('target','目标体重（千克）','number'):null,p.goal==='减脂'?<DeficitChoice value={deficit} onChange={value=>patch('deficit',value)}/>:null,
+      text('age','年龄（岁）','number'),text('height','身高（厘米）','number'),recordedWeight!==undefined?<p className="meta">当前体重由首页称重记录更新。档案仅保留首次输入的备用值。</p>:text('weight','当前体重（千克）','number'),
+      select('goal','目标',['减脂','维持体重','健康增重']),adjust?text('target','目标体重（千克）','number'):null,
+      adjust?<DeficitChoice value={deficit} gain={gain} onChange={value=>patch('deficit',value)}/>:null,
+      adjust?select('pace','系统推荐速度',['缓慢','适中']):null,
       text('waist','腰围（厘米，选填）','number'),text('fat','体脂率（%，选填）','number'))}
       {p.goal==='减脂'&&<p className="meta">正常 BMI 默认维持。明确启用减脂后，实际缺口仍随 BMI、距目标和健康条件缩小。</p>}</>}
     {step===1&&<>{grids(select('activity','日常活动量',['长期久坐','正常通勤','经常站立走动','体力劳动']),text('exerciseCount','每周运动次数','number'),
@@ -80,8 +99,18 @@ export function ProfileForm({value,hasWeightLog,onSave,onCancel}:{value:Profile|
       {text('otherHealth','其他需要专业评估的情况或药物（选填）')}
       {multi('allergens','食物过敏原',allergens)}
       {text('avoid','强制忌口或其他过敏食材，用顿号分隔','text','如葱、芝麻油')}
-      {p.goal==='减脂'&&usesExplicitDeficit(deficit)&&
+      {p.goal==='减脂'&&!needsEnergyReviewForConditions(p)&&(usesExplicitDeficit(deficit)||deficit.mode==='系统推荐')&&
         <NormalDeficitConsent checked={Boolean(deficit.normalOptIn)} onChange={normalOptIn=>patch('deficit',{...deficit,normalOptIn})}/>}
+      {gain&&<fieldset><legend>健康增重筛查</legend>
+        <p className="meta">如有以下情况请如实勾选，应用会暂停自动配餐并提示评估。</p>
+        {gainRiskItems.map(risk=><label className="check" key={risk}>
+          <input type="checkbox" checked={gainScreen.risks.includes(risk)} onChange={e=>patch('gainScreen',{...gainScreen,
+            risks:e.target.checked?[...gainScreen.risks,risk]:gainScreen.risks.filter(item=>item!==risk),reviewed:false,professionalClearance:false})}/>{risk}</label>)}
+        <label className="check"><input type="checkbox" checked={gainScreen.reviewed}
+          onChange={e=>patch('gainScreen',{...gainScreen,reviewed:e.target.checked})}/>已核对健康增重筛查</label>
+        <label className="check"><input type="checkbox" checked={gainScreen.professionalClearance}
+          onChange={e=>patch('gainScreen',{...gainScreen,professionalClearance:e.target.checked})}/>已由医生或注册营养师评估，确认适合一般膳食增重</label>
+      </fieldset>}
       {check('screened','我已核对年龄、孕哺期、进食障碍及医嘱筛查')}
       {check('allergyChecked','我已核对过敏原与其他强制忌口')}
       {check('fluidLimit','医生要求限水')}
@@ -114,6 +143,9 @@ export function ProfileForm({value,hasWeightLog,onSave,onCancel}:{value:Profile|
     {error&&<p role="alert" className="error">{error}</p>}
     <div className="actions profile-step-actions">
       {step>0?<button onClick={()=>{setStep(step-1);setError('');window.scrollTo(0,0);}}>上一步</button>:<button onClick={onCancel}>返回</button>}
+      {step<5&&<button disabled={saving} onClick={()=>{
+        setSaving(true);void onSave(p).finally(()=>setSaving(false));
+      }}>保存草稿</button>}
       <Action icon={step===5?'check':'arrow'} className="primary" disabled={saving} onClick={advance}>{step===5?(saving?'正在保存…':'保存档案'):'继续'}</Action>
     </div>
   </section>;

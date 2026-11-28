@@ -513,3 +513,5 @@ html:has(dialog[open]) {overflow:hidden}
 .energy-basis {margin:0;font-size:var(--caption)}
 .energy-basis > div {display:grid;grid-template-columns:1fr;gap:var(--u1);border-bottom:1px solid var(--line);padding-block:var(--u2)}
 .energy-basis dd {margin:0;color:var(--ink);overflow-wrap:anywhere}
+.profile-list {list-style:none;padding:0}
+.profile-list li {padding:var(--u3) 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}

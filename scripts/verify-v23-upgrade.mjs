@@ -6,16 +6,17 @@ import {createRequire} from 'node:module';
 import assert from 'node:assert/strict';
 const repo=fileURLToPath(new URL('../',import.meta.url));
 const [oldDist,screenshotDirectory,mode]=process.argv.slice(2);
-const v31=mode==='--v31';
+const v32=mode==='--v32';
+const v31=mode==='--v31'||v32;
 const v3=mode==='--v3'||v31;
 const v241=mode==='--v241';
 const v24=mode==='--v24'||v241||v3;
 const ingredients=mode==='--ingredients'||v24;
-const previousVersion=v31?'3.0.0':v3?'2.4.1':v241?'2.4.0':v24?'2.3.2':ingredients?'2.3.0':'2.2.1';
-const currentVersion=v31?'3.1.0':v3?'3.0.0':v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
-const latestAlgorithm=v31?'3.1.0':v3?'2.4.1':v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
-const prefix=v31?'v31':v3?'v3':v241?'v241':v24?'v24':ingredients?'v231':'v23';
-if(!oldDist||!screenshotDirectory)throw Error('用法 node scripts/verify-v23-upgrade.mjs <旧版 dist> <截图目录> [--ingredients|--v24|--v241|--v3|--v31]');
+const previousVersion=v32?'3.1.2':v31?'3.0.0':v3?'2.4.1':v241?'2.4.0':v24?'2.3.2':ingredients?'2.3.0':'2.2.1';
+const currentVersion=v32?'3.2.0':v31?'3.1.0':v3?'3.0.0':v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
+const latestAlgorithm=v32?'3.2.0':v31?'3.1.0':v3?'2.4.1':v241?'2.4.1':v24?'2.4.0':ingredients?'2.3.1':'2.3.0';
+const prefix=v32?'v32':v31?'v31':v3?'v3':v241?'v241':v24?'v24':ingredients?'v231':'v23';
+if(!oldDist||!screenshotDirectory)throw Error('用法 node scripts/verify-v23-upgrade.mjs <旧版 dist> <截图目录> [--ingredients|--v24|--v241|--v3|--v31|--v32]');
 const output=resolve(screenshotDirectory);
 await mkdir(output,{recursive:true});
 const {chromium,devices,expect}=createRequire(repo+'/package.json')('@playwright/test');
@@ -56,7 +57,7 @@ try {
  await page.getByText('固定搭配与随机种子',{exact:true}).click();
  await page.getByLabel('随机种子（选填）').fill('采购验收');
  await page.getByRole('button',{name:v3?'重新搭配':'按设置生成',exact:true}).click();
- await expect(page.getByText('算法 '+(v3?'2.4.1':v241?'2.4.0':v24?'2.3.1':ingredients?'2.3.0':'2.2.0'),{exact:false})).toBeVisible();
+ await expect(page.getByText('算法 '+(v32?'3.1.0':v3?'2.4.1':v241?'2.4.0':v24?'2.3.1':ingredients?'2.3.0':'2.2.0'),{exact:false})).toBeVisible();
 
  await nav('采购').click();
  await page.getByRole('checkbox').first().click();
@@ -81,15 +82,22 @@ try {
  await page.getByRole('button',{name:'收藏菜谱',exact:true}).click();
  if(v31)await page.getByRole('button',{name:'关闭',exact:true}).click();
  await nav('食谱').click();
- const read=()=>page.evaluate(()=>new Promise((resolve,reject)=>{
+ const read=(directory=false)=>page.evaluate(directory=>new Promise((resolve,reject)=>{
    const req=indexedDB.open('tiantianjian',1);
    req.onerror=()=>reject(req.error);
    req.onsuccess=()=>{
-     const db=req.result,get=db.transaction('app').objectStore('app').get('data');
+     const db=req.result,get=db.transaction('app').objectStore('app').get(directory?'profiles-v2':'data');
      get.onerror=()=>reject(get.error);
-     get.onsuccess=()=>{db.close();resolve(get.result);};
+     get.onsuccess=()=>{
+       const value=get.result;
+       db.close();
+       if(directory){
+         if(value.profiles.length!==1){reject(Error('迁移生成了重复档案'));return;}
+         resolve(value.profiles.find(p=>p.id===value.activeProfileId).data);
+       }else resolve(value);
+     };
    };
- }));
+ }),directory);
  await page.evaluate(isPrefsUpgrade=>new Promise((resolve,reject)=>{
    const req=indexedDB.open('tiantianjian',1);
    req.onerror=()=>reject(req.error);
@@ -128,7 +136,7 @@ try {
  ]);
  await nav('我的').click();
  await expect(page.getByText('V'+currentVersion,{exact:true})).toBeVisible();
- assert.deepEqual(await read(),before);
+ assert.deepEqual(await read(v32),before);
  if(v241){
    await nav('食谱').click();
    await page.getByRole('button',{name:'生成设置',exact:true}).click();
@@ -144,7 +152,7 @@ try {
  await ctx.setOffline(true);
  await page.getByRole('button',{name:'重生成未执行餐次'}).click();
  await expect(page.getByText('七天食谱已生成。')).toBeVisible({timeout:20000});
- const after=await read();
+ const after=await read(v32);
  assert.equal(after.plan.algorithmVersion,latestAlgorithm);
  assert.deepEqual(after.plan.days[0].meals[0],before.plan.days[0].meals[0]);
  for(const key of ['history','profile','weights','pantry','favorites','supply'])assert.deepEqual(after[key],before[key],key);

@@ -133,6 +133,7 @@ export function Sheet({title,children,close,kind='sheet',subtitle,onBack}:{title
 }
 
 const views=new Map<string,unknown>();
+export const resetRememberedViews=()=>views.clear();
 export function useRemembered<T>(key:string,initial:T) {
   const [value,setValue]=useState<T>(()=>views.has(key)?views.get(key) as T:initial);
   useEffect(()=>{views.set(key,value);},[key,value]);

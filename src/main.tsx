@@ -1,4 +1,4 @@
-import {Action,Icon,IconButton,knownLayer,ListRow,PageHeader,Sheet,Skeleton,type IconName} from './design';
+import {Action,Icon,IconButton,knownLayer,ListRow,PageHeader,resetRememberedViews,Sheet,Skeleton,type IconName} from './design';
 import {createPortal} from 'react-dom';
 import {PoolPage,type GenerationDraft,type PreferenceUpdate} from './PoolPage';
 import {executeJobs,type TaskAction} from './execution';
@@ -14,6 +14,7 @@ import type {CookingProfile} from './cooking-profile';
 import {StrictMode,Suspense,lazy,useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Dashboard} from './Dashboard';
+import {BackupImport,ProfileManager} from './ProfileManager';
 import {ProfileForm} from './ProfileForm';
 import {PlanPage} from './PlanPage';
 import {coreSignature} from './food-semantics';
@@ -29,7 +30,7 @@ import {energyNeedsReview,nutrition} from './nutrition';
 import {validWeights,weightInRange,weightTrend} from './weight';
 import {algorithmVersion,compatibleVersion,executionLocked,replacementRestrictions,newPlanStart,regenerate,revise,verifyAgainst,type Change,type Lock,type Plan,type StartChoice} from './planner';
 import {prepPlan,purchasesFromLogistics,type Pantry} from './shopping';
-import {DataConflict,backupLimit,downloadFile,fresh,loadData,parseBackup,storageChannel,writeData,type Data} from './store';
+import {DataConflict,addProfile,downloadFile,exportProfiles,exportRawLocalData,loadData,loadDirectory,removeProfile,restoreProfiles,selectProfile,storageChannel,writeData,type Data,type ProfileDirectory} from './store';
 import {decimal,Empty,planText,SectionTitle,shareText,planDay} from './ui';
 import './style.css';
 
@@ -56,11 +57,56 @@ function clearLegacyPrices(pantry:Pantry,id?:string) {
 }
 const errorText=(e:unknown)=>e instanceof Error?e.message:'操作未完成，请重试。';
 
-function App() {
+type ProfileView={directory:ProfileDirectory;editing?:string;message?:string};
+type DirectoryAction=()=>Promise<{editing?:string;message?:string;followPointer?:boolean}|void>;
+
+function AppRoot() {
+  const [view,setView]=useState<ProfileView>();
+  const [fatal,setFatal]=useState('');
+  const active=useRef<string|null|undefined>(undefined),changing=useRef(false),reading=useRef(0);
+  useEffect(()=>{
+    let mounted=true;
+    const reload=async()=>{
+      const request=++reading.current;
+      try{
+        const directory=await loadDirectory();
+        if(!mounted||request!==reading.current||changing.current)return;
+        // 已打开的标签页继续编辑自己的档案。被删除时才跟随有效指针。
+        if(active.current&&directory.profiles.some(entry=>entry.id===active.current))directory.activeProfileId=active.current;
+        if(active.current!==directory.activeProfileId)resetRememberedViews();
+        active.current=directory.activeProfileId;
+        setView(previous=>previous?.directory.activeProfileId===directory.activeProfileId?{...previous,directory}:{directory});
+      }catch(e){if(mounted)setFatal(errorText(e));}
+    };
+    void reload();
+    const channel=typeof BroadcastChannel==='undefined'?undefined:new BroadcastChannel(storageChannel);
+    channel?.addEventListener('message',reload);
+    return ()=>{mounted=false;channel?.close();};
+  },[]);
+  const change=async(action:DirectoryAction)=>{
+    if(changing.current)throw Error('正在更新档案，请稍候。');
+    changing.current=true;
+    try{
+      const result=await action(),directory=await loadDirectory();
+      if(!result?.editing&&!result?.followPointer&&active.current&&directory.profiles.some(entry=>entry.id===active.current))
+        directory.activeProfileId=active.current;
+      if(directory.activeProfileId!==active.current)resetRememberedViews();
+      active.current=directory.activeProfileId;
+      setView({directory,...result});
+    }finally{changing.current=false;}
+  };
+  if(fatal)return <main className="shell container"><Empty title="读取本机数据失败"><p>{fatal}</p><button onClick={()=>location.reload()}>重新读取</button>
+    <button onClick={()=>void exportRawLocalData().then(json=>downloadFile('天天减-原始数据.json',json)).catch(e=>setFatal(errorText(e)))}>导出本机原始数据</button></Empty></main>;
+  if(!view)return <main className="shell container"><Skeleton label="正在读取本机档案…"/></main>;
+  return <App key={view.directory.activeProfileId??'empty'} {...view} changeDirectory={change}/>;
+}
+function App({directory,editing,message,changeDirectory}:ProfileView&{changeDirectory:(action:DirectoryAction)=>Promise<void>}) {
+  const profileId=directory.activeProfileId;
+  const firstPage=editing&&editing===profileId?'编辑档案':'首页';
   const [data,setData]=useState<Data|null>(null);
   const [fatal,setFatal]=useState('');
-  const [page,setPage]=useState('首页'),[status,setStatus]=useState<{text:string;error?:boolean}|null>(null);
-  const pageRef=useRef('首页'),position=useRef(0);
+  const [page,setPage]=useState(firstPage),[status,setStatus]=useState<{text:string;error?:boolean}|null>(message?{text:message}:null);
+  const pageRef=useRef(firstPage),position=useRef(0);
   const scrollPositions=useRef(new Map<number,number>()),skipPop=useRef(false);
   const [day,setDay]=useState(0),[seed,setSeed]=useState(''),[archived,setArchived]=useState<Plan|null>(null);
   const [historyQuote,setHistoryQuote]=useState<Logistics|undefined>();
@@ -68,6 +114,7 @@ function App() {
   const [libraryQuery,setLibraryQuery]=useState('');
   const [update,setUpdate]=useState<ServiceWorker|null>(null),[canInstall,setInstall]=useState<InstallEvent|null>(null);
   const [confirmDelete,setConfirmDelete]=useState(false);
+  const [manage,setManage]=useState(false),[importing,setImporting]=useState(false);
   const [overlayBody,setOverlayBody]=useState<Element|null>(null);
   useEffect(()=>{
     const changed=()=>setOverlayBody([...document.querySelectorAll('dialog[open] .sheet-body')].at(-1)??null);
@@ -86,14 +133,14 @@ function App() {
   },[]);
   useEffect(()=>{
     window.history.scrollRestoration='manual';
-    window.history.replaceState({ttjPage:'首页',ttjPosition:0},'');
+    window.history.replaceState({ttjPage:firstPage,ttjPosition:0,ttjProfile:profileId},'');
     const onPop=(event:PopStateEvent)=>{
       if(event.state?.ttjLayer&&!knownLayer(event.state.ttjLayer)){window.history.back();return;}
-      const target=event.state?.ttjPage??'首页';
+      const target=event.state?.ttjProfile===profileId?event.state?.ttjPage??'首页':'首页';
       const next=Number(event.state?.ttjPosition??0);
       if(skipPop.current){skipPop.current=false;return;}
       if(target===pageRef.current)return;
-      if(pageRef.current==='生成设置'&&unsaved.current&&!confirm('基本或采购设置尚未保存。离开并放弃改动？')) {
+      if(['生成设置','编辑档案'].includes(pageRef.current)&&unsaved.current&&!confirm('有改动尚未保存。离开并放弃改动？')) {
         skipPop.current=true;window.history.go(position.current-next);return;
       }
       unsaved.current=false;
@@ -111,10 +158,12 @@ function App() {
 
   useEffect(()=>{
     let active=true;
-    const reload=()=>void loadData().then(d=>{if(active)setData(d);}).catch(e=>{if(active)setFatal(errorText(e));});
+    const reload=()=>void loadData(profileId).then(d=>{if(active)setData(d);}).catch(e=>{if(active)setFatal(errorText(e));});
     reload();
     const channel=typeof BroadcastChannel==='undefined'?undefined:new BroadcastChannel(storageChannel);
-    channel?.addEventListener('message',reload);
+    channel?.addEventListener('message',event=>{
+      if(event.data?.id===profileId||!event.data?.id)void loadData(profileId).then(d=>{if(active)setData(d);}).catch(()=>{});
+    });
     return ()=>{active=false;channel?.close();};
   },[]);
   useEffect(()=>{
@@ -160,7 +209,8 @@ function App() {
     document.documentElement.dataset.theme=data?.theme==='深色'?'dark':data?.theme==='浅色'?'light':'system';
   },[data?.theme]);
   function go(target:string) {
-    if(page==='生成设置'&&target!==page&&unsaved.current) {
+    if(target==='编辑档案'&&profileId===null){void profileAction('新建');return;}
+    if(['生成设置','编辑档案'].includes(page)&&target!==page&&unsaved.current) {
       if(!confirm('基本或采购设置尚未保存。离开并放弃这些改动？食材偏好会继续自动保存。'))return;
       unsaved.current=false;
     }
@@ -168,7 +218,7 @@ function App() {
     scrollPositions.current.set(position.current,window.scrollY);
     position.current++;
     pageRef.current=target;
-    window.history.pushState({ttjPage:target,ttjPosition:position.current},'');
+    window.history.pushState({ttjPage:target,ttjPosition:position.current,ttjProfile:profileId},'');
     if(target==='食谱')setDay(planDay(data?.plan?.start,dateKey()));
     setPage(target);setStatus(null);window.scrollTo(0,0);
   }
@@ -215,16 +265,16 @@ function App() {
     const result=preferenceQueue.current.then(async()=>{
       for(let attempt=0;attempt<5;attempt++) {
         try {
-          const current=await loadData();
+          const current=await loadData(profileId);
           const next=update(current);
-          await writeData(next,current);
-          setData(await loadData());
+          await writeData(profileId,next,current);
+          setData(await loadData(profileId));
           if(message)notify(message);
           return true;
         }catch(error) {
           if(error instanceof DataConflict&&attempt<4)continue;
           notify(errorText(error),true);
-          try {setData(await loadData());} catch { /* 已显示保存错误。 */ }
+          try {setData(await loadData(profileId));} catch { /* 已显示保存错误。 */ }
           return false;
         }
       }
@@ -247,12 +297,12 @@ function App() {
     saving.current=true;
     try {
       const next={...data!,...changes};
-      await writeData(next,data!);setData(next);
+      await writeData(profileId,next,data!);setData(next);
       if(message)notify(message);
       return true;
     } catch(e) {
       if(e instanceof DataConflict) {
-        try {setData(await loadData());} catch(reloadError) {notify(errorText(reloadError),true);return false;}
+        try {setData(await loadData(profileId));} catch(reloadError) {notify(errorText(reloadError),true);return false;}
       }
       notify(errorText(e),true);return false;
     } finally {saving.current=false;}
@@ -272,7 +322,7 @@ function App() {
     try {
       if(await preferenceQueue.current===false||writeFailed.current)throw Error('最近一次设置未能保存，请核对后再次保存设置。');
       if(call!==generation.current)return;
-      const current=await loadData();
+      const current=await loadData(profileId);
       const currentProfile=current.profile;
       if(!currentProfile)throw Error('请先保存个人档案。');
       const currentPlan=current.plan;
@@ -327,8 +377,8 @@ function App() {
       const nextSettings=change&&next.pool&&(change.expandPool||change.weekFruit||change.swapMode&&next.pool.settings.fruitPolicy==='每周固定一种')
         ?{...next.pool.settings,planCaps:undefined}:current.poolSettings;
       const updated={...current,plan:next,locks:current.locks,poolSettings:nextSettings};
-      await writeData(updated,current);
-      setData(await loadData());
+      await writeData(profileId,updated,current);
+      setData(await loadData(profileId));
       if (!change) {go('食谱');setDay(planDay(next.start,dateKey()));}
       else if(page==='菜谱库') {go('食谱');setDay(change.day);}
       const previousBuy=new Map(priorQuote?.lines.map(l=>[l.id,l.remaining]));
@@ -337,7 +387,7 @@ function App() {
       notify(change?'调整完成，已同步采购和备餐。'+rest:'七天食谱已生成。');
     } catch(e) {
       if(call===generation.current){
-        if(e instanceof DataConflict)try {setData(await loadData());}catch { /* 保留现有页面数据。 */ }
+        if(e instanceof DataConflict)try {setData(await loadData(profileId));}catch { /* 保留现有页面数据。 */ }
         notify(errorText(e),true);
       }
     }
@@ -415,15 +465,29 @@ function App() {
   }
   async function saveProfile(p:Profile) {
     const phase=data!.weightPhase??(weightInRange(Number(profile?.weight??p.weight))?{kg:Number(profile?.weight??p.weight)}:undefined);
-    if(await mutate({profile:p,weightPhase:phase})) {go('首页');notify('个人档案已保存到本机。');return true;}
+    if(await mutate({profile:p,weightPhase:phase})) {unsaved.current=false;go('首页');notify('个人档案已保存到本机。');return true;}
     return false;
   }
-  async function restore(file:File) {
-    try {
-      if (file.size>backupLimit) throw Error('备份文件过大。');
-      const state=parseBackup(await file.text(),today);
-      if (confirm('用这份备份覆盖本机数据？如需保留现有资料，请先导出。')) await mutate({...state,supply:state.supply,poolSettings:state.poolSettings,poolTemplates:state.poolTemplates,weightPhase:state.weightPhase},'备份已恢复。');
-    } catch(e){notify(errorText(e),true);}
+  async function changeProfiles(action:DirectoryAction) {
+    if(saving.current||pendingWrites.current){notify('正在保存，请稍候重试。',true);return false;}
+    if(unsaved.current&&!confirm('有未保存的改动。放弃并继续？'))return false;
+    unsaved.current=false;
+    if(working.current)cancelGeneration();
+    try{await changeDirectory(action);return true;}
+    catch(e){notify(errorText(e),true);return false;}
+  }
+  async function profileAction(action:'新建'|'切换'|'编辑'|'删除',id?:string) {
+    if(action==='编辑'&&id===profileId){setManage(false);go('编辑档案');return;}
+    if(await changeProfiles(async()=>{
+      if(action==='新建')return {editing:await addProfile()};
+      if(action==='删除'){await removeProfile(id!);return {message:'已删除指定档案。'};}
+      await selectProfile(id!);
+      return action==='编辑'?{editing:id}:{followPointer:true};
+    })){setManage(false);if(action==='删除'&&id!==profileId)notify('已删除指定档案。');}
+  }
+  async function exportArchive(id:string|null) {
+    try {downloadFile('天天减-'+(id?'个人':'全部')+'备份-'+dateKey()+'.json',await exportProfiles(id));}
+    catch(e){notify(errorText(e),true);}
   }
   async function receipt(source:string,value?:Receipt) {
     try {
@@ -557,7 +621,7 @@ function App() {
     <header className="topbar"><div className="shell topbar-inner">
       {routes[page]?<><IconButton icon="back" label="返回" onClick={goBack}/><span className="app-bar-name">{routes[page].title}</span></>:
         <button className="brand" onClick={()=>go('首页')}><img src={import.meta.env.BASE_URL+'icon-192.png'} alt=""/><span>天天减</span></button>}
-      <button className="top-profile" aria-label="我的档案与设置" onClick={()=>go('我的')}>{profile?.name?.slice(0,1)||<Icon name="user" size={20}/>}</button>
+      <button className="top-profile" aria-label="我的档案与设置" onClick={()=>setManage(true)}>{profile?.name?.slice(0,1)||<Icon name="user" size={20}/>}</button>
     </div></header>
     <main className="shell container">
       {busy&&<div className="hint generation-progress" role="status"><span>正在搭配未来七天的食谱…</span><button onClick={cancelGeneration}>取消生成</button></div>}
@@ -569,7 +633,7 @@ function App() {
         saveDeficit={value=>profile?mutate({profile:{...profile,deficit:value}},'热量设置已保存。'):Promise.resolve(false)}
         write={rows=>mutate({weights:rows},'称重记录已保存。')} resetPhase={kg=>mutate({weightPhase:{kg,date:today}},'已开启新的体重阶段。')}/>}
       {page==='编辑档案'&&<><PageHeader title={profile?'编辑个人档案':'建立个人档案'} subtitle="身体数据只保存在这台设备。"/>
-        <ProfileForm value={profile} hasWeightLog={validWeights(weights,today).length>0} onSave={saveProfile} onCancel={()=>go(profile?'我的':'首页')}/></>}
+        <ProfileForm value={profile} recordedWeight={validWeights(weights,today).length>0?latestWeight:undefined} onSave={saveProfile} onDirty={markSettingsDirty} onCancel={()=>go(profile?'我的':'首页')}/></>}
       {page==='食谱'&&<PlanPage plan={plan} {...planProps}/>}
       {page==='生成设置'&&profile&&<PoolPage initial={data.poolSettings??defaultPool} previous={plan?.pool}
         templates={data.poolTemplates??[]} stock={balances(ledger)} quote={quote} busy={busy} supply={activeSettings} profile={profile}
@@ -623,6 +687,8 @@ function App() {
           <div><h2>{profile?.name||'个人档案'}</h2><p className="meta">{profile?profile.goal+' · '+profile.meals+' 餐计划':'填写档案后开始配餐'}</p></div>
           <Action icon="edit" onClick={()=>go('编辑档案')}>{profile?'编辑档案':'填写档案'}</Action>
         </section>
+        <div className="actions"><button onClick={()=>setManage(true)}>档案管理</button>
+          <button onClick={()=>void profileAction('新建')}>新建档案</button></div>
         <h2 className="settings-caption">食谱与食材</h2>
         <div className="row-stack">
           <ListRow icon={<Icon name="book"/>} title="食谱大全" detail="按餐次、厨具与做法浏览" label="食谱大全" onClick={()=>{setLibraryQuery('');go('菜谱库');}}/>
@@ -643,14 +709,15 @@ function App() {
           <details><summary>添加到主屏幕</summary><p>安卓 Chrome 打开浏览器右上角菜单，选「安装应用」或「添加到主屏幕」。iPhone 用 Safari 打开，点分享，再选「添加到主屏幕」。</p></details>
         </details>
         <details className="card settings-group"><summary><Icon name="box" size={18}/>本机数据与备份</summary><p>同一设备和浏览器共享本机存储。换手机、使用隐私浏览或清除站点数据可能丢失档案和记录。建议定期导出备份，备份含健康信息，请妥善保存。</p>
-          <div className="actions"><button onClick={()=>downloadFile('天天减-个人备份-'+dateKey()+'.json',JSON.stringify(data))}>导出个人备份</button>
-            <label className="file-button">导入并恢复<input type="file" aria-label="导入并恢复" accept=".json,application/json" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)void restore(f);}}/></label>
+          <div className="actions">{profileId&&<button onClick={()=>void exportArchive(profileId)}>导出个人备份</button>}
+            <button onClick={()=>void exportArchive(null)}>导出全部档案</button>
+            <button onClick={()=>setImporting(true)}>导入并恢复</button>
             <button className="danger" onClick={()=>setConfirmDelete(true)}>删除全部数据</button>
           </div>
           {confirmDelete&&<Sheet title="删除本机数据" kind="dialog" close={()=>setConfirmDelete(false)}>
             <p>此操作将删除这台设备的档案、食谱、库存和体重记录。请确认已导出需要的备份。</p>
             <div className="actions"><button onClick={()=>setConfirmDelete(false)}>取消</button><Action icon="trash" className="danger"
-              onClick={()=>void mutate({...fresh(),supply:undefined,poolTemplates:undefined,weightPhase:undefined},'本机个人数据已清除。').then(ok=>{if(ok)setConfirmDelete(false);})}>确认删除</Action></div>
+              onClick={()=>{if(confirm('再次确认删除所有档案及其记录？'))void changeProfiles(async()=>{await removeProfile(null);return {message:'本机个人数据已清除。'};});}}>确认删除</Action></div>
           </Sheet>}
         </details>
         <details className="card settings-group"><summary><Icon name="shield" size={18}/>隐私与健康说明</summary><p>应用无需账号。档案、体重及健康信息在设备上处理，分享食谱只包含餐次、菜名和食材重量。访问网站由静态托管服务处理普通网页请求。</p>
@@ -674,9 +741,15 @@ function App() {
         <ShoppingPage plan={archived} quote={historyQuote??archived.logistics} historyExecution={archived.executionSnapshot}
           reprice={repriceHistory} repriced={Boolean(historyQuote)} {...shoppingOutput}/></>}
     </main>
+    {manage&&<ProfileManager directory={directory} close={()=>setManage(false)} act={profileAction} exportOne={id=>void exportArchive(id)}/>}
+    {importing&&<BackupImport directory={directory} close={()=>setImporting(false)} restore={async(backup,mode,id)=>{
+      if(await changeProfiles(async()=>{await restoreProfiles(backup,mode,id);return {message:'备份已恢复。',followPointer:mode==='新建'||mode==='全部替换'};})){
+        setImporting(false);notify('备份已恢复。');
+      }
+    }}/>}
     <nav className="bottom-nav" aria-label="主导航"><div className="shell">{pages.map((p,i)=><button key={p} aria-current={page===p||p==='采购'&&page==='备餐'||p==='我的'&&['食材价格','库存','菜谱库','原材料大全','历史方案'].includes(page)?'page':undefined} onClick={()=>go(p)}>
       <Icon name={icons[i]}/>{p}</button>)}</div></nav>
   </>;
 }
 
-createRoot(document.getElementById('root')!).render(<StrictMode><App/></StrictMode>);
+createRoot(document.getElementById('root')!).render(<StrictMode><AppRoot/></StrictMode>);

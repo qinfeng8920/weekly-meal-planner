@@ -19,9 +19,11 @@ export const initialProfile = {
   fixedBreakfast: '', requiredDish: '', fluidLimit: false,
 };
 
-export const deficitModes = ['系统推荐','维持体重','缓慢减脂','适中减脂','自定义'] as const;
-export type DeficitPreference = {mode:typeof deficitModes[number];standard?:number;normalOptIn?:boolean};
-export type Profile = typeof initialProfile & {deficit?:DeficitPreference;mealPreferences?:Partial<Record<MainMeal,MealPreference>>;cooking?:CookingProfile};
+export const deficitModes = ['系统推荐','维持体重','缓慢减脂','适中减脂','缓慢增重','适中增重','自定义'] as const;
+export type DeficitPreference = {mode:typeof deficitModes[number];standard?:number;normalOptIn?:boolean;unit?:'千卡'|'百分比';curve?:'percent'};
+export const gainRiskItems=['近期非自主减重','连续超过 5 天进食很少或没有进食','已知营养不良或再喂养风险','可能影响进食、体重或电解质的疾病及用药'] as const;
+export type GainScreen={risks:typeof gainRiskItems[number][];reviewed:boolean;professionalClearance:boolean};
+export type Profile = typeof initialProfile & {deficit?:DeficitPreference;gainScreen?:GainScreen;mealPreferences?:Partial<Record<MainMeal,MealPreference>>;cooking?:CookingProfile};
 export type Weight = { date: string; kg: number; waist?: number };
 export const split = (value: string) => value.split(/[、,，;；\n]/).map(x => x.trim()).filter(Boolean);
 
