@@ -1130,7 +1130,10 @@ test('新的增重目标必须高于当前体重并处于适用范围',async({pa
 
 test('五个本地档案切换和删除，增重食谱及账本独立',async({page,context})=>{
   await setup(page,{...demo,name:'甲档案'});
-  await generate(page);
+  await page.getByRole('button',{name:'生成设置',exact:true}).click();
+  await page.getByLabel('食谱从哪天开始').selectOption('今天');
+  await page.getByRole('button',{name:'重新搭配',exact:true}).click();
+  await expect(page.getByText('七天食谱已生成。')).toBeVisible();
   page.once('dialog',dialog=>dialog.accept('甲的历史'));
   await page.getByRole('button',{name:'保存到历史'}).click();
   await expect(page.getByText('已保存到历史方案。')).toBeVisible();
@@ -1139,6 +1142,8 @@ test('五个本地档案切换和删除，增重食谱及账本独立',async({pa
   await page.getByLabel('实际支付（元，可选）').fill('12');
   await page.getByRole('button',{name:'保存实际购买'}).click();
   await expect(page.getByText('采购记录已更新。')).toBeVisible();
+  const paid=page.locator('.purchase-totals dt').filter({hasText:/^已实际支付$/}).locator('..').locator('dd');
+  await expect(paid).toHaveText('¥12.00');
   const open=()=>page.getByRole('button',{name:'我的档案与设置'}).click();
   const create=async(profile:typeof demo)=>{
     await open();
@@ -1177,7 +1182,7 @@ test('五个本地档案切换和删除，增重食谱及账本独立',async({pa
   await nav(page,'我的').click();
   await expect(page.getByRole('button',{name:'历史方案 · 1'})).toBeVisible();
   await nav(page,'采购').click();
-  await expect(page.getByText('¥12.00').first()).toBeVisible();
+  await expect(paid).toHaveText('¥12.00');
   await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
   await context.setOffline(true);
   await page.reload();
