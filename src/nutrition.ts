@@ -72,7 +72,8 @@ export function nutrition(p:Profile,records:Weight[]=[],today=dateKey()):Targets
     age>=65?'65 岁起采用保守维持':
     abrupt?'近期称重变化异常，请复测并核对，先按维持估算':
     normal&&intent==='系统推荐'?'正常 BMI 的默认推荐为维持':
-    normal&&!normalEligible?'正常 BMI 下未确认适用，或健康标签需先核对，当前按维持估算':'';
+    normal&&p.conditions.length>0?'档案有健康注意事项，正常 BMI 下先按维持估算':
+    normal&&!normalEligible?'尚未确认正常 BMI 下适合减脂，当前按维持估算':'';
   const transitionCap=intent!=='系统推荐'&&!normalEligible?scaled*autoRamp:scaled;
   const safetyCap=stopped?0:Math.max(0,Math.min(tdee-floor,transitionCap-(rapid?150:0)));
   const effective=Math.min(scaled,safetyCap);

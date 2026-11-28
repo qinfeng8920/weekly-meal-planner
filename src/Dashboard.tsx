@@ -1,8 +1,9 @@
+import {DeficitChoice,NormalDeficitConsent,usesExplicitDeficit} from './DeficitFields';
 import {Action,CategoryGlyph,Icon,PageHeader,Progress,Sheet,StatusLabel} from './design';
 import {nextPrep,weeklyPurchases} from './plan-progress';
 import {useState} from 'react';
-import {dateKey,type Profile,type Weight} from './profile';
-import {type Targets} from './nutrition';
+import {dateKey,type DeficitPreference,type Profile,type Weight} from './profile';
+import {nutrition,type Targets} from './nutrition';
 import {type Plan} from './planner';
 import {decimal,Empty,integer,SectionTitle} from './ui';
 import {calendarAge,meanWeight,updateWeight,validWeights,weightInRange,weightProgress} from './weight';
@@ -12,10 +13,11 @@ import type {SupplySettings,ShoppingSchedule} from './batches';
 import type {Execution} from './execution';
 import type {Logistics} from './logistics';
 
-type DashboardProps={profile:Profile|null;t:Targets|null;reason:string;weights:Weight[];plan:Plan|null;stale:boolean;targetChanged:boolean;today:string;phase?:{kg:number;date?:string};resetPhase:(kg:number)=>Promise<boolean>;
+type DashboardProps={profile:Profile|null;t:Targets|null;reason:string;weights:Weight[];plan:Plan|null;stale:boolean;targetChanged:boolean;today:string;phase?:{kg:number;date?:string};resetPhase:(kg:number)=>Promise<boolean>;saveDeficit:(value:DeficitPreference)=>Promise<boolean>;
   quote?:Logistics;poolCount:number;poolMode:PoolSettings['mode'];schedule?:ShoppingSchedule['count'];prep:SupplySettings['prep'];execution?:Execution;generate:()=>void;updatePlan:()=>void;busy:boolean;go:(page:string)=>void;edit:()=>void;write:(weights:Weight[])=>Promise<boolean>};
-export function Dashboard({profile,t,reason,weights,phase,plan,stale,targetChanged,today,resetPhase,quote,poolCount,poolMode,schedule,prep,execution,generate,updatePlan,busy,go,edit,write}:DashboardProps) {
+export function Dashboard({profile,t,reason,weights,phase,plan,stale,targetChanged,today,resetPhase,saveDeficit,quote,poolCount,poolMode,schedule,prep,execution,generate,updatePlan,busy,go,edit,write}:DashboardProps) {
   const [showWeight,setShow]=useState(false);
+  const [showDeficit,setShowDeficit]=useState(false);
   const ordered=validWeights(weights,today);
   const progress=profile?weightProgress(profile,ordered,phase):null;
   const next=quote?nextPrep(quote,execution):undefined;
@@ -38,10 +40,11 @@ export function Dashboard({profile,t,reason,weights,phase,plan,stale,targetChang
         <div className="weight-values"><div><span>当前体重</span><strong>{progress&&weightInRange(progress.current)?decimal(progress.current):'—'} <small>千克</small></strong></div>
           <div><span>目标体重</span><b>{progress?.target==null?'—':decimal(progress.target)} <small>千克</small></b></div></div>
         {progress?.percent!=null&&<Progress value={progress.percent} max={100} label="体重目标进度"/>}
-        {progress&&weightInRange(progress.initial)&&<p className="weight-note">起点 {decimal(progress.initial)} 千克{phase?.date?' · '+phase.date:''}
-          {progress.lost!==null?' · '+(progress.lost<0?'较起点增加 '+decimal(-progress.lost):'累计减重 '+decimal(progress.lost))+' 千克':''}
-          {progress.distance!==null?' · '+(progress.distance>0?'距目标 '+decimal(progress.distance)+' 千克':'已达到目标'):''}
-          {progress.percent!==null&&<strong>{Math.round(progress.percent)}%</strong>}</p>}
+        {progress&&weightInRange(progress.initial)&&<p className="weight-note"><span className="weight-note-parts">
+          <span>起点 {decimal(progress.initial)} 千克{phase?.date?' · '+phase.date:''}</span>
+          {progress.lost!==null&&<span>{progress.lost<0?'较起点增加 '+decimal(-progress.lost):'累计减重 '+decimal(progress.lost)} 千克</span>}
+          {progress.distance!==null&&<span>{progress.distance>0?'距目标 '+decimal(progress.distance)+' 千克':'已达到目标'}</span>}
+          </span>{progress.percent!==null&&<strong>{Math.round(progress.percent)}%</strong>}</p>}
       </section>
       <section className="card trend-card"><SectionTitle title="体重趋势"/>
         {ordered.length>1?<WeightChart weights={ordered.slice(-45)}/>:<p className="meta">{ordered.length?'再记录一次体重后显示趋势。':'还没有称重记录。'}</p>}
@@ -50,6 +53,8 @@ export function Dashboard({profile,t,reason,weights,phase,plan,stale,targetChang
       <div className="home-task-grid">
         <section className="card home-task"><Icon name="bars"/><h2>每日热量目标</h2><strong>{t?integer(t.kcal):'—'} <small>千卡</small></strong>
           {reason&&<p className="meta">{reason}</p>}{t?.energy&&<><p className="meta">实际模式 · {t.energy.mode}</p>
+            {t.energy.mode==='维持体重'&&profile.goal==='减脂'&&<p className="meta">{t.energy.adjustment}</p>}
+            {profile.goal==='减脂'&&<button className="flat small" onClick={()=>setShowDeficit(true)}>设置热量缺口</button>}
             <EnergyDetails targets={t} plan={plan}/></>}</section>
         <section className="card home-task"><Icon name="basket"/><h2>采购进度</h2><strong>{purchases?.total?purchases.done+' / '+purchases.total:quote?'无需采购':'—'}
           {purchases?.total?<small> 项</small>:null}</strong>
@@ -77,9 +82,40 @@ export function Dashboard({profile,t,reason,weights,phase,plan,stale,targetChang
       </section>
       {plan&&<div className="home-secondary"><button className="flat small" aria-label="生成七天食谱" disabled={busy} onClick={generate}>{busy?'正在搭配食谱…':'重新生成食谱'}</button></div>}
     </div>}
+    {showDeficit&&profile&&t&&<Sheet title="设置热量缺口" close={()=>setShowDeficit(false)}>
+      <QuickDeficit profile={profile} weights={ordered} today={today}
+        save={async value=>{if(await saveDeficit(value))setShowDeficit(false);}}/>
+    </Sheet>}
     {showWeight&&<Sheet title="体重记录" close={()=>setShow(false)}><WeightLog weights={ordered} write={write}/>{progress?.latest&&<details><summary>体重阶段</summary>
       <button onClick={()=>{if(confirm('以最近一次称重开启新阶段？原称重历史会保留。'))void resetPhase(progress.latest!.kg);}}>以最新体重开启新阶段</button></details>}</Sheet>}
   </>;
+}
+
+function QuickDeficit({profile,weights,today,save}:{profile:Profile;weights:Weight[];today:string;save:(value:DeficitPreference)=>Promise<void>}) {
+  const [value,setValue]=useState<DeficitPreference>(profile.deficit??{mode:'系统推荐'});
+  const [saving,setSaving]=useState(false);
+  let preview:Targets|undefined,error='';
+  try {preview=nutrition({...profile,deficit:value},weights,today);}
+  catch(e){error=e instanceof Error?e.message:'请核对热量设置。';}
+  const needsConsent=preview?.energy&&Math.min(preview.bmi,preview.energy.actualBmi)<24&&profile.conditions.length===0
+    &&usesExplicitDeficit(value)&&!value.normalOptIn;
+  return <form onSubmit={async e=>{
+    e.preventDefault();
+    if(!preview||needsConsent||saving)return;
+    setSaving(true);
+    try {await save(value);} finally {setSaving(false);}
+  }}>
+    <p className="meta">这里会按你现有的档案和称重预览。正常 BMI 默认维持，主动确认适用后可以选择温和缺口。</p>
+    <DeficitChoice value={value} onChange={setValue}/>
+    {usesExplicitDeficit(value)&&profile.conditions.length===0&&
+      <NormalDeficitConsent checked={Boolean(value.normalOptIn)} onChange={normalOptIn=>setValue({...value,normalOptIn})}/>}
+    {preview&&<div className="hint" aria-live="polite">
+      <p>预计每日目标 <strong>{integer(preview.kcal)} 千卡</strong></p>
+      <p className="meta">{preview.message}</p>
+    </div>}
+    {error&&<p className="error" role="alert">{error}</p>}
+    <button className="primary" type="submit" disabled={!preview||Boolean(needsConsent)||saving}>{saving?'正在保存…':'保存热量设置'}</button>
+  </form>;
 }
 
 function EnergyDetails({targets,plan}:{targets:Targets;plan:Plan|null}) {

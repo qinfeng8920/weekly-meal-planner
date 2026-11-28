@@ -566,6 +566,7 @@ function App() {
       {page==='首页'&&<Dashboard quote={quote} poolCount={quote?.lines.filter(r=>r.uses.length>0).length??0} profile={profile} t={targets} reason={reason} weights={weights} phase={data.weightPhase} plan={plan} stale={stale} targetChanged={targetChanged} today={today}
         poolMode={(data.poolSettings??defaultPool).mode} schedule={profile?shoppingSchedule(activeSettings,profile).count:undefined}
         prep={activeSettings.prep} execution={supply.execution} generate={()=>void generate()} updatePlan={()=>void generate(undefined,'重新搭配',true)} busy={busy} go={go} edit={()=>go('编辑档案')}
+        saveDeficit={value=>profile?mutate({profile:{...profile,deficit:value}},'热量设置已保存。'):Promise.resolve(false)}
         write={rows=>mutate({weights:rows},'称重记录已保存。')} resetPhase={kg=>mutate({weightPhase:{kg,date:today}},'已开启新的体重阶段。')}/>}
       {page==='编辑档案'&&<><PageHeader title={profile?'编辑个人档案':'建立个人档案'} subtitle="身体数据只保存在这台设备。"/>
         <ProfileForm value={profile} hasWeightLog={validWeights(weights,today).length>0} onSave={saveProfile} onCancel={()=>go(profile?'我的':'首页')}/></>}

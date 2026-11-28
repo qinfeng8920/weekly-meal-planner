@@ -1028,3 +1028,41 @@ test('BMI 连续调整、普通称重保留食谱编辑和已锁菜，起点独�
   await expect(page.getByLabel('当前体重（千克）',{exact:true})).toHaveCount(0);
   await expect(page.getByText(/当前体重由首页称重记录更新/)).toBeVisible();
 });
+
+test('旧档案在首页确认减脂缺口，称重与百分比显示保持正确',async({page})=>{
+  await setup(page,{...demo,age:'25',height:'173',weight:'72',target:'60'});
+  await page.getByRole('button',{name:'记录体重',exact:true}).click();
+  await page.getByLabel('体重（千克）',{exact:true}).fill('71');
+  await page.getByRole('button',{name:'保存体重'}).click();
+  await page.getByRole('button',{name:'关闭',exact:true}).click();
+  const card=page.locator('.home-task').filter({hasText:'每日热量目标'});
+  await expect(card).toContainText('2,006');
+  await expect(card).toContainText('正常 BMI 的默认推荐为维持');
+  for(const width of [320,360,390,430]){
+    await page.setViewportSize({width,height:850});
+    await page.evaluate(()=>{document.documentElement.style.fontSize='22px';});
+    const percent=page.locator('.weight-note > strong');
+    await expect(percent).toHaveText('8%');
+    expect(await percent.evaluate(node=>{
+      const range=document.createRange();
+      range.selectNodeContents(node);
+      const boxes=[...range.getClientRects()];
+      return boxes.length>0&&Math.max(...boxes.map(box=>box.top))<Math.min(...boxes.map(box=>box.bottom));
+    })).toBe(true);
+    await assertFit(page);
+  }
+  await card.getByRole('button',{name:'设置热量缺口',exact:true}).click();
+  const sheet=page.getByRole('dialog',{name:'设置热量缺口'});
+  await sheet.getByLabel('标准热量缺口').selectOption('缓慢减脂');
+  await expect(sheet).toContainText('尚未确认正常 BMI 下适合减脂');
+  await expect(sheet.getByRole('button',{name:'保存热量设置'})).toBeDisabled();
+  await sheet.getByRole('checkbox',{name:/我主动选择在正常 BMI 时减脂/}).check();
+  await expect(sheet).toContainText('1,721 千卡');
+  await sheet.getByRole('button',{name:'保存热量设置'}).click();
+  await expect(card).toContainText('1,721');
+  await expect(card).toContainText('实际模式 · 减脂');
+  await page.reload();
+  await expect(card).toContainText('1,721');
+  await expect(page.locator('.weight-note')).toContainText('起点 72 千克');
+  await expect(page.locator('.weight-values')).toContainText('71');
+});

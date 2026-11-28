@@ -375,7 +375,9 @@ html:has(dialog[open]) {overflow:hidden}
 .weight-values strong {font-size:clamp(1.82rem,8vw,2.55rem);letter-spacing:-.045em}
 .weight-values b {font-size:clamp(1.03rem,4.4vw,1.44rem)}
 .weight-values small {font-size:var(--caption);font-weight:var(--medium);letter-spacing:0}
-.weight-note {font-size:.8rem;color:#dfefe5}
+.weight-note {font-size:.8rem;color:#dfefe5;align-items:flex-start}
+.weight-note-parts {display:flex;flex-wrap:wrap;min-width:0;column-gap:var(--u2)}
+.weight-note > strong {flex:none;white-space:nowrap;font-variant-numeric:tabular-nums}
 .weight-card progress {background:#143f31;accent-color:#bce9cb}
 .weight-card progress::-webkit-progress-bar {background:#143f31}
 .weight-card progress::-webkit-progress-value {background:#bce9cb}

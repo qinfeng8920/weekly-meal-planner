@@ -1,6 +1,7 @@
 import {Action,CategoryGlyph,Icon,Progress} from './design';
+import {DeficitChoice,NormalDeficitConsent,usesExplicitDeficit} from './DeficitFields';
 import {useState, type ReactNode} from 'react';
-import {allergens, conditions, cuisines, equipment, deficitModes,initialProfile, screening, type Profile} from './profile';
+import {allergens, conditions, cuisines, equipment, initialProfile, screening, type Profile} from './profile';
 import {foods} from './catalog';
 import {foodClass} from './catalog-taxonomy';
 import {searchMatches} from './catalog-search';
@@ -32,7 +33,7 @@ export function ProfileForm({value,hasWeightLog,onSave,onCancel}:{value:Profile|
   const check=(key:BoolKey,label:string)=><label className="check"><input type="checkbox" checked={p[key]} onChange={e=>patch(key,e.target.checked)}/>{label}</label>;
   const multi=(key:ArrayKey,label:string,options:string[])=><fieldset className="choices"><legend>{label}</legend><div className="chips">{options.map(option=><label key={option} className={'chip '+(p[key].includes(option)?'selected':'')}>
     <input type="checkbox" checked={p[key].includes(option)} onChange={e=>patch(key,e.target.checked?[...p[key],option]:p[key].filter(s=>s!==option))}/>{option}</label>)}</div></fieldset>;
-  const mode=p.deficit?.mode??'系统推荐';
+  const deficit=p.deficit??{mode:'系统推荐' as const};
   const grids=(...fields:ReactNode[])=><div className="fields">{fields}</div>;
   function advance() {
     const age=Number(p.age);
@@ -43,7 +44,7 @@ export function ProfileForm({value,hasWeightLog,onSave,onCancel}:{value:Profile|
     }
     if(step===0&&p.goal==='减脂') {
       if(+p.target/(+p.height/100)**2<18.5-1e-9){setError('目标体重对应的 BMI 不能低于 18.5。');return;}
-      if(mode==='自定义'&&(p.deficit?.standard===undefined||!between(p.deficit.standard,0,customDeficitLimit))){
+      if(deficit.mode==='自定义'&&(p.deficit?.standard===undefined||!between(p.deficit.standard,0,customDeficitLimit))){
         setError('请输入 0～400 千卡的自定义标准缺口。');return;
       }
     }
@@ -66,12 +67,7 @@ export function ProfileForm({value,hasWeightLog,onSave,onCancel}:{value:Profile|
     <Progress value={step+1} max={titles.length} label="档案填写进度"/>
     {step===0&&<>{grids(text('name','昵称（选填）','text','怎么称呼你'),select('sex','公式使用的性别',['','女','男'],['请选择','女','男']),
       text('age','年龄（岁）','number'),text('height','身高（厘米）','number'),hasWeightLog?<p className="meta">当前体重由首页称重记录更新。档案仅保留首次输入的备用值。</p>:text('weight','当前体重（千克）','number'),
-      select('goal','目标',['减脂','维持体重']),p.goal==='减脂'?text('target','目标体重（千克）','number'):null,p.goal==='减脂'?<label className="field">标准热量缺口<select value={mode}
-        onChange={e=>patch('deficit',{...p.deficit,mode:e.target.value as typeof mode})}>
-        {deficitModes.map((value,i)=><option key={value} value={value}>{['系统推荐','维持体重（0 千卡）','缓慢减脂（300 千卡）','适中减脂（400 千卡）','自定义'][i]}</option>)}
-      </select></label>:null,
-      p.goal==='减脂'&&mode==='自定义'?<label className="field">自定义标准缺口（千卡）<input type="number" min="0" max={customDeficitLimit} step="any"
-        value={p.deficit?.standard??''} onChange={e=>patch('deficit',{...p.deficit,mode,standard:e.target.value===''?undefined:Number(e.target.value)})}/></label>:null,
+      select('goal','目标',['减脂','维持体重']),p.goal==='减脂'?text('target','目标体重（千克）','number'):null,p.goal==='减脂'?<DeficitChoice value={deficit} onChange={value=>patch('deficit',value)}/>:null,
       text('waist','腰围（厘米，选填）','number'),text('fat','体脂率（%，选填）','number'))}
       {p.goal==='减脂'&&<p className="meta">正常 BMI 默认维持。明确启用减脂后，实际缺口仍随 BMI、距目标和健康条件缩小。</p>}</>}
     {step===1&&<>{grids(select('activity','日常活动量',['长期久坐','正常通勤','经常站立走动','体力劳动']),text('exerciseCount','每周运动次数','number'),
@@ -84,9 +80,8 @@ export function ProfileForm({value,hasWeightLog,onSave,onCancel}:{value:Profile|
       {text('otherHealth','其他需要专业评估的情况或药物（选填）')}
       {multi('allergens','食物过敏原',allergens)}
       {text('avoid','强制忌口或其他过敏食材，用顿号分隔','text','如葱、芝麻油')}
-      {p.goal==='减脂'&&mode!=='系统推荐'&&mode!=='维持体重'&&
-        <label className="check"><input type="checkbox" checked={Boolean(p.deficit?.normalOptIn)} onChange={e=>patch('deficit',{...p.deficit,mode,normalOptIn:e.target.checked})}/>
-          我主动选择在正常 BMI 时减脂，已核对健康情况及用药，没有需先由专业人员评估的情况</label>}
+      {p.goal==='减脂'&&usesExplicitDeficit(deficit)&&
+        <NormalDeficitConsent checked={Boolean(deficit.normalOptIn)} onChange={normalOptIn=>patch('deficit',{...deficit,normalOptIn})}/>}
       {check('screened','我已核对年龄、孕哺期、进食障碍及医嘱筛查')}
       {check('allergyChecked','我已核对过敏原与其他强制忌口')}
       {check('fluidLimit','医生要求限水')}
