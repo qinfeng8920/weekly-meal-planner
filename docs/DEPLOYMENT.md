@@ -55,3 +55,7 @@
 ## V3.0 正式验收
 
 代码提交 `89e0bea`。GitHub Actions 通过 68 项模块测试、26 项 Chromium 端到端测试及生产构建，已部署至原 GitHub Pages 地址。匿名 Chromium 访问返回 HTTPS 200，页面显示 V3.0.0。正式 Service Worker 与本地构建逐字节一致，缓存标识为 `59a6a724b5d9`。正式站断网后可保存并恢复多个锁定食材、沿用新设置生成食谱、登记采购、查看分批备餐及在关闭原材料详情后保留搜索。另使用同源旧生产构建验证更新保留 IndexedDB 数据。 [正式发布工作流](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/45989236324)
+
+## V3.1 正式验收
+
+最终代码提交 `9984ce7`。GitHub Actions 通过 74 项模块测试、27 项 Chromium 端到端测试及生产构建。专项 100 个种子通过 100 个，远程执行与复核用时约 5.6 秒。GitHub Pages 已部署到原网址。用独立 Chromium 访问正式站确认版本 V3.1.0，Service Worker 与本地生产构建逐字节一致，缓存标识 `de68df540235`。正式站复现男性 25 岁、173 厘米、久坐、明确选择标准 300 千卡且确认适用的示例，72 至 71 千克时建议热量由 1718 变为 1721 千卡。正式站分别通过离线重配、多食材锁定保存、采购登记、分批备餐和原材料大全返回验证。同源 V3.0 至 V3.1 升级另验证 IndexedDB 数据逐字段保留。 [正式发布工作流](https://github.com/qinfeng8920/weekly-meal-planner/actions/runs/46101638561)
