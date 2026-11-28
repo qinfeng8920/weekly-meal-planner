@@ -7,6 +7,7 @@ import {nutrientCatalogIds,nutrientDatum,nutrientKeys,nutrientsList,publishedFie
 import base from '../src/foods.json';
 import expansion from '../src/foods-v24.json';
 import mext from '../src/foods-mext-v24.json';
+import planningValues from '../src/nutrient-planning-values.json';
 import oldMicros from './nutrition-baseline-v3.2.json';
 
 const gramsFields=new Set<NutrientKey>(['protein','fat','carbs','fiber','sugar','saturated','monounsaturated','polyunsaturated']);
@@ -29,6 +30,11 @@ export function validateNutrientCatalog() {
   assert.equal(new Set(foods.map(f=>f.id)).size,foods.length,'重复食材 ID');
   assert.deepEqual([...nutrientCatalogIds].sort(),foods.map(f=>f.id).sort(),'食材与审核表须一一对应');
   assert.deepEqual(Object.keys(planningNutrition).sort(),[...nutrientCatalogIds].sort(),'配餐索引与审核表须一一对应');
+  assert.deepEqual(Object.keys(planningValues.foods).sort(),[...nutrientCatalogIds].sort(),'营养评分索引与审核表须一一对应');
+  const planningKeys=planningValues.keys as NutrientKey[];
+  assert.equal(new Set(planningKeys).size,planningKeys.length,'营养评分索引的字段重复');
+  assert(planningKeys.every(key=>nutrientKeys.includes(key)),'营养评分索引含未知字段');
+  const scoring=planningValues.foods as Record<string,ReadonlyArray<number|null>>;
   const fdc=new Set<number>(), fingerprints=new Map<string,string>();
   for(const food of foods){
     assert(foodState[food.state],food.id+' 食材缺少有效状态');
@@ -58,6 +64,7 @@ export function validateNutrientCatalog() {
       fingerprints.set(fingerprint,food.id);
     }
     const lookup=(key:NutrientKey)=>nutrientDatum(food.id,key)?.[0]??null;
+    assert.deepEqual(scoring[food.id],planningKeys.map(lookup),food.id+' 评分索引须与审核数值相同');
     const sum=macroKeys.slice(1,4).reduce((total,key)=>total+(lookup(key)??0),0);
     assert(sum<=101,food.id+' 三大宏量营养质量超出 100 克');
     const fat=lookup('fat'), saturated=lookup('saturated');
@@ -88,7 +95,8 @@ function report(){
   const tables=[
     '# V3.2.2 全食材营养补全报告','',
     '范围覆盖全部可食部称量状态和复合调味料。现行档案 Schema 无自定义食材数据表。自定义价格、采购规格和菜谱调整仍引用原食材 ID。','',
-    '定量完整率只统计有数值的字段，低于报告阈值、来源报零但未证实、推定零及未知分别记录。旧版统计按原库可显示的数值计。','',
+    '定量完整率只统计有数值的字段，低于报告阈值、来源报零但未证实、推定零及未知分别记录。下表的旧版统计采用 V3.2.0 基线。','',
+    '上一个正式版本 V3.2.1 记录 224 条食材、36 项字段和 6745 项可定量数据。V3.2.2 增加低钠盐和两种独立成分，可定量数据净增 '+(summary.after-6745)+' 项。两版记录的字段范围不同。','',
     '| 指标 | 结果 |','| --- | ---: |',
     '| 食材记录 | '+raw.length+' → '+foods.length+' |',
     '| 每条食材审查字段 | 14 → '+nutrientKeys.length+' |',
