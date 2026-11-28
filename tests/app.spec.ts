@@ -562,8 +562,8 @@ test('单项和全部清空只改真实库存，撤销后采购恢复，已付�
   await page.getByRole('dialog',{name:/^清空 /}).getByRole('button',{name:'取消',exact:true}).click();
   await page.getByRole('button',{name:'清空此项库存'}).click();
   await page.getByRole('button',{name:'确认清空'}).click();
-  await expect(page.getByRole('dialog',{name:'清空 全鸡蛋'})).toHaveCount(0);
-  await page.getByRole('dialog',{name:'全鸡蛋',exact:true}).getByRole('button',{name:'关闭',exact:true}).click();
+  await expect(page.getByRole('dialog',{name:/^清空 /})).toHaveCount(0);
+  await page.getByRole('dialog').getByRole('button',{name:'关闭',exact:true}).click();
   await expect(page.getByRole('button',{name:'撤销最近清空'})).toBeVisible();
   await nav(page,'采购').click();
   await page.getByText('费用明细',{exact:true}).click();
