@@ -13,12 +13,20 @@ import type {SupplySettings,ShoppingSchedule} from './batches';
 import type {Execution} from './execution';
 import type {Logistics} from './logistics';
 
+const slowLoss:DeficitPreference={mode:'缓慢减脂',normalOptIn:true};
+
 type DashboardProps={profile:Profile|null;t:Targets|null;reason:string;weights:Weight[];plan:Plan|null;stale:boolean;targetChanged:boolean;today:string;phase?:{kg:number;date?:string};resetPhase:(kg:number)=>Promise<boolean>;saveDeficit:(value:DeficitPreference)=>Promise<boolean>;
   quote?:Logistics;poolCount:number;poolMode:PoolSettings['mode'];schedule?:ShoppingSchedule['count'];prep:SupplySettings['prep'];execution?:Execution;generate:()=>void;updatePlan:()=>void;busy:boolean;go:(page:string)=>void;edit:()=>void;write:(weights:Weight[])=>Promise<boolean>};
 export function Dashboard({profile,t,reason,weights,phase,plan,stale,targetChanged,today,resetPhase,saveDeficit,quote,poolCount,poolMode,schedule,prep,execution,generate,updatePlan,busy,go,edit,write}:DashboardProps) {
   const [showWeight,setShow]=useState(false);
-  const [showDeficit,setShowDeficit]=useState(false);
+  const [deficitSheet,setDeficitSheet]=useState<'settings'|'slow'|null>(null);
   const ordered=validWeights(weights,today);
+  let slowPreview:Targets|undefined;
+  if(profile?.goal==='减脂'&&t?.energy?.mode==='维持体重'&&t.energy.intent!=='维持体重'&&
+    (t.energy.intent==='系统推荐'||profile.deficit&&usesExplicitDeficit(profile.deficit))) {
+    const candidate=nutrition({...profile,deficit:slowLoss},ordered,today);
+    if(candidate.energy?.mode==='减脂')slowPreview=candidate;
+  }
   const progress=profile?weightProgress(profile,ordered,phase):null;
   const next=quote?nextPrep(quote,execution):undefined;
   const purchases=quote?weeklyPurchases(quote):undefined;
@@ -47,14 +55,15 @@ export function Dashboard({profile,t,reason,weights,phase,plan,stale,targetChang
           </span>{progress.percent!==null&&<strong>{Math.round(progress.percent)}%</strong>}</p>}
       </section>
       <section className="card trend-card"><SectionTitle title="体重趋势"/>
-        {ordered.length>1?<WeightChart weights={ordered.slice(-45)}/>:<p className="meta">{ordered.length?'再记录一次体重后显示趋势。':'还没有称重记录。'}</p>}
+        {ordered.length>1?<WeightChart weights={ordered.slice(-45)}/>:<p className="meta">{ordered.length?'再记录一次体重后显示趋势。':'还没有称重记录，当前体重来自个人档案。'}</p>}
         {ordered.length>1&&<details><summary>查看体重趋势</summary><Trend weights={ordered} today={today}/></details>}
       </section>
       <div className="home-task-grid">
         <section className="card home-task"><Icon name="bars"/><h2>每日热量目标</h2><strong>{t?integer(t.kcal):'—'} <small>千卡</small></strong>
           {reason&&<p className="meta">{reason}</p>}{t?.energy&&<><p className="meta">实际模式 · {t.energy.mode}</p>
             {t.energy.mode==='维持体重'&&profile.goal==='减脂'&&<p className="meta">{t.energy.adjustment}</p>}
-            {profile.goal==='减脂'&&<button className="flat small" onClick={()=>setShowDeficit(true)}>设置热量缺口</button>}
+            {slowPreview&&<button className="primary small" onClick={()=>setDeficitSheet('slow')}>选择缓慢减脂</button>}
+            {profile.goal==='减脂'&&<button className="flat small" onClick={()=>setDeficitSheet('settings')}>设置热量缺口</button>}
             <EnergyDetails targets={t} plan={plan}/></>}</section>
         <section className="card home-task"><Icon name="basket"/><h2>采购进度</h2><strong>{purchases?.total?purchases.done+' / '+purchases.total:quote?'无需采购':'—'}
           {purchases?.total?<small> 项</small>:null}</strong>
@@ -82,12 +91,32 @@ export function Dashboard({profile,t,reason,weights,phase,plan,stale,targetChang
       </section>
       {plan&&<div className="home-secondary"><button className="flat small" aria-label="生成七天食谱" disabled={busy} onClick={generate}>{busy?'正在搭配食谱…':'重新生成食谱'}</button></div>}
     </div>}
-    {showDeficit&&profile&&t&&<Sheet title="设置热量缺口" close={()=>setShowDeficit(false)}>
+    {deficitSheet==='settings'&&profile&&t&&<Sheet title="设置热量缺口" close={()=>setDeficitSheet(null)}>
       <QuickDeficit profile={profile} weights={ordered} today={today}
-        save={async value=>{if(await saveDeficit(value))setShowDeficit(false);}}/>
+        save={async value=>{if(await saveDeficit(value))setDeficitSheet(null);}}/>
+    </Sheet>}
+    {deficitSheet==='slow'&&slowPreview&&<Sheet title="选择缓慢减脂" close={()=>setDeficitSheet(null)}>
+      <ConfirmSlowDeficit preview={slowPreview} cancel={()=>setDeficitSheet(null)}
+        save={async()=>{if(await saveDeficit(slowLoss))setDeficitSheet(null);}}/>
     </Sheet>}
     {showWeight&&<Sheet title="体重记录" close={()=>setShow(false)}><WeightLog weights={ordered} write={write}/>{progress?.latest&&<details><summary>体重阶段</summary>
       <button onClick={()=>{if(confirm('以最近一次称重开启新阶段？原称重历史会保留。'))void resetPhase(progress.latest!.kg);}}>以最新体重开启新阶段</button></details>}</Sheet>}
+  </>;
+}
+
+function ConfirmSlowDeficit({preview,cancel,save}:{preview:Targets;cancel:()=>void;save:()=>Promise<void>}) {
+  const [saving,setSaving]=useState(false);
+  return <>
+    <div className="hint">
+      <p>启用后预计每日目标 <strong>{integer(preview.kcal)} 千卡</strong></p>
+      <p className="meta">标准缺口 300 千卡，按档案计算后约 {integer(preview.energy!.effective)} 千卡。</p>
+    </div>
+    <p>请先核对健康情况和用药。仅在你主动选择减脂，且没有需要先由专业人员评估的情况时确认。</p>
+    <button className="primary" disabled={saving} onClick={async()=>{
+      setSaving(true);
+      try {await save();} finally {setSaving(false);}
+    }}>{saving?'正在保存…':'确认适用并启用'}</button>
+    <button className="flat" disabled={saving} onClick={cancel}>继续维持体重</button>
   </>;
 }
 

@@ -1066,3 +1066,32 @@ test('旧档案在首页确认减脂缺口，称重与百分比显示保持正�
   await expect(page.locator('.weight-note')).toContainText('起点 72 千克');
   await expect(page.locator('.weight-values')).toContainText('71');
 });
+
+test('档案体重 71 千克可直接预览缓慢减脂，取消或确认各自生效',async({page,context})=>{
+  await setup(page,{...demo,age:'25',height:'173',weight:'71',target:'60'});
+  const card=page.locator('.home-task').filter({hasText:'每日热量目标'});
+  const choose=card.getByRole('button',{name:'选择缓慢减脂'});
+  await expect(page.getByText('还没有称重记录，当前体重来自个人档案。')).toBeVisible();
+  await expect(card).toContainText('2,006');
+  await choose.click();
+  const sheet=page.getByRole('dialog',{name:'选择缓慢减脂'});
+  await expect(sheet).toContainText('1,721 千卡');
+  await sheet.getByRole('button',{name:'继续维持体重'}).click();
+  await expect(card).toContainText('2,006');
+  await choose.click();
+  await sheet.getByRole('button',{name:'确认适用并启用'}).click();
+  await expect(card).toContainText('1,721');
+  await expect(card).toContainText('实际模式 · 减脂');
+  await page.waitForFunction(()=>!!navigator.serviceWorker.controller);
+  await context.setOffline(true);
+  await page.reload();
+  await expect(card).toContainText('1,721');
+  await expect(choose).toHaveCount(0);
+});
+
+test('低体重保护边界不出现缓慢减脂快捷选项',async({page})=>{
+  await setup(page,{...demo,age:'25',height:'173',weight:'60',target:'60'});
+  const card=page.locator('.home-task').filter({hasText:'每日热量目标'});
+  await expect(card).toContainText('已达到目标或低体重保护边界');
+  await expect(card.getByRole('button',{name:'选择缓慢减脂'})).toHaveCount(0);
+});
